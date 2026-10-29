@@ -1,8 +1,17 @@
 # Amberwave 0.9.1-beta.1
 
+> **Eine App statt fünf:** Bibliothek, bitgenaue Ausgabe, Effekte, VST3, Routing pro Kanal und Fernsteuerung –
+> ohne virtuelle Kabel, ohne Treiber-Basteleien.
+
 Selbst gehosteter Musikserver für die Familie: deine Sammlung (FLAC & Co.) im Browser, als installierbare Web-App und
 im Windows-Client hören – zuhause bitgenau, unterwegs gestreamt, mit sauberen Metadaten von MusicBrainz und
 Fernsteuerung zwischen allen Geräten. *English: [README.md](README.md)*
+
+**Warum Amberwave?** Mein Ziel ist, dass Musikhören am PC wieder ein *Erlebnis* wird – weg von minimalistischen
+Oberflächen, auf denen außer den Covern nichts Farbe hat. Amberwave hat Wärme und Charakter: eine Plattenkiste für die
+Warteschlange, VU-Meter, Röhren und Bandmaschinen im Effektrack. Und es bringt zusammen, wofür man bisher mehrere
+Programme und wackelige Treiber-Routings brauchte – Bibliothek, bitgenaue Wiedergabe, Effekte, Plug-ins,
+Mehrkanal-Routing und Fernsteuerung – an einem Ort.
 
 > **Beta:** Amberwave ist in der öffentlichen Beta. Mach vorher eine Sicherung deiner Musiksammlung. Amberwave liest
 > deine Musik standardmäßig nur – geschrieben wird erst, wenn du es erlaubst.

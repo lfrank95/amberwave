@@ -1,8 +1,17 @@
 # Amberwave
 
+> **One app instead of five:** your library, bit-perfect output, effects, VST3, per-channel routing and remote control –
+> no virtual cables, no driver hacks.
+
 **A self-hosted music server for your family's collection** – listen in the browser, as an installable web app (PWA) or
 in a bit-perfect Windows client. At home you get the original files, on the go a smooth stream; every device can
 remote-control every other one. Metadata comes from MusicBrainz, with credits down to producers and session musicians.
+
+**Why Amberwave?** My goal is to make listening to music on your PC an *experience* again – away from minimalist
+interfaces where the album covers are the only colour on the screen. Amberwave has warmth and character: a record
+crate for your queue, VU meters, tubes and tape machines in the effects rack. And it brings together what used to take
+several programs and sketchy driver routing – library, bit-perfect playback, effects, plug-ins, multi-channel routing
+and remote control – in one place.
 
 > **Public beta – 0.9.1-beta.1.** Please back up your music before you try it. Amberwave only **reads** your music
 > by default; it writes nothing until you allow it. *Deutsche Anleitung: [README.de.md](README.de.md)*
