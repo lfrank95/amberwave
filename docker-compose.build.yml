@@ -20,8 +20,6 @@ services:
     volumes:
       # Database on the SSD: DB_DATA_PFAD, otherwise <APPDATA_PFAD>/db (Unraid e.g. /mnt/cache/appdata/amberwave/db)
       - ${DB_DATA_PFAD:-${APPDATA_PFAD:-.}/db}:/var/lib/mysql
-    networks:
-      - amberwave_net
 
   app:
     # For a stack created through the Unraid UI this file lives on the USB stick – so code and build point
@@ -65,8 +63,6 @@ services:
       - "${APP_BIND:-0.0.0.0}:${APP_PORT:-9950}:80"
       # Direct access on the home network (HTTPS with your own Let's Encrypt certificate) – LAN only, no router port forwarding needed
       - "${APP_BIND:-0.0.0.0}:${LOKAL_HTTPS_PORT:-8443}:8443"
-    networks:
-      - amberwave_net
 
   # On the go: Cloudflare Tunnel (cloudflared, Apache-2.0). Amberwave creates the tunnel under Settings › Access & network
   # and writes the token to <CACHE_PFAD>/tunnel/token – until then this container keeps restarting (harmless).
@@ -86,8 +82,3 @@ services:
       - app
     volumes:
       - ${CACHE_PFAD:-${APPDATA_PFAD:-.}/cache}/tunnel:/tunnel:ro
-    networks:
-      - amberwave_net
-
-networks:
-  amberwave_net:
