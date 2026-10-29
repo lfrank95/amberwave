@@ -47,6 +47,34 @@ function fern_geraet_einst(int $geraet, string $schluessel, $standard)
 }
 
 /** Eigenen Eintrag anlegen/auffrischen */
+/**
+ * Signal „bei Gerät X hat sich etwas getan“ (neuer Befehl, Zustand, Liste, Ziel): eine kleine Datei im Cache. Der Rückkanal
+ * schaut 4× pro Sekunde nur in diese Datei und fragt die Datenbank erst, wenn sich etwas geändert hat – statt dauernd.
+ */
+function fern_signal_datei(int $geraet): string
+{
+    return konfig()['pfade']['cache'] . '/tmp/fern/' . $geraet . '.sig';
+}
+
+function fern_signal(int ...$geraete): void
+{
+    foreach ($geraete as $g) {
+        if ($g <= 0) {
+            continue;
+        }
+        $d = fern_signal_datei($g);
+        if (!is_dir(dirname($d))) {
+            @mkdir(dirname($d), 0775, true);
+        }
+        @file_put_contents($d, (string) hrtime(true));
+    }
+}
+
+function fern_signal_lesen(int $geraet): string
+{
+    return $geraet > 0 ? (string) @file_get_contents(fern_signal_datei($geraet)) : '';
+}
+
 function fern_da(int $geraet, int $user, bool $kanal = false): void
 {
     db_tun('INSERT INTO fern_praesenz (geraet_id, user_id, zuletzt_am' . ($kanal ? ', kanal_am' : '') . ') VALUES (:g, :u, NOW(3)' . ($kanal ? ', NOW(3)' : '') . ')
@@ -175,6 +203,7 @@ function fern_verbinden(array $user): array
     $ziel = (int) api_wert('ziel', 0);
     if ($ziel <= 0 || $ziel === $ich) {
         db_tun('UPDATE fern_praesenz SET ziel_id = NULL WHERE geraet_id = :g', ['g' => $ich]);
+        fern_signal($ich);
         return ['ok' => true, 'ziel' => null];
     }
     $z = fern_geraet($ziel, $user);
@@ -188,6 +217,7 @@ function fern_verbinden(array $user): array
     // Kein Pingpong: steuert das Ziel gerade uns, endet das – wer zuletzt wählt, übernimmt
     db_tun('UPDATE fern_praesenz SET ziel_id = NULL WHERE geraet_id = :z AND ziel_id = :g', ['z' => $ziel, 'g' => $ich]);
     db_tun('UPDATE fern_praesenz SET ziel_id = :z WHERE geraet_id = :g', ['z' => $ziel, 'g' => $ich]);
+    fern_signal($ich, $ziel);
     if (!empty($z['heim'])) {
         hn_agent_anstossen();
     }
@@ -227,6 +257,7 @@ function fern_befehl(array $user): array
     fern_da($ich, (int) $user['id']);
     $id = db_einfuegen('INSERT INTO fern_befehle (ziel_id, von_id, von_user, befehl, daten) VALUES (:z, :v, :u, :b, :d)',
         ['z' => $ziel, 'v' => $ich, 'u' => $user['id'], 'b' => $befehl, 'd' => $json]);
+    fern_signal($ziel);
     if (random_int(1, 25) === 1) {
         db_tun('DELETE FROM fern_befehle WHERE erstellt_am < NOW(3) - INTERVAL 2 MINUTE');
     }
@@ -255,9 +286,11 @@ function fern_zustand_melden(array $user): array
         $lj = json_encode(array_slice($liste, 0, 1000), JSON_UNESCAPED_UNICODE);
         if ($lj !== false && strlen($lj) <= 2000000) {
             db_tun('UPDATE fern_praesenz SET liste = :l, liste_ver = liste_ver + 1 WHERE geraet_id = :g', ['l' => $lj, 'g' => $ich]);
+            fern_signal($ich);
         }
     }
     db_tun('UPDATE fern_praesenz SET zustand = :z, zustand_ver = zustand_ver + 1 WHERE geraet_id = :g', ['z' => $json, 'g' => $ich]);
+    fern_signal($ich);
     return ['ok' => true];
 }
 
@@ -388,13 +421,35 @@ function fern_strom(array $user): ?array
     $start = microtime(true);
     $takt = max(100, (int) $k['takt_ms']) * 1000;
     $letzteVoll = 0.0;
+    $letztesDa = 0.0;
     $letzterPuls = microtime(true);
+    $signal = null;
     while (microtime(true) - $start < $dauer) {
-        $voll = microtime(true) - $letzteVoll >= 1.0;
-        if ($voll) {
-            $letzteVoll = microtime(true);
+        // Anwesenheit alle 5 s schreiben (offline gilt erst nach 15 s), Beobachter/Bibliothek alle 2 s prüfen;
+        // Befehle und Zustand des gesteuerten Geräts nur, wenn ihre Signaldatei sich geändert hat
+        $jetzt = microtime(true);
+        if ($jetzt - $letztesDa >= 5.0) {
+            $letztesDa = $jetzt;
             fern_da($ich, $s['user'], true);
         }
+        $voll = $jetzt - $letzteVoll >= 2.0;
+        if ($voll) {
+            $letzteVoll = $jetzt;
+        }
+        $neuSignal = fern_signal_lesen($ich) . '|' . fern_signal_lesen((int) $s['ziel']);
+        if (!$voll && $neuSignal === $signal) {
+            if (microtime(true) - $letzterPuls > 5) {
+                echo ": puls\n\n";
+                $letzterPuls = microtime(true);
+                flush();
+            }
+            if (connection_aborted()) {
+                return null;
+            }
+            usleep($takt);
+            continue;
+        }
+        $signal = $neuSignal;
         foreach (fern_runde($ich, $s, $voll) as [$name, $daten]) {
             $senden($name, $daten, $name === 'befehl' ? $daten['id'] : null);
             $letzterPuls = microtime(true);

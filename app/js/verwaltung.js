@@ -34,6 +34,12 @@ function kopf(titel, unter = '', rechts = '') {
  * fällt auf das eingebaute Verfahren zurück.
  */
 /** Downloads: Suchfeld (Prowlarr), Treffer mit „Holen“ (SABnzbd), darunter die Aufträge mit Fortschritt und Import */
+/** Abfragetakt eines Panels: schnell nur, wenn es sichtbar ist (Tab im Vordergrund, Bereich offen) – sonst gemächlich.
+ * Verhindert, dass versteckte Panels bei großen Bibliotheken alle paar Sekunden lange Listen holen und neu zeichnen. */
+function takt(box, schnell) {
+  return document.hidden || !box?.isConnected || !box.offsetParent ? Math.max(schnell * 6, 15000) : schnell;
+}
+
 function downloadsPanel(app, box, signal, sichtbar, zaehler) {
   let timer = null;
   let stand = null;
@@ -341,7 +347,7 @@ function klangPanel(app, box, signal) {
       if (!(await bestaetigen(t('Erweitertes Modell entfernen?'), t('Python-Paket und Modell werden gelöscht, Amberwave nutzt wieder das eingebaute Verfahren (dessen Ergebnisse sind noch da). Die Modell-Ergebnisse bleiben gespeichert, falls du es später wieder installierst.'), t('Entfernen')))) return;
       zeichnen(await versuche(() => api.post('/admin/klang/entfernen', {})));
     });
-    if ((st.laeuft || installiert || (st.aktiv && st.bereit && st.offen > 0)) && !signal?.aborted) timer = setTimeout(laden, 4000);
+    if ((st.laeuft || installiert || (st.aktiv && st.bereit && st.offen > 0)) && !signal?.aborted) timer = setTimeout(laden, takt(box, 4000));
   };
   const installieren = async (st) => {
     const d = await dialog({
@@ -441,7 +447,7 @@ function metadatenPanel(box, signal, nachFertig = null) {
     if (warLaeuft && !laeuft && j.status === 'fertig') nachFertig?.();
     warLaeuft = laeuft;
     stoppen();
-    if (laeuft && !signal?.aborted) timer = setTimeout(laden, 2500);
+    if (laeuft && !signal?.aborted) timer = setTimeout(laden, takt(box, 2500));
   };
   const laden = async () => { if (box.isConnected) zeichnen(await api.get('/admin/metadaten-abgleich').catch(() => null)); };
   const aktion = async (pfad, daten) => { const st = await versuche(() => api.post(pfad, daten)); if (st) zeichnen(st); };
@@ -639,7 +645,7 @@ export const verwaltungsAnsichten = {
     let dekade = gemerktAus('bib_dekade', ['', '1960', '1970', '1980', '1990', '2000'], '');
     let q = query.get('q') || '';
     let seite = 1;
-    let abfrageTimer = null;
+    let abfrageTimer = null, scanRunde = 0;
     ziel.innerHTML = tabs('/verwaltung/bibliothek') + `<div class="seiten-kopf"><div class="bib-titel"><h1>${t('Bibliothek')}</h1><button type="button" class="btn btn-klein bib-scan-knopf" data-scan-kopf title="${t('Neue und geänderte Dateien einlesen')}">${icon('verlauf', 16)}<span>${t('Scannen')}</span></button></div></div>` + `
       <div class="bib-bereiche" role="tablist" aria-label="${t('Bereich')}" data-bereiche>
         <button type="button" role="tab" class="pille" data-bereich="alben">${t('Alben')}</button>
@@ -708,8 +714,10 @@ export const verwaltungsAnsichten = {
       else scanKopf.disabled = false;
     });
     const scanZeichnen = async () => {
-      if (!ziel.isConnected) return;
-      const s = await api.get('/admin/scan').catch(() => null);
+      // ziel ist <main> und bleibt über Seitenwechsel verbunden – entscheidend ist, ob diese Ansicht noch aktiv ist
+      if (signal.aborted) return;
+      const s = await api.get('/admin/scan', { signal }).catch(() => null);
+      if (signal.aborted) return;
       if (!s) { scanKopf.disabled = false; return; }
       const l = s.laufend || s.laeufe[0];
       const prozent = s.laufend && s.laufend.gesamt ? Math.round((s.laufend.geprueft / Math.max(1, s.laufend.gesamt)) * 100) : null;
@@ -740,7 +748,8 @@ export const verwaltungsAnsichten = {
       });
       if (s.laufend) {
         clearTimeout(abfrageTimer);
-        abfrageTimer = setTimeout(() => { scanZeichnen(); albenLaden(); }, 2500);
+        // während des Einlesens: Fortschritt alle 2,5 s, die Albenliste (behält geladene Seiten) nur alle 10 s
+        abfrageTimer = setTimeout(() => { scanZeichnen(); if (++scanRunde % 4 === 0) albenLaden(false, true); }, 2500);
       }
     };
     // ---- Auffälligkeiten ----
@@ -762,11 +771,11 @@ export const verwaltungsAnsichten = {
     let statusTimer = null, metaPanel = null;
     signal.addEventListener('abort', () => clearTimeout(statusTimer));
     const statusLaden = async () => {
-      if (!ziel.isConnected) return;
+      if (signal.aborted) return;
       const [s, f, m] = await Promise.all([
-        api.get('/admin/scan').catch(() => null), null, api.get('/admin/metadaten-abgleich').catch(() => null),
+        api.get('/admin/scan', { signal }).catch(() => null), null, api.get('/admin/metadaten-abgleich', { signal }).catch(() => null),
       ]);
-      if (!ziel.isConnected) return;
+      if (signal.aborted) return;
       const kacheln = [];
       if (s) {
         const l = s.laufend || (s.laeufe || [])[0];
@@ -848,6 +857,7 @@ export const verwaltungsAnsichten = {
     };
     // behalten = nach dem Bearbeiten neu zeichnen: alle bisher geladenen Seiten holen und die Scrollposition halten
     const albenLaden = async (anhaengen = false, behalten = false) => {
+      if (signal.aborted) return;   // Seite schon verlassen: nicht die Adresse der neuen Seite überschreiben
       const y = window.scrollY;
       history.replaceState(history.state || {}, '', `/verwaltung/bibliothek?filter=${filter}${bereich !== 'alben' ? '&bereich=' + bereich : ''}${q ? '&q=' + encodeURIComponent(q) : ''}`);
       app.gezeichnet = location.pathname + location.search;
@@ -979,7 +989,7 @@ export const verwaltungsAnsichten = {
         albumBearbeiten(app, id, async () => { await albenLaden(false, true); if (detailId === id) detailOeffnen(id); });
       }
     });
-    ziel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && detailId !== null && !document.querySelector('dialog[open]')) detailSchliessen(); });
+    ziel.addEventListener('keydown', (e) => { if (e.key === 'Escape' && detailId !== null && !document.querySelector('dialog[open]')) detailSchliessen(); }, { signal });
     ziel.querySelector('.bib-rail').addEventListener('click', (e) => {
       const fw = e.target.closest('[data-fw]');
       const ff = e.target.closest('[data-ff]');
@@ -1313,7 +1323,7 @@ function erkennungPanel(app, box, signal, nachher) {
     }));
     box.querySelectorAll('[data-erk-ignorieren]').forEach((b) => b.addEventListener('click', async () => zeichnen(await api.post(`/admin/erkennung/${b.closest('[data-ed]').dataset.ed}/ignorieren`, {}))));
     box.querySelectorAll('[data-erk-ok]').forEach((b) => b.addEventListener('click', async () => zeichnen(await api.post(`/admin/erkennung/${b.closest('[data-ed]').dataset.ed}/erledigt`, {}))));
-    if (r.aktiv && (r.laeuft || r.offen || r.klang_offen)) timer = setTimeout(holen, 5000);
+    if (r.aktiv && (r.laeuft || r.offen || r.klang_offen)) timer = setTimeout(holen, takt(box, 5000));
   };
   const holen = () => {
     if (signal?.aborted || !box.isConnected) return;
@@ -1477,7 +1487,7 @@ function aufraeumenPanel(app, box, signal) {
       offenListe = true;
       zeichnen(await api.get('/admin/aufraeumen'), t('Neu geprüft – falls es etwas zu tun gibt, steht das Album jetzt oben mit „Freigeben“.'));
     }));
-    if (r.laeuft || s.freigegeben || s.laeuft || vorschauLaeuft) timer = setTimeout(holen, 3000);
+    if (r.laeuft || s.freigegeben || s.laeuft || vorschauLaeuft) timer = setTimeout(holen, takt(box, 3000));
   };
   const holen = () => {
     if (signal?.aborted || !box.isConnected) return;
@@ -1513,7 +1523,7 @@ export function lautheitPanel(box, signal) {
       zeichnen(await api.post('/admin/lautheit/neu', {}));
     });
     clearTimeout(timer);
-    if (!fertig && r.aktiv) timer = setTimeout(holen, 5000);
+    if (!fertig && r.aktiv) timer = setTimeout(holen, takt(box, 5000));
   };
   const holen = () => {
     if (signal?.aborted || !box.isConnected) return;
@@ -2685,6 +2695,6 @@ function flacPanel(app, box, signal) {
     if (laeuft) planen();
   };
   const laden = async () => { try { zeichnen(await api.get('/admin/flac', { signal })); } catch (e) { if (!signal?.aborted) box.innerHTML = `<h2 style="font-size:1.15rem">${t('In FLAC umwandeln')}</h2><p class="fehler">${h(e.message)}</p>`; } };
-  const planen = () => { clearTimeout(timer); timer = setTimeout(laden, 1500); };
+  const planen = () => { clearTimeout(timer); timer = setTimeout(laden, takt(box, 1500)); };
   laden();
 }

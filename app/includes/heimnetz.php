@@ -918,6 +918,9 @@ function api_heimnetz_klang(array $admin, int $id): array
     // laufender Titel: ab der aktuellen Stelle mit dem neuen Klang
     db_einfuegen('INSERT INTO fern_befehle (ziel_id, von_id, von_user, befehl, daten) VALUES (:z, 0, :u, :b, :d)',
         ['z' => hn_fern_id($id), 'u' => $admin['id'], 'b' => 'neu_laden', 'd' => 'null']);
+    if (function_exists('fern_signal')) {
+        fern_signal(hn_fern_id($id));
+    }
     hn_agent_anstossen();
     return ['ok' => true, 'geraet' => hn_aussen(hn_geraet($id), true)];
 }
@@ -1374,6 +1377,9 @@ function api_heimnetz_space_neu(array $admin, int $id): array
     hn_protokoll($id, t('Space: wird beim nächsten Titel neu ausprobiert'));
     db_einfuegen('INSERT INTO fern_befehle (ziel_id, von_id, von_user, befehl, daten) VALUES (:z, 0, :u, :b, :d)',
         ['z' => hn_fern_id($id), 'u' => $admin['id'], 'b' => 'neu_laden', 'd' => 'null']);
+    if (function_exists('fern_signal')) {
+        fern_signal(hn_fern_id($id));
+    }
     hn_agent_anstossen();
     return ['ok' => true, 'geraet' => hn_aussen(hn_geraet($id), true)];
 }

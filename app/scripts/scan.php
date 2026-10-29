@@ -24,7 +24,7 @@ if (!$z) {
     exit(1);
 }
 // Nur ein Scan gleichzeitig
-if ((int) db()->query("SELECT GET_LOCK('amberwave_scan', 0)")->fetchColumn() !== 1) {
+if ((int) db()->query("SELECT GET_LOCK(CONCAT('amberwave_scan_', DATABASE()), 0)")->fetchColumn() !== 1) {
     db_tun("UPDATE scan_laeufe SET status = 'fehler', meldung = :m, beendet_am = NOW() WHERE id = :id", ['m' => t('Es läuft bereits ein anderer Scan.'), 'id' => $lauf]);
     exit(0);
 }

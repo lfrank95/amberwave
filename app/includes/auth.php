@@ -20,8 +20,18 @@ function pruefe_migrationen_einmal(): void
     if ($einr['art'] !== 'fertig') {
         einrichtung_umleiten($einr);
     }
+    // Schon geprüft (Merkdatei je Code-Stand): keine Datenbank-Abfragen pro Request – auch nicht für jedes Coverbild.
+    // Die Merkdatei entsteht nach einer erfolgreichen Prüfung; ein Neustart des Containers löscht sie (start.sh).
+    $stempel = migrationen_stempel();
+    if ($stempel !== '' && is_file($stempel)) {
+        return;
+    }
     try {
         migrationen_ausfuehren();
+        if ($stempel !== '') {
+            @mkdir(dirname($stempel), 0775, true);
+            @touch($stempel);
+        }
     } catch (SchemaZuNeu $e) {
         // Datenbank gehört zu einer neueren Version: nichts ausführen, klare Meldung zeigen
         error_log($e->getMessage());

@@ -251,6 +251,15 @@ function genre_familien_neu_berechnen(): int
             }
         }
     }
+    // Nichts geändert? Dann weder neu schreiben noch den Radio-Katalog verwerfen (der würde sonst bei jedem Lauf
+    // über die ganze Bibliothek neu gebaut)
+    $alt = db_alle('SELECT album_id, familie, wert FROM album_familien ORDER BY album_id, familie');
+    $sortiert = $neu;
+    usort($sortiert, static fn($a, $b) => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+    if (md5(json_encode(array_map(static fn($z) => [(int) $z['album_id'], (string) $z['familie'], round((float) $z['wert'], 4)], $alt)))
+        === md5(json_encode(array_map(static fn($z) => [(int) $z[0], (string) $z[1], (float) $z[2]], $sortiert)))) {
+        return count($ids);
+    }
     db()->beginTransaction();
     try {
         db()->exec('DELETE FROM album_familien');

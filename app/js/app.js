@@ -515,6 +515,11 @@ class App {
     const fokus = alt.contains(document.activeElement);
     alt.replaceWith(neu);
     this.inhalt = neu;
+    // Die neu gezeichnete Ansicht gehört ab jetzt zur normalen Navigation: alte Timer/Handler beenden, ihre Signale
+    // beim nächsten Seitenwechsel mit abbrechen (sonst liefen Handler und Abfragen der leisen Fassung weiter)
+    this.abbruch?.abort();
+    this.abbruch = ctrl;
+    this.leiseAbbruch = null;
     if (fokus) neu.focus({ preventScroll: true });
     offlineMarkieren(neu);
     window.scrollTo(0, y);

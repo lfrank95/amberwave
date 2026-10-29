@@ -28,8 +28,19 @@ const AUDIO_MIME = [
     'wv' => 'audio/x-wavpack', 'ape' => 'audio/x-ape', 'dsf' => 'audio/x-dsf', 'dff' => 'audio/x-dff',
 ];
 
-/** Beste Datei zu einem Track (absoluter Pfad + Zeile) oder Fehler. */
-function stream_datei(int $trackId): array
+/** Spalten von „dateien“ ohne die großen Felder (Tags als JSON, Lautheits-Histogramme und -Kurve, zusammen oft 10 KB je Datei) */
+function dateien_spalten_leicht(): string
+{
+    static $s = null;
+    if ($s === null) {
+        $weg = ['tags_json', 'lautheit_m', 'lautheit_s', 'lautheit_kurve'];
+        $s = implode(', ', array_map(static fn($c) => '`' . $c . '`', array_values(array_diff(array_column(db_alle('SHOW COLUMNS FROM dateien'), 'Field'), $weg))));
+    }
+    return $s;
+}
+
+/** Beste Datei zu einem Track (absoluter Pfad + Zeile) oder Fehler. $voll: auch die großen Felder (Lautheitskurve …) */
+function stream_datei(int $trackId, bool $voll = false): array
 {
     $wurzel = konfig()['pfade']['musik'];
     $wurzelEcht = realpath($wurzel) ?: $wurzel;
@@ -38,7 +49,7 @@ function stream_datei(int $trackId): array
     // Wird die Datei gerade vom Aufräumen verschoben, liegt der neue Pfad erst Millisekunden später in der Datenbank:
     // kurz neu nachsehen, zuletzt im Aufräum-Protokoll nach dem neuen Ort suchen.
     for ($versuch = 0; $versuch < 4; $versuch++) {
-        $d = db_zeile('SELECT * FROM dateien WHERE track_id = :t ORDER BY bittiefe DESC, abtastrate DESC, id LIMIT 1', ['t' => $trackId]);
+        $d = db_zeile('SELECT ' . ($voll ? '*' : dateien_spalten_leicht()) . ' FROM dateien WHERE track_id = :t ORDER BY bittiefe DESC, abtastrate DESC, id LIMIT 1', ['t' => $trackId]);
         if (!$d) {
             throw new ApiFehler(t('Für diesen Titel liegt keine Datei vor.'), 404);
         }
@@ -93,6 +104,8 @@ function stream_senden(array $user, int $trackId): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close(); // andere Anfragen dieses Nutzers nicht blockieren
     }
+    // Die Übertragung dauert Minuten: Datenbankverbindung bis dahin freigeben (wird sie doch gebraucht, öffnet db() neu)
+    db_schliessen();
     $q = (string) ($_GET['q'] ?? 'original');
     if (($_GET['art'] ?? '') === 'luecken') {
         // Lückenlose Wiedergabe: Original als FLAC in fragmentiertem MP4 (Dateiinhalt bitgenau bzw. verlustfrei dekodiert)
@@ -254,6 +267,7 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
     header('X-Accel-Buffering: no');
     header('Accept-Ranges: none');
     $gesendet = 0;
+    $fehler = '';
     while (!feof($pipes[1])) {
         $stueck = fread($pipes[1], 64 * 1024);
         if ($stueck === false) {
@@ -264,11 +278,16 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
             flush();
             $gesendet += strlen($stueck);
         }
+        // Fehlerausgabe laufend leeren – läuft die Leitung voll, bliebe ffmpeg stehen
+        $fehler .= (string) stream_get_contents($pipes[2]);
+        if (strlen($fehler) > 65536) {
+            $fehler = substr($fehler, -8192);
+        }
         if (connection_aborted()) {
             break;
         }
     }
-    $fehler = stream_get_contents($pipes[2]);
+    $fehler .= (string) stream_get_contents($pipes[2]);
     fclose($pipes[1]);
     fclose($pipes[2]);
     $status = proc_get_status($proc);

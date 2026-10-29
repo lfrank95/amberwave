@@ -93,6 +93,12 @@ function kl_offen(?string $verfahren = null): int
     return (int) db_wert('SELECT COUNT(DISTINCT t.aufnahme_id) FROM tracks t WHERE ' . kl_offen_bedingung(), ['v' => $verfahren ?? kl_verfahren()]);
 }
 
+/** Gibt es überhaupt offene Aufnahmen? (für den minütlichen Check – bricht beim ersten Treffer ab statt alle zu zählen) */
+function kl_etwas_offen(?string $verfahren = null): bool
+{
+    return (bool) db_wert('SELECT 1 FROM tracks t WHERE ' . kl_offen_bedingung() . ' LIMIT 1', ['v' => $verfahren ?? kl_verfahren()]);
+}
+
 function kl_laeuft(): bool
 {
     $h = @fopen(konfig()['pfade']['cache'] . KLANG_SPERRE, 'c');
@@ -129,7 +135,7 @@ function kl_anstossen(): bool
     if (!kl_aktiv() || !kl_bereit() || kl_laeuft() || (function_exists('scan_laufend') && scan_laufend())) {
         return false;
     }
-    if (kl_offen() === 0 && !kl_index_veraltet()) {
+    if (!kl_etwas_offen() && !kl_index_veraltet()) {
         return false;
     }
     $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
@@ -272,15 +278,21 @@ function kl_lauf(int $sekunden = 280): void
             if (function_exists('scan_laufend') && scan_laufend()) break;
             if (kl_stapel(min(50, $ende - time() - 5)) === 0) break;
         }
-        if (!empty($GLOBALS['kl_stile_neu'])) {
+        // Neue Stile fließen in die Genre-Familien ein – höchstens stündlich (Neuberechnung geht über die ganze Bibliothek)
+        if (!empty($GLOBALS['kl_stile_neu']) && time() - (int) einstellung('genre_familien_zeit') >= 3600) {
             $GLOBALS['kl_stile_neu'] = false;
-            try { genre_familien_neu_berechnen(); } catch (Throwable $e) {}
+            try { genre_familien_neu_berechnen(); einstellung_setzen('genre_familien_zeit', (string) time()); } catch (Throwable $e) {}
         }
-        // Index: wenn fertig analysiert, sonst höchstens alle 30 Minuten (damit Neues früh nutzbar ist)
+        // Index: wenn fertig analysiert; vorher nur, wenn seit dem letzten Bau mindestens 10 % (oder 200) Aufnahmen dazukamen
+        // und der letzte Bau 30 Minuten her ist – sonst würde er bei großen Bibliotheken tagelang alle 30 Minuten komplett neu gebaut
         $s = kl_index_stand();
         $alt = !$s['am'] || strtotime((string) $s['am']) < time() - 1800;
-        if (kl_index_veraltet() && (kl_offen() === 0 || $alt)) {
-            kl_index_bauen();
+        if (kl_index_veraltet()) {
+            $n = (int) db_wert('SELECT COUNT(*) FROM klang WHERE verfahren = :v AND vektor IS NOT NULL', ['v' => kl_verfahren()]);
+            $genugNeu = $s['verfahren'] !== kl_verfahren() || $n >= max((int) $s['anzahl'] * 1.1, (int) $s['anzahl'] + 200);
+            if (!kl_etwas_offen() || ($alt && $genugNeu)) {
+                kl_index_bauen();
+            }
         }
     } finally {
         flock($sperre, LOCK_UN);

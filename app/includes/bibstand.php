@@ -5,7 +5,7 @@
 // Gerechnet wird höchstens alle BIB_STAND_SEKUNDEN für alle Kanäle zusammen (Datei im Cache), nicht je Kanal.
 declare(strict_types=1);
 
-const BIB_STAND_SEKUNDEN = 2.0;
+const BIB_STAND_SEKUNDEN = 5.0;   // je Rechnung fünf COUNT über große Tabellen – bei 100.000 Titeln nicht alle 2 s
 
 function bib_stand(): string
 {

@@ -35,7 +35,7 @@ function kuenstler_genres_speichern(int $kid, array $genres): void
             db_tun('INSERT IGNORE INTO kuenstler_genres (kuenstler_id, genre_id, stimmen) VALUES (:k, :g, :s)', ['k' => $kid, 'g' => $gid, 's' => (int) $g['count']]);
         }
     }
-    db_tun('UPDATE kuenstler SET genres_am = NOW() WHERE id = :k', ['k' => $kid]);
+    db_tun('UPDATE kuenstler SET genres_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :k', ['k' => $kid]);
 }
 
 /** Abfrage bei ListenBrainz, zwischengespeichert (BELIEBT_TAGE) */

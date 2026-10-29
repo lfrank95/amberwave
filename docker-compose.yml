@@ -15,7 +15,8 @@ services:
       MARIADB_DATABASE: ${DB_NAME:-}
       MARIADB_USER: ${DB_USER:-}
       MARIADB_PASSWORD: ${DB_PASSWORD:-}
-    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    # DB_PUFFER: memory MariaDB keeps for data and indexes (default 512M; for 100,000+ tracks 1G or more)
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--innodb-buffer-pool-size=${DB_PUFFER:-512M}"]
     volumes:
       # Database on the SSD: DB_DATA_PFAD, otherwise <APPDATA_PFAD>/db (Unraid e.g. /mnt/cache/appdata/amberwave/db)
       - ${DB_DATA_PFAD:-${APPDATA_PFAD:-.}/db}:/var/lib/mysql

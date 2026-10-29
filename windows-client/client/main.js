@@ -740,8 +740,14 @@ function fensterSicherstellen() {
 }
 
 /* ---------- Infobereich (Tray) und Medientasten ---------- */
+let trayStand = '';
 function trayAktualisieren() {
   if (!tray) return;
+  // Nur neu bauen, wenn sich etwas Sichtbares geändert hat (wird bei jedem Engine-Befehl aufgerufen, z. B. 60× pro
+  // Sekunde beim Ziehen des Lautstärkereglers – ein natives Menü jedes Mal neu zu bauen bremst den Hauptprozess)
+  const stand = JSON.stringify([titelText, spielt, i18n.einstellung(), neueVersion?.version || '']);
+  if (stand === trayStand) return;
+  trayStand = stand;
   tray.setToolTip(titelText ? `Amberwave – ${titelText}` : 'Amberwave');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: t('Amberwave anzeigen'), click: () => { fensterSicherstellen(); fenster.show(); fenster.focus(); } },

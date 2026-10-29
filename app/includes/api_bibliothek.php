@@ -164,7 +164,9 @@ function api_alben_liste(array $user): array
     if ($q !== '') {
         $wo[] = such_bedingung($q, 'a.suchtext', $p);
     }
-    $erster = '(SELECT k.sortname FROM credit_namen cn JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE cn.credit_id = a.credit_id ORDER BY cn.pos LIMIT 1)';
+    // Erster Albumkünstler per Join (Position 0) statt Unterabfrage je Album – bei großen Bibliotheken der Unterschied zwischen Sekunden und Millisekunden
+    $erster = 'k0.sortname';
+    $kJoin = ' LEFT JOIN credit_namen cn0 ON cn0.credit_id = a.credit_id AND cn0.pos = 0 LEFT JOIN kuenstler k0 ON k0.id = cn0.kuenstler_id';
     $b = (string) ($_GET['buchstabe'] ?? '');
     if (preg_match('/^[A-Z]$/', $b)) {
         $wo[] = "UPPER(LEFT({$erster}, 1)) = :bu";
@@ -176,18 +178,24 @@ function api_alben_liste(array $user): array
     $richtung = ($_GET['richtung'] ?? '') === 'ab' ? 'DESC' : 'ASC';
     $sortier = match ($sort) {
         // Gruppiert nach Albumkünstler: gleiche Künstlerangabe immer am Stück (Solo vor Kollaborationen), darin chronologisch
-        'gruppiert' => "({$erster} = '[unbekannt]'), {$erster} {$richtung}, (SELECT COUNT(*) FROM credit_namen cn2 WHERE cn2.credit_id = a.credit_id), (SELECT c.anzeige FROM credits c WHERE c.id = a.credit_id), a.credit_id, COALESCE(a.erstjahr, e.jahr), a.titel",
+        'gruppiert' => "({$erster} = '[unbekannt]'), {$erster} {$richtung}, (cn1.credit_id IS NOT NULL), c0.anzeige, a.credit_id, COALESCE(a.erstjahr, e.jahr), a.titel",
         'neu' => 'a.hinzugefuegt_am DESC, a.id DESC',
         'titel' => "a.titel {$richtung}",
         'jahr' => "COALESCE(a.erstjahr, e.jahr) {$richtung}, a.titel",
         'zufall' => 'RAND()',
-        default => "(SELECT k.sortname FROM credit_namen cn JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE cn.credit_id = a.credit_id ORDER BY cn.pos LIMIT 1) {$richtung}, COALESCE(a.erstjahr, e.jahr), a.titel",
+        default => "{$erster} {$richtung}, COALESCE(a.erstjahr, e.jahr), a.titel",
     };
-    $pro = max(1, min(500, api_int('pro_seite', 120)));
+    $pro = max(1, min(2400, api_int('pro_seite', 120)));
     $seite = max(1, api_int('seite', 1));
     $bed = implode(' AND ', $wo);
-    $gesamt = (int) db_wert("SELECT COUNT(*) FROM alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0)) WHERE {$bed}", $p);
-    $zeilen = db_alle('SELECT ' . ALBUM_SPALTEN . " FROM alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0)) WHERE {$bed} ORDER BY {$sortier} LIMIT " . $pro . ' OFFSET ' . (($seite - 1) * $pro), $p);
+    $von = 'alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0))';
+    $mitBuchstabe = $b !== '';
+    $gesamt = (int) db_wert('SELECT COUNT(*) FROM ' . $von . ($mitBuchstabe ? $kJoin : '') . " WHERE {$bed}", $p);
+    $joins = in_array($sort, ['titel', 'neu', 'jahr', 'zufall'], true) && !$mitBuchstabe ? '' : $kJoin;
+    if ($sort === 'gruppiert') {
+        $joins .= ' LEFT JOIN credit_namen cn1 ON cn1.credit_id = a.credit_id AND cn1.pos = 1 LEFT JOIN credits c0 ON c0.id = a.credit_id';
+    }
+    $zeilen = db_alle('SELECT ' . ALBUM_SPALTEN . ' FROM ' . $von . $joins . " WHERE {$bed} ORDER BY {$sortier} LIMIT " . $pro . ' OFFSET ' . (($seite - 1) * $pro), $p);
     $aus = ['gesamt' => $gesamt, 'seite' => $seite, 'pro_seite' => $pro, 'alben' => album_items($zeilen, (int) $user['id'])];
     if ($sort === 'gruppiert') {
         // Bilder der Albumkünstler für die Gruppen-Köpfe
@@ -350,12 +358,17 @@ function edition_credits(int $editionId, int $albumId, array $aufnahme_labels): 
 function edition_tracks(int $editionId, ?int $userId = null): array
 {
     $zeilen = db_alle(
-        'SELECT t.id, t.pos, t.nummer, t.titel, t.credit_id, t.aufnahme_id, t.laenge_ms, t.explizit, m.pos AS disc, m.titel AS disc_titel,
-                d.id AS datei_id, d.format, d.codec, d.abtastrate, d.bittiefe, d.kanaele, d.bitrate, d.laenge_ms AS d_laenge,
-                d.rg_track_db, d.rg_album_db, d.rg_track_peak, d.rg_album_peak, d.lufs, d.lra, d.true_peak
+        'SELECT t.id, t.pos, t.nummer, t.titel, t.credit_id, t.aufnahme_id, t.laenge_ms, t.explizit, m.pos AS disc, m.titel AS disc_titel
          FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id
-         LEFT JOIN dateien d ON d.id = (SELECT d2.id FROM dateien d2 WHERE d2.track_id = t.id ORDER BY d2.bittiefe DESC, d2.abtastrate DESC, d2.id LIMIT 1)
          WHERE m.edition_id = :e ORDER BY m.pos, t.pos, t.id', ['e' => $editionId]);
+    $leer = array_fill_keys(['datei_id', 'format', 'codec', 'abtastrate', 'bittiefe', 'kanaele', 'bitrate', 'd_laenge', 'rg_track_db', 'rg_album_db',
+        'rg_track_peak', 'rg_album_peak', 'lufs', 'lra', 'true_peak'], null);
+    $beste = db_beste_dateien(array_column($zeilen, 'id'), 'd.id AS datei_id, d.format, d.codec, d.abtastrate, d.bittiefe, d.kanaele, d.bitrate, d.laenge_ms AS d_laenge,
+        d.rg_track_db, d.rg_album_db, d.rg_track_peak, d.rg_album_peak, d.lufs, d.lra, d.true_peak');
+    foreach ($zeilen as &$z) {
+        $z += $beste[(int) $z['id']] ?? $leer;
+    }
+    unset($z);
     $credits = credit_listen(array_column($zeilen, 'credit_id'));
     $mehrere = count(array_unique(array_column($zeilen, 'disc'))) > 1;
     $fav = [];
@@ -619,7 +632,10 @@ function alben_mit_rolle(int $kuenstlerId, ?array $schluessel, int $ohneAlbum = 
 function api_kuenstler_liste(array $user): array
 {
     $p = [];
-    $wo = ["EXISTS (SELECT 1 FROM credit_namen cn JOIN alben a ON a.credit_id = cn.credit_id JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0 WHERE cn.kuenstler_id = k.id)"];
+    // Kennzahlen je Künstler einmal gesammelt (GROUP BY) statt Unterabfragen pro Künstler – skaliert auf 100.000+ Titel
+    $albenJoin = ' LEFT JOIN (SELECT cn.kuenstler_id, COUNT(DISTINCT a.id) AS n FROM credit_namen cn JOIN alben a ON a.credit_id = cn.credit_id
+        JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0 GROUP BY cn.kuenstler_id) ac ON ac.kuenstler_id = k.id';
+    $wo = ['ac.n > 0'];
     if (($_GET['alle'] ?? '') === '1') {
         $wo = ['1=1']; // auch Mitwirkende ohne eigenes Album
     }
@@ -640,16 +656,12 @@ function api_kuenstler_liste(array $user): array
     } elseif ($typ === 'gruppe') {
         $wo[] = "k.typ IN ('gruppe','orchester','chor')";
     }
-    $pro = max(1, min(500, api_int('pro_seite', 200)));
+    $pro = max(1, min(2000, api_int('pro_seite', 200)));
     $seite = max(1, api_int('seite', 1));
     $bed = implode(' AND ', $wo);
-    $alben_sql = '(SELECT COUNT(DISTINCT a.id) FROM credit_namen cn JOIN alben a ON a.credit_id = cn.credit_id JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0 WHERE cn.kuenstler_id = k.id)';
-    $neu_sql = '(SELECT MAX(a.hinzugefuegt_am) FROM credit_namen cn JOIN alben a ON a.credit_id = cn.credit_id WHERE cn.kuenstler_id = k.id)';
-    // Wie oft du (der angemeldete Nutzer) Titel dieses Künstlers gehört hast
-    $gehoert_sql = '(SELECT COUNT(*) FROM wiedergaben w JOIN tracks t ON t.id = w.track_id JOIN credit_namen cn ON cn.credit_id = t.credit_id
-        WHERE w.user_id = :wu AND w.gezaehlt = 1 AND cn.kuenstler_id = k.id)';
     $sort = (string) ($_GET['sort'] ?? 'name');
     $extra = '';
+    $joins = $albenJoin;
     $order = match ($sort) {
         'name_ab' => 'k.sortname DESC, k.name DESC',
         'alben' => 'alben DESC, k.sortname',
@@ -660,14 +672,18 @@ function api_kuenstler_liste(array $user): array
     };
     $pz = $p;
     if ($sort === 'neu') {
-        $extra = ", {$neu_sql} AS zuletzt";
+        $joins .= ' LEFT JOIN (SELECT cn.kuenstler_id, MAX(a.hinzugefuegt_am) AS z FROM credit_namen cn JOIN alben a ON a.credit_id = cn.credit_id GROUP BY cn.kuenstler_id) nz ON nz.kuenstler_id = k.id';
+        $extra = ', nz.z AS zuletzt';
     } elseif ($sort === 'gehoert') {
-        $extra = ", {$gehoert_sql} AS gehoert";
+        // Wie oft du (der angemeldete Nutzer) Titel dieses Künstlers gehört hast
+        $joins .= ' LEFT JOIN (SELECT cn.kuenstler_id, COUNT(*) AS n FROM wiedergaben w JOIN tracks t ON t.id = w.track_id JOIN credit_namen cn ON cn.credit_id = t.credit_id
+            WHERE w.user_id = :wu AND w.gezaehlt = 1 GROUP BY cn.kuenstler_id) gz ON gz.kuenstler_id = k.id';
+        $extra = ', COALESCE(gz.n, 0) AS gehoert';
         $pz['wu'] = (int) $user['id'];
     }
-    $gesamt = (int) db_wert("SELECT COUNT(*) FROM kuenstler k WHERE {$bed}", $p);
-    $zeilen = db_alle("SELECT k.id, k.name, k.sortname, k.typ, k.bild_datei, {$alben_sql} AS alben{$extra}
-        FROM kuenstler k WHERE {$bed} ORDER BY {$order} LIMIT {$pro} OFFSET " . (($seite - 1) * $pro), $pz);
+    $gesamt = (int) db_wert('SELECT COUNT(*) FROM kuenstler k' . ($bed === '1=1' || !str_contains($bed, 'ac.') ? '' : $albenJoin) . " WHERE {$bed}", $p);
+    $zeilen = db_alle("SELECT k.id, k.name, k.sortname, k.typ, k.bild_datei, COALESCE(ac.n, 0) AS alben{$extra}
+        FROM kuenstler k{$joins} WHERE {$bed} ORDER BY {$order} LIMIT {$pro} OFFSET " . (($seite - 1) * $pro), $pz);
     return ['gesamt' => $gesamt, 'seite' => $seite, 'pro_seite' => $pro, 'kuenstler' => array_map(static fn($z) => [
         'id' => (int) $z['id'], 'name' => $z['name'], 'typ' => $z['typ'], 'alben' => (int) $z['alben'],
         'bild' => bild_url('kuenstler', $z['bild_datei'], 300),
@@ -684,14 +700,14 @@ function api_kuenstler(array $user, int $id): array
     }
     $uid = (int) $user['id'];
     $eigene = db_alle('SELECT ' . ALBUM_SPALTEN . ' FROM alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0))
-                       WHERE e.anzahl_dateien > 0 AND EXISTS (SELECT 1 FROM credit_namen cn WHERE cn.credit_id = a.credit_id AND cn.kuenstler_id = :k)
+                       WHERE e.anzahl_dateien > 0 AND a.credit_id IN (SELECT cn.credit_id FROM credit_namen cn WHERE cn.kuenstler_id = :k)
                        ORDER BY COALESCE(a.erstjahr, e.jahr), a.titel', ['k' => $id]);
     // Auftritte auf fremden Alben (Track-Credit, aber nicht Album-Credit)
     $gast = db_alle('SELECT ' . ALBUM_SPALTEN . ', GROUP_CONCAT(t.titel ORDER BY m.pos, t.pos SEPARATOR \' · \') AS gast_titel
         FROM alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0))
         JOIN datentraeger m ON m.edition_id = e.id JOIN tracks t ON t.datentraeger_id = m.id
         WHERE e.anzahl_dateien > 0
-          AND EXISTS (SELECT 1 FROM credit_namen cn WHERE cn.credit_id = t.credit_id AND cn.kuenstler_id = :k1)
+          AND t.credit_id IN (SELECT cn.credit_id FROM credit_namen cn WHERE cn.kuenstler_id = :k1)
           AND NOT EXISTS (SELECT 1 FROM credit_namen cn2 WHERE cn2.credit_id = a.credit_id AND cn2.kuenstler_id = :k2)
         GROUP BY a.id, a.titel, a.credit_id, a.typ, a.zusatz_typen, a.erstjahr, a.hinzugefuegt_am, e.id, e.jahr, e.cover_datei, e.beste_qualitaet, e.anzahl_tracks, e.anzahl_dateien, e.laenge_ms, a.editionen_einzeln, e.titel, e.kommentar, e.land, e.explizit
         ORDER BY COALESCE(a.erstjahr, e.jahr)', ['k1' => $id, 'k2' => $id]);
@@ -814,7 +830,15 @@ function such_aehnlich(string $q, string $sql): array
     }
     $kompakt = implode('', $ws);
     $treffer = [];
-    foreach (db_alle($sql) as $z) {
+    // Gemeinsames Zeitbudget aller Tippfehler-Suchen einer Anfrage: bei sehr großen Bibliotheken lieber früher aufhören als warten lassen
+    static $ende = null;
+    $ende ??= hrtime(true) + 1_000_000_000;
+    $i = 0;
+    $st = db()->query($sql);
+    while (($z = $st->fetch(PDO::FETCH_ASSOC)) !== false) {
+        if ((++$i & 1023) === 0 && hrtime(true) > $ende) {
+            break;
+        }
         $text = (string) $z['t'];
         if ($text === '') {
             continue;
@@ -844,6 +868,7 @@ function such_aehnlich(string $q, string $sql): array
             }
         }
     }
+    $st->closeCursor();
     return $treffer;
 }
 

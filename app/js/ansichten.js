@@ -501,8 +501,10 @@ export const ansichten = {
       p.delete('ansicht');
       p.delete('b');
       if (gruppiert()) { p.set('sort', 'gruppiert'); if (zustand.buchstabe) p.set('buchstabe', zustand.buchstabe); }
-      p.set('seite', zustand.seite);
-      p.set('pro_seite', gruppiert() ? 240 : 120);
+      const basis = gruppiert() ? 240 : 120;
+      // Zurück zur Liste: alle schon geladenen Seiten in einer Anfrage statt Seite für Seite
+      p.set('seite', zustand.aufEinmal ? 1 : zustand.seite);
+      p.set('pro_seite', zustand.aufEinmal ? basis * zustand.seite : basis);
       const r = await api.get('/alben?' + p, { signal });
       if (gruppiert()) {
         // Aufeinanderfolgende Alben mit derselben Künstlerangabe bilden eine Gruppe
@@ -561,9 +563,11 @@ export const ansichten = {
     mehrEl.addEventListener('click', (e) => { if (e.target.closest('[data-mehr-laden]')) { zustand.seite++; laden(true); } });
     // Nach Bearbeiten/Zurück: die schon geladenen „Weitere laden“-Seiten wieder holen, damit die Scrollposition passt
     // (der Stand muss vor dem ersten Laden gelesen werden – das Laden überschreibt ihn)
-    const bis = wiederherstellen && zustand.sort !== 'zufall' ? app.listenSeiten.get(location.pathname + location.search) || 1 : 1;
+    const bis = wiederherstellen && zustand.sort !== 'zufall' ? Math.min(10, app.listenSeiten.get(location.pathname + location.search) || 1) : 1;
+    zustand.seite = bis;
+    zustand.aufEinmal = bis > 1;
     await laden();
-    for (let s2 = 2; s2 <= bis && !signal.aborted; s2++) { zustand.seite = s2; await laden(true); }
+    zustand.aufEinmal = false;
   },
 
   async album({ app, ziel, param, query, signal }) {
@@ -667,7 +671,8 @@ export const ansichten = {
       if (zustand.sort !== 'name') p.set('sort', zustand.sort);
       history.replaceState(history.state || {}, '', '/kuenstler' + (p.toString() ? '?' + p.toString().replace('buchstabe=', 'b=') : ''));
       app.gezeichnet = location.pathname + location.search;
-      p.set('seite', zustand.seite);
+      p.set('seite', zustand.aufEinmal ? 1 : zustand.seite);
+      if (zustand.aufEinmal) p.set('pro_seite', 200 * zustand.seite);
       if (zustand.sort === 'zufall') p.set('saat', zustand.saat);
       const r = await api.get('/kuenstler?' + p, { signal });
       const unter = (k) => {
@@ -704,9 +709,11 @@ export const ansichten = {
       laden();
     });
     ziel.querySelector('[data-mehr]').addEventListener('click', (e) => { if (e.target.closest('[data-mehr-laden]')) { zustand.seite++; laden(true); } });
-    const bis = wiederherstellen && zustand.sort !== 'zufall' ? app.listenSeiten.get(location.pathname + location.search) || 1 : 1;
+    const bis = wiederherstellen && zustand.sort !== 'zufall' ? Math.min(10, app.listenSeiten.get(location.pathname + location.search) || 1) : 1;
+    zustand.seite = bis;
+    zustand.aufEinmal = bis > 1;
     await laden();
-    for (let s2 = 2; s2 <= bis && !signal.aborted; s2++) { zustand.seite = s2; await laden(true); }
+    zustand.aufEinmal = false;
   },
 
   async kuenstler({ app, ziel, param, signal }) {
@@ -920,7 +927,8 @@ export const ansichten = {
       if (!b) return;
       const eintrag = p.eintraege[Number(b.dataset.i)];
       if (eintrag && await versuche(() => api.del(`/playlists/${id}/eintraege/${eintrag.eintrag_id}`))) app.navigieren(`/playlists/${id}`, false);
-    });
+    }, { signal });   // ziel (<main>) bleibt über Seitenwechsel bestehen – ohne signal sammelten sich Handler alter Playlists
+
     ziel.querySelector('[data-pl-menue]')?.addEventListener('click', (e) => menue(e.currentTarget, [
       ...(app.ich.app?.downloads && p.eintraege.length ? [{ text: t('Als WAV exportieren (z. B. fürs Mischpult) …'), icon: 'download',
         aktion: () => exportDialog(app, { art: 'playlist', id, name: p.name, anzahl: p.anzahl, laenge_ms: p.laenge_ms }) }] : []),

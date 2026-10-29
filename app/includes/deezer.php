@@ -198,7 +198,7 @@ function deezer_edition_explizit(int $editionId, bool $nurUnbekannte = true): in
         if (isset($treffer[$id])) {
             db_tun("UPDATE tracks SET explizit = :x, explizit_quelle = 'deezer', explizit_am = NOW() WHERE id = :id AND explizit_quelle NOT IN ('hand', 'datei')", ['x' => $treffer[$id], 'id' => $id]);
         } else {
-            db_tun("UPDATE tracks SET explizit_am = NOW() WHERE id = :id", ['id' => $id]);
+            db_tun("UPDATE tracks SET explizit_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :id", ['id' => $id]);
         }
     }
     edition_explizit_aktualisieren($editionId);

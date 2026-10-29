@@ -142,9 +142,16 @@ try {
     require_once __DIR__ . '/../includes/musicbrainz.php';
     require_once __DIR__ . '/../includes/genres.php';
     $nachgeholt = scan_laufend() ? 0 : mb_genre_stimmen_nachholen(8);
-    if ($nachgeholt || einstellung('genre_familien_lauf') !== date('Y-m-d') || !db_wert('SELECT COUNT(*) FROM album_familien')) {
+    // Neu berechnen: einmal am Tag, beim Nachholen höchstens stündlich (das Nachholen läuft bei großen Bibliotheken
+    // tagelang – früher wurde dann jede Minute die ganze Tabelle neu geschrieben), und wenn es Genres, aber keine Familien gibt
+    $zuletzt = (int) einstellung('genre_familien_zeit');
+    $faellig = einstellung('genre_familien_lauf') !== date('Y-m-d')
+        || ($nachgeholt && time() - $zuletzt >= 3600)
+        || (time() - $zuletzt >= 3600 && !db_wert('SELECT 1 FROM album_familien LIMIT 1') && db_wert('SELECT 1 FROM album_genres LIMIT 1'));
+    if ($faellig) {
         genre_familien_neu_berechnen();
         einstellung_setzen('genre_familien_lauf', date('Y-m-d'));
+        einstellung_setzen('genre_familien_zeit', (string) time());
     }
     if ($nachgeholt) {
         echo date('c') . " Genres: Stimmen für {$nachgeholt} Alben nachgeholt\n";

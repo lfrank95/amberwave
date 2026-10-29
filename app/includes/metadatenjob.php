@@ -180,7 +180,7 @@ function mj_kuenstler_abgleichen(int $id): bool
         if (mj_voruebergehend($e)) throw $e;
         $ok = false;
     }
-    db_tun('UPDATE kuenstler SET mb_versuch_am = NOW() WHERE id = :id', ['id' => $id]);
+    db_tun('UPDATE kuenstler SET mb_versuch_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :id', ['id' => $id]);
     return $ok;
 }
 

@@ -71,6 +71,8 @@ if [ "$PUID" != "0" ] && [ -f /etc/apache2/envvars ]; then
 fi
 
 mkdir -p /cache/cover /cache/bilder /cache/tmp /cache/musicbrainz
+# Merkdateien „Datenbank geprüft“ verwerfen – nach einem Neustart prüft der erste Aufruf die Migrationen einmal
+rm -f /cache/tmp/schema-*.ok "${CACHE_DIR}/tmp/"schema-*.ok 2>/dev/null
 # Eigene Ordner (Cache, Backups, Code für Updates) gehören dem Webserver-Benutzer – nur ändern, was nicht passt
 for d in /cache /backups /var/www/html; do
     [ -d "$d" ] && find "$d" \( ! -user www-data -o ! -group "$(id -gn www-data)" \) -exec chown www-data:"$(id -gn www-data)" {} + 2>/dev/null
@@ -117,6 +119,6 @@ fi
 (runuser -u www-data -- php /var/www/html/scripts/einrichtung_start.php 2>&1 &)
 
 # Zeitplan (Mails, Ablauf-Erinnerungen, geplanter Scan, fanart.tv) jede Minute
-(while true; do runuser -u www-data -- php /var/www/html/scripts/zeitplan.php >> /tmp/zeitplan.log 2>&1; sleep 60; done) &
+(while true; do [ "$(stat -c %s /tmp/zeitplan.log 2>/dev/null || echo 0)" -gt 5000000 ] && : > /tmp/zeitplan.log; runuser -u www-data -- php /var/www/html/scripts/zeitplan.php >> /tmp/zeitplan.log 2>&1; sleep 60; done) &
 
 exec apache2-foreground

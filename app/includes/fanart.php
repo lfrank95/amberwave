@@ -58,7 +58,7 @@ function fanart_bild_holen_intern(int $kid, bool $erzwingen): array
     if ($k['bild_quelle'] === 'manuell' && !$erzwingen) {
         return ['status' => 'manuell', 'meldung' => t('Eigenes Bild bleibt.')];
     }
-    db_tun('UPDATE kuenstler SET bild_geprueft_am = NOW() WHERE id = :id', ['id' => $kid]);
+    db_tun('UPDATE kuenstler SET bild_geprueft_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :id', ['id' => $kid]);
     $mbid = ist_uuid($k['mbid']) ? strtolower((string) $k['mbid']) : null;
     try {
         if (!$mbid) {

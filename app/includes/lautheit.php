@@ -243,10 +243,8 @@ function lh_speichern(int $dateiId, array $e, string $fehler = ''): void
 function lh_album_berechnen(int $editionId): bool
 {
     // je Titel dieselbe Datei, die auch gestreamt wird (höchste Auflösung)
-    $zeilen = db_alle('SELECT d.id, d.lautheit_am, d.lautheit_m, d.lautheit_s, d.true_peak, d.sample_peak, d.lautheit_fehler
-        FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id
-        JOIN dateien d ON d.id = (SELECT d2.id FROM dateien d2 WHERE d2.track_id = t.id ORDER BY d2.bittiefe DESC, d2.abtastrate DESC, d2.id LIMIT 1)
-        WHERE m.edition_id = :e', ['e' => $editionId]);
+    $zeilen = array_values(db_beste_dateien(array_column(db_alle('SELECT t.id FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id WHERE m.edition_id = :e', ['e' => $editionId]), 'id'),
+        'd.id, d.lautheit_am, d.lautheit_m, d.lautheit_s, d.true_peak, d.sample_peak, d.lautheit_fehler'));
     if (!$zeilen) {
         return false;
     }
@@ -269,7 +267,7 @@ function lh_album_berechnen(int $editionId): bool
         if ($z['true_peak'] !== null) { $tp = $tp === null ? (float) $z['true_peak'] : max($tp, (float) $z['true_peak']); }
         if ($z['sample_peak'] !== null) { $sp = $sp === null ? (float) $z['sample_peak'] : max($sp, (float) $z['sample_peak']); }
     }
-    db_tun('UPDATE editionen SET album_lufs = :l, album_lra = :r, album_true_peak = :tp, album_sample_peak = :sp, album_lautheit_am = NOW() WHERE id = :e',
+    db_tun('UPDATE editionen SET album_lufs = :l, album_lra = :r, album_true_peak = :tp, album_sample_peak = :sp, album_lautheit_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :e',
         ['e' => $editionId, 'l' => lh_integriert($m), 'r' => lh_lra($s), 'tp' => $tp, 'sp' => $sp]);
     return true;
 }
@@ -406,11 +404,15 @@ function lh_fuer_tracks(array $ids): array
         return [];
     }
     [$in, $p] = db_in($ids, 'lh');
-    $zeilen = db_alle("SELECT t.id, m.edition_id, d.lufs, d.true_peak, e.album_lufs, e.album_true_peak,
-            d.rg_track_db, d.rg_album_db, d.rg_track_peak, d.rg_album_peak
+    $zeilen = db_alle("SELECT t.id, m.edition_id, e.album_lufs, e.album_true_peak
         FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id
-        LEFT JOIN dateien d ON d.id = (SELECT d2.id FROM dateien d2 WHERE d2.track_id = t.id ORDER BY d2.bittiefe DESC, d2.abtastrate DESC, d2.id LIMIT 1)
         WHERE t.id IN {$in}", $p);
+    $leer = array_fill_keys(['lufs', 'true_peak', 'rg_track_db', 'rg_album_db', 'rg_track_peak', 'rg_album_peak'], null);
+    $beste = db_beste_dateien(array_column($zeilen, 'id'), 'd.lufs, d.true_peak, d.rg_track_db, d.rg_album_db, d.rg_track_peak, d.rg_album_peak');
+    foreach ($zeilen as &$z) {
+        $z += $beste[(int) $z['id']] ?? $leer;
+    }
+    unset($z);
     // Reihenfolge innerhalb der Editionen (für „folgt im Album direkt aufeinander“)
     $ordnung = [];
     $editionen = array_values(array_unique(array_map(static fn($z) => (int) $z['edition_id'], $zeilen)));
@@ -465,7 +467,7 @@ function lh_gain_filter(?float $db): string
  */
 function lh_nerd(int $trackId): array
 {
-    [$pfad, $d] = stream_datei($trackId);
+    [$pfad, $d] = stream_datei($trackId, true);
     if (!$d['lautheit_kurve'] && ($d['lautheit_fehler'] ?? '') === '') {
         set_time_limit(300);
         $e = lh_datei_messen($pfad);

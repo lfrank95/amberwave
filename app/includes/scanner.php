@@ -263,9 +263,12 @@ function scan_ausfuehren(int $lauf, bool $voll): array
         }
     }
 
-    scan_lauf_aktualisieren($lauf, ['aktuell' => t('Aufräumen …')]);
-    bibliothek_aufraeumen();
-    credits_anzeige_angleichen(); // Künstler-Anzeige auf den eingestellten Stil (Standard- oder Credit-Schreibweise) bringen
+    // Aufräumen nur, wenn sich etwas geändert hat (sonst liefen bei jedem automatischen Scan Abfragen über die ganze Bibliothek)
+    if ($stat['neu'] + $stat['geaendert'] + $stat['entfernt'] > 0 || $voll) {
+        scan_lauf_aktualisieren($lauf, ['aktuell' => t('Aufräumen …')]);
+        bibliothek_aufraeumen();
+        credits_anzeige_angleichen(); // Künstler-Anzeige auf den eingestellten Stil (Standard- oder Credit-Schreibweise) bringen
+    }
     return $stat;
 }
 
@@ -460,7 +463,7 @@ function scan_zusatztrack_anlegen(int $editionId, array $e): ?int
         's' => such_norm($titel, ...array_column(credit_liste($credit), 'name')),
     ]);
     if ($tid) {
-        scan_explizit_aus_tags((int) $tid, $t);
+        scan_explizit_aus_tags((int) $tid, $t, true);
     }
     return $tid ?: null;
 }
@@ -469,7 +472,7 @@ function scan_zusatztrack_anlegen(int $editionId, array $e): ?int
  * ISRC und Kennzeichnung „explizit“ aus den Tags: ITUNESADVISORY (Vorbis, ID3 TXXX, MP4 freeform) bzw. rtng (MP4):
  * 1/4 = explizit, 2 = Clean-Fassung, 0 = nicht explizit. Handeingaben bleiben; fehlt das Tag später, fällt die Datei-Angabe weg.
  */
-function scan_explizit_aus_tags(int $trackId, array $t): void
+function scan_explizit_aus_tags(int $trackId, array $t, bool $neu = false): void
 {
     $isrc = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', tag1($t, 'ISRC', 'TSRC')));
     if (preg_match('/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/', $isrc)) {
@@ -484,7 +487,7 @@ function scan_explizit_aus_tags(int $trackId, array $t): void
     };
     if ($wert !== null) {
         db_tun("UPDATE tracks SET explizit = :x, explizit_quelle = 'datei' WHERE id = :id AND explizit_quelle <> 'hand'", ['x' => $wert, 'id' => $trackId]);
-    } else {
+    } elseif (!$neu) {   // ein gerade angelegter Titel hat noch keine Datei-Angabe, die wegfallen könnte
         db_tun("UPDATE tracks SET explizit = NULL, explizit_quelle = '', explizit_am = NULL WHERE id = :id AND explizit_quelle = 'datei'", ['id' => $trackId]);
     }
 }
@@ -758,7 +761,7 @@ function scan_gruppe_aufbauen(string $basis, string $basis_hash, string $gruppe_
             db_tun('UPDATE dateien SET track_id = :t WHERE id = :id', ['t' => $track_id, 'id' => $e['id']]);
         }
         $behalten[] = $track_id;
-        scan_explizit_aus_tags($track_id, $t);
+        scan_explizit_aus_tags($track_id, $t, !$track);
 
         // Mitwirkende aus den Tags (Komponist, Produzent, Musiker …) an der Aufnahme
         scan_rollen_aus_tags($aufnahme_id, $t);

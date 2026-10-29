@@ -857,7 +857,7 @@ function album_genres_von_mb_setzen(int $albumId, array $genres): void
                 ['a' => $albumId, 'g' => $gid, 's' => $c, 'n' => round($c / max(1, $summe), 4)]);
         }
     }
-    db_tun('UPDATE alben SET genre_stimmen_am = NOW() WHERE id = :a', ['a' => $albumId]);
+    db_tun('UPDATE alben SET genre_stimmen_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :a', ['a' => $albumId]);
 }
 
 /**
@@ -880,7 +880,7 @@ function mb_genre_stimmen_nachholen(int $max = 8): int
             if ($genres) {
                 album_genres_von_mb_setzen((int) $a['id'], $genres);
             } else {
-                db_tun('UPDATE alben SET genre_stimmen_am = NOW() WHERE id = :a', ['a' => $a['id']]);
+                db_tun('UPDATE alben SET genre_stimmen_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :a', ['a' => $a['id']]);
             }
             $n++;
         } catch (Throwable $e) {
@@ -929,7 +929,7 @@ function mb_aufnahme_genres_holen(int $editionId, string $releaseMbid): int
         }
         if (count($r['recordings'] ?? []) < 100) break;
     }
-    db_tun('UPDATE editionen SET mb_aufnahme_genres_am = NOW() WHERE id = :e', ['e' => $editionId]);
+    db_tun('UPDATE editionen SET mb_aufnahme_genres_am = NOW(), aktualisiert_am = aktualisiert_am WHERE id = :e', ['e' => $editionId]);
     return $n;
 }
 

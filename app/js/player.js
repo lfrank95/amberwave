@@ -1349,10 +1349,23 @@ export class Player extends EventTarget {
 
   // ---------- Merken & Wiederherstellen ----------
   speichern(sofort = false) {
-    const zustand = { liste: this.liste.slice(0, 1000), index: this.index, position: this.zeit, kontext: this.quelleKontext };
-    try { localStorage.setItem(SPEICHER, JSON.stringify(zustand)); } catch (e) {}
+    // Lokal: höchstens alle 1,5 s und nur ein Ausschnitt um den aktuellen Titel (ohne schwere Felder wie Mitwirkende) –
+    // bei langen Warteschlangen war das sonst bei jedem Titelwechsel mehrere MB JSON im Haupt-Thread
+    clearTimeout(this._lokalTimer);
+    const lokal = () => {
+      const von = Math.max(0, this.index - 100);
+      const liste = this.liste.slice(von, von + 1000).map(({ credits, mitwirkende, beziehungen, ...rest }) => rest);
+      const zustand = { liste, index: this.index - von, position: this.zeit, kontext: this.quelleKontext };
+      try { localStorage.setItem(SPEICHER, JSON.stringify(zustand)); } catch (e) {}
+    };
+    if (sofort) lokal(); else this._lokalTimer = setTimeout(lokal, 1500);
     clearTimeout(this._serverTimer);
-    const senden = () => api.put('/warteschlange', { track_ids: this.liste.map((t) => t.id), index: this.index, position: Math.round(this.zeit) }).catch(() => {});
+    // Server: bis zu 5.000 Titel um den aktuellen herum (reicht für jede Warteschlange, die man durchhört)
+    const senden = () => {
+      const von = Math.max(0, this.index - 500);
+      const ids = this.liste.slice(von, von + 5000).map((t) => t.id);
+      api.put('/warteschlange', { track_ids: ids, index: this.index - von, position: Math.round(this.zeit) }).catch(() => {});
+    };
     if (sofort) senden(); else this._serverTimer = setTimeout(senden, 4000);
   }
 

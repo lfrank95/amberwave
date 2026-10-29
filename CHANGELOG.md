@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.9.1-beta.2 – large libraries
+
+Load test with a synthetic library of 20,000 real files (scanned) and 100,000 tracks (database), plus three independent
+code reviews focused on scaling. Everything below was found that way.
+
+- **Album and artist lists stay fast with big collections.** Sorting by artist, grouping by artist, letter filter and
+  the artist sorts "most albums" / "most played" used a subquery per album or artist – about a minute per page at 8,000
+  tracks. Now well under half a second at 100,000 tracks (same order as before, verified row by row).
+- **Album pages** pick the best file per track in one query instead of one per track (1.9 s → 0.09 s at 20,000 tracks).
+- Going back to a list where you clicked "Load more" several times reloads it in **one request** instead of page by page.
+- Typo-tolerant search has a time budget, so a misspelled search can't stall on huge libraries.
+- **Fewer background database writes:** technical updates (loudness, genres, popularity, artwork lookups) no longer mark
+  albums as changed, genre families are only recalculated when something changed, the sound-analysis index is rebuilt
+  far less often, and the scanner skips clean-up passes when nothing changed.
+- Remote control: devices are woken by a small signal file instead of polling the database several times a second.
+- Streaming closes its database connection before sending audio; the session lock is released early on read requests.
+- PHP OPcache enabled in the Docker image; the schema check runs once per start instead of on every request.
+- Player: the queue is saved less often and in a bounded window (very long queues no longer write megabytes on every
+  track change).
+- New indexes for large libraries (best file per track, play counts, album titles, artist sort names).
+- Fixed: removing a track from a playlist could also remove it from a playlist you had opened earlier.
+- Fixed: hidden admin panels kept refreshing at full speed in the background.
+- `DB_PUFFER` (optional) sets the MariaDB buffer pool size in the compose files (default 512M).
+
 ## 0.9.1-beta.1 – first public beta
 
 - **Fresh installs without `APP_SECRET_KEY` work fully:** the key Amberwave generates and keeps in the app-data folder is

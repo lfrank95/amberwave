@@ -21,6 +21,13 @@ function migrationen_code_version(): int
     return $max;
 }
 
+/** Merkdatei „Datenbank passt zu diesem Code-Stand“ (leer, wenn der Cache-Ordner unbekannt ist) */
+function migrationen_stempel(): string
+{
+    $cache = function_exists('konfig') ? (string) (konfig()['pfade']['cache'] ?? '') : '';
+    return $cache !== '' ? rtrim($cache, '/') . '/tmp/schema-' . migrationen_code_version() . '.ok' : '';
+}
+
 function schema_zu_neu_text(int $db, int $code): string
 {
     return t('Die Datenbank gehört zu einer neueren Amberwave-Version (Schema {db}, diese App kennt nur {code}). ', ['db' => $db, 'code' => $code])
@@ -39,14 +46,14 @@ function migrationen_ausfuehren(): array
     // Nur ein Prozess gleichzeitig migriert (mehrere Seitenaufrufe direkt nach einem Update)
     $sperre = false;
     try {
-        $sperre = (int) $pdo->query("SELECT GET_LOCK('amberwave_migration', 30)")->fetchColumn() === 1;
+        $sperre = (int) $pdo->query("SELECT GET_LOCK(CONCAT('amberwave_migration_', DATABASE()), 30)")->fetchColumn() === 1;
     } catch (Throwable $e) {
     }
     try {
         return migrationen_ausfuehren_intern($pdo);
     } finally {
         if ($sperre) {
-            try { $pdo->query("SELECT RELEASE_LOCK('amberwave_migration')"); } catch (Throwable $e) {}
+            try { $pdo->query("SELECT RELEASE_LOCK(CONCAT('amberwave_migration_', DATABASE()))"); } catch (Throwable $e) {}
         }
     }
 }

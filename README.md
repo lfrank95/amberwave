@@ -13,7 +13,7 @@ crate for your queue, VU meters, tubes and tape machines in the effects rack. An
 several programs and sketchy driver routing – library, bit-perfect playback, effects, plug-ins, multi-channel routing
 and remote control – in one place.
 
-> **Public beta – 0.9.1-beta.1.** Please back up your music before you try it. Amberwave only **reads** your music
+> **Public beta – 0.9.1-beta.2.** Please back up your music before you try it. Amberwave only **reads** your music
 > by default; it writes nothing until you allow it. *Deutsche Anleitung: [README.de.md](README.de.md)*
 
 ![Home](docs/screenshots/home.png)

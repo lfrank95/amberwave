@@ -97,6 +97,7 @@ const EINSTELLUNGEN = [
     'zeitplan_fanart_lauf'  => ['env' => '',                      'standard' => '',          'geheim' => false],
     'download_scan_noetig'  => ['env' => '',                      'standard' => '0',         'geheim' => false],
     'genre_familien_lauf'   => ['env' => '',                      'standard' => '',          'geheim' => false],   // Tag der letzten Genre-Familien-Berechnung (intern)
+    'genre_familien_zeit'   => ['env' => '',                      'standard' => '0',         'geheim' => false],   // Zeitpunkt (Unix) der letzten Genre-Familien-Berechnung (intern)
     'zeitplan_papierkorb_lauf' => ['env' => '',                   'standard' => '',          'geheim' => false],
     'metadaten_abgleich_pos' => ['env' => '',                     'standard' => '0',         'geheim' => false],
     'erkennung_fehler'      => ['env' => '',                      'standard' => '',          'geheim' => false],

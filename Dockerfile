@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebp-dev \
     unzip \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
-    && docker-php-ext-install pdo pdo_mysql zip gd \
+    && docker-php-ext-install pdo pdo_mysql zip gd opcache \
     && a2enmod rewrite headers deflate brotli \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,6 +32,17 @@ RUN { \
     echo 'output_buffering = Off'; \
     echo 'zlib.output_compression = Off'; \
     } > /usr/local/etc/php/conf.d/amberwave.ini
+
+# OPcache: compiled PHP stays in memory (otherwise ~30k lines are recompiled on every request – also for every cover image)
+RUN { \
+    echo 'opcache.enable = 1'; \
+    echo 'opcache.enable_cli = 0'; \
+    echo 'opcache.memory_consumption = 128'; \
+    echo 'opcache.interned_strings_buffer = 16'; \
+    echo 'opcache.max_accelerated_files = 10000'; \
+    echo 'opcache.validate_timestamps = 1'; \
+    echo 'opcache.revalidate_freq = 2'; \
+    } > /usr/local/etc/php/conf.d/opcache.ini
 
 # Hardening: no version banners, do not output PHP errors, strict sessions
 RUN { \

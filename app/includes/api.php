@@ -85,6 +85,12 @@ function api_user(bool $admin = false): array
     if (!in_array($methode, ['GET', 'HEAD', 'OPTIONS'], true) && empty($GLOBALS['api_token_anmeldung']) && !csrf_pruefen()) {
         throw new ApiFehler(t('Sicherheitsprüfung fehlgeschlagen – bitte die Seite neu laden.'), 403, ['csrf' => true]);
     }
+    // Lesende Aufrufe ändern die Sitzung nicht: Sitzungssperre gleich freigeben, damit parallele Aufrufe desselben
+    // Browsers (Liste, Suche, Bilder …) nicht hintereinander warten müssen. Das CSRF-Token vorher sicher anlegen.
+    if (in_array($methode, ['GET', 'HEAD'], true) && session_status() === PHP_SESSION_ACTIVE) {
+        csrf_token();
+        session_write_close();
+    }
     return $user;
 }
 

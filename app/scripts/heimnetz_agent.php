@@ -944,10 +944,12 @@ function zustand_schreiben(array $g, array &$s, bool $erzwingen = false): void
     db_tun('INSERT INTO fern_praesenz (geraet_id, user_id, zuletzt_am) VALUES (:g, 0, NOW(3)) ON DUPLICATE KEY UPDATE zuletzt_am = NOW(3)', ['g' => $fid]);
     if ($s['liste_neu']) {
         db_tun('UPDATE fern_praesenz SET liste = :l, liste_ver = liste_ver + 1 WHERE geraet_id = :g', ['l' => json_encode($s['liste'], JSON_UNESCAPED_UNICODE), 'g' => $fid]);
+        fern_signal($fid);
         $s['liste_neu'] = false;
     }
     if ($neuWert) {
         db_tun('UPDATE fern_praesenz SET zustand = :z, zustand_ver = zustand_ver + 1 WHERE geraet_id = :g', ['z' => json_encode($st, JSON_UNESCAPED_UNICODE), 'g' => $fid]);
+        fern_signal($fid);
         $s['geschrieben'] = $vergleich;
         $s['zustand_zeit'] = microtime(true);
     }

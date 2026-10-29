@@ -98,19 +98,20 @@ function credit_holen(array $teile, string $quelle = 'tags'): ?int
  */
 function credits_anzeige_angleichen(): int
 {
+    // Zwei Abfragen statt einer je Credit (bei großen Bibliotheken 100.000+ Credits): Namen gesammelt holen, vergleichen,
+    // nur Abweichendes schreiben
+    $neu = [];
+    foreach (db_alle('SELECT cn.credit_id, cn.name_als, cn.verbindung, k.name FROM credit_namen cn JOIN kuenstler k ON k.id = cn.kuenstler_id ORDER BY cn.credit_id, cn.pos') as $t) {
+        $neu[(int) $t['credit_id']] = ($neu[(int) $t['credit_id']] ?? '') . (string) ($t['name_als'] ?: $t['name']) . (string) $t['verbindung'];
+    }
     $n = 0;
     foreach (db_alle('SELECT id, anzeige FROM credits') as $c) {
-        $teile = db_alle('SELECT cn.name_als, cn.verbindung, k.name FROM credit_namen cn JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE cn.credit_id = :c ORDER BY cn.pos', ['c' => $c['id']]);
-        if (!$teile) {
+        if (!isset($neu[(int) $c['id']])) {
             continue;
         }
-        $neu = '';
-        foreach ($teile as $t) {
-            $neu .= (string) ($t['name_als'] ?: $t['name']) . (string) $t['verbindung'];
-        }
-        $neu = mb_substr(trim($neu), 0, 1000);
-        if ($neu !== '' && $neu !== (string) $c['anzeige']) {
-            db_tun('UPDATE credits SET anzeige = :a WHERE id = :id', ['a' => $neu, 'id' => $c['id']]);
+        $text = mb_substr(trim($neu[(int) $c['id']]), 0, 1000);
+        if ($text !== '' && $text !== (string) $c['anzeige']) {
+            db_tun('UPDATE credits SET anzeige = :a WHERE id = :id', ['a' => $text, 'id' => $c['id']]);
             $n++;
         }
     }
