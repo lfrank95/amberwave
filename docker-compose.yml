@@ -3,7 +3,7 @@
 services:
   db:
     image: mariadb:11
-    container_name: amberwave_db
+    container_name: ${STACK_NAME:-amberwave}_db
     restart: unless-stopped
     environment:
       # Not set up yet: enter nothing. The database starts with root access only (no password, only in the internal stack network –
@@ -25,7 +25,7 @@ services:
   app:
     # Ready-made image with code (update: docker compose pull && docker compose up -d). Runs as PUID/PGID, never as root.
     image: ${AMBERWAVE_IMAGE:-ghcr.io/lfrank95/amberwave:beta}
-    container_name: amberwave_app
+    container_name: ${STACK_NAME:-amberwave}_app
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -68,7 +68,7 @@ services:
   # cloudflared is reused). Cloudflare terms of use: https://www.cloudflare.com/terms/
   tunnel:
     image: cloudflare/cloudflared:${TUNNEL_IMAGE_TAG:-latest}
-    container_name: amberwave_tunnel
+    container_name: ${STACK_NAME:-amberwave}_tunnel
     restart: unless-stopped
     deploy:
       replicas: ${TUNNEL_IM_STACK:-1}

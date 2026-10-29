@@ -4,7 +4,7 @@
 services:
   db:
     image: mariadb:11
-    container_name: amberwave_db
+    container_name: ${STACK_NAME:-amberwave}_db
     restart: unless-stopped
     environment:
       # Not set up yet: enter nothing. The database starts with root access only (no password, only in the internal stack network –
@@ -27,7 +27,7 @@ services:
     # For a stack created through the Unraid UI this file lives on the USB stick – so code and build point
     # to the real folder via AMBERWAVE_ORDNER (in the .env), e.g. /mnt/user/appdata/amberwave
     build: ${AMBERWAVE_ORDNER:-.}/docker
-    container_name: amberwave_app
+    container_name: ${STACK_NAME:-amberwave}_app
     restart: unless-stopped
     # Startup script in the code folder (arrives with every update): runs as PUID/PGID (Unraid: 99/100 like Lidarr),
     # makes cache/backups writable and also starts the scheduler every minute.
@@ -74,7 +74,7 @@ services:
   # cloudflared is reused). Cloudflare terms of use: https://www.cloudflare.com/terms/
   tunnel:
     image: cloudflare/cloudflared:${TUNNEL_IMAGE_TAG:-latest}
-    container_name: amberwave_tunnel
+    container_name: ${STACK_NAME:-amberwave}_tunnel
     restart: unless-stopped
     deploy:
       replicas: ${TUNNEL_IM_STACK:-1}
