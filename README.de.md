@@ -11,6 +11,18 @@ Fernsteuerung zwischen allen Geräten. *English: [README.md](README.md)*
 
 <sub>Die Bilder zeigen eine Demo-Sammlung mit erfundenen Künstlern und erzeugten Covern.</sub>
 
+## Pro-Funktionen – in der Beta kostenlos
+
+Diese Funktionen sind später als kostenpflichtige **Pro**-Funktionen geplant. In der Beta sind sie **für alle kostenlos**:
+
+- **DSP-Effekte:** AmberGlow (Röhre), AmberIron (Übertrager), AmberSilk (Band), AmberSpace (Raumhall und 5.1-Upmix), EQ
+- **VST3-Plug-ins** im Windows-Client
+- **ASIO-Ausgabe** im Windows-Client
+- **Ausgangs-Routing-Matrix mit EQ pro Kanal**
+
+Alles andere – Bibliothek, MusicBrainz-Abgleich, Streaming, Fernsteuerung, Familienkonten, Web-App und bitgenaue
+WASAPI-Wiedergabe im Windows-Client – ist der kostenlose Kern.
+
 ## Installation mit dem fertigen Image (empfohlen)
 
 1. Einen Ordner anlegen, z. B. `/opt/amberwave` (Unraid: `/mnt/user/appdata/amberwave`), und `docker-compose.yml` und
@@ -126,8 +138,8 @@ Familienkonten mit Freischaltung und Ablauf. Kein Video.
 **Wo liegen meine Daten?** Alles, was Amberwave anlegt, liegt in `APPDATA_PFAD` (Datenbank, Cover, Schlüssel). Die
 Datenbank wird täglich und vor jedem Update gesichert; den Ordner zusätzlich mit der normalen NAS-Sicherung sichern.
 
-**Ist Amberwave kostenlos?** Der Kern ist Open Source (AGPL-3.0), in der Beta ist alles frei. Mögliche „Pro“-Erweiterungen
-kämen später getrennt dazu; was jetzt offen ist, bleibt offen.
+**Ist Amberwave kostenlos?** Der Kern ist kostenlos und Open Source (AGPL-3.0). DSP-Effekte, VST3, ASIO und die
+Ausgangs-Routing-Matrix mit EQ pro Kanal sind als Pro-Funktionen geplant – in der Beta sind sie für alle kostenlos.
 
 ## Mehr
 

@@ -33,6 +33,18 @@ remote-control every other one. Metadata comes from MusicBrainz, with credits do
 - **Optional:** tidy up files and tags (preview first, then your approval), Usenet search via Prowlarr/Newznab with
   SABnzbd (off by default), WAV export for mixing desks.
 
+## Pro features – free during the beta
+
+These are planned as paid **Pro** features later. During the beta they are **free for everyone**:
+
+- **DSP effects:** AmberGlow (tube), AmberIron (transformer), AmberSilk (tape), AmberSpace (room reverb and 5.1 upmix), EQ
+- **VST3 plug-in support** in the Windows client
+- **ASIO output** in the Windows client
+- **Output routing matrix with per-channel EQ**
+
+Everything else – library, MusicBrainz matching, streaming, remote control, family accounts, the web app and
+bit-perfect WASAPI playback in the Windows client – is the free core.
+
 ## Quick start (Docker)
 
 You need Docker with Compose on a Linux host or NAS with an x86-64 CPU (Unraid, Synology, TrueNAS, a plain Linux box).
@@ -140,8 +152,9 @@ app-data folder with your usual NAS backup as well.
 **Can I use it without MusicBrainz?** Yes – albums work from your file tags alone. Matching adds editions, credits and
 better artist pages.
 
-**Is it free?** The core is open source (AGPL-3.0) and everything is free during the beta. Possible paid "Pro"
-extensions later will be separate; what is open now stays open.
+**Is it free?** The core is free and open source (AGPL-3.0). DSP effects, VST3 support, ASIO output and the output
+routing matrix with per-channel EQ are planned as Pro features – during the beta they are free for everyone
+(see [Pro features](#pro-features--free-during-the-beta)).
 
 **I found a bug / have an idea.** [GitHub issues](../../issues) for bugs, [r/Amberwave](https://www.reddit.com/r/Amberwave)
 for questions and ideas.
