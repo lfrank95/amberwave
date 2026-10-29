@@ -51,7 +51,7 @@
 #include <unistd.h>
 #endif
 
-#define ENGINE_VERSION "0.8.6"
+#define ENGINE_VERSION "0.8.7"
 
 /* ------------------------------------------------------------------------------------------------------------ */
 /* Ausgabe der Meldungen                                                                                         */
@@ -95,7 +95,7 @@ static double jetzt_s(void) {
 }
 
 /* ------------------------------------------------------------------------------------------------------------ */
-/* Titel: Download in den Speicher, dr_flac liest blockierend daraus                                              */
+/* Titel: Download in den Speicher (große Dateien in eine Temp-Datei), dr_flac liest blockierend daraus          */
 
 typedef struct Titel {
   char id[64];
@@ -103,6 +103,7 @@ typedef struct Titel {
   pthread_mutex_t m;
   pthread_cond_t c;
   unsigned char *daten;
+  FILE *datei;            // große Titel (Hi-Res, lange Werke): Daten in einer Temp-Datei statt im Arbeitsspeicher
   size_t groesse, kap, lesepos;
   int64_t gesamt;         // Content-Length, -1 unbekannt
   int fertig, fehler, abbruch, dl_laeuft;
@@ -117,6 +118,83 @@ typedef struct Titel {
   double start;            // gewünschte Startposition (s)
   double gain;             // Lautheits-Angleich (linear), wechselt sample-genau an der Titelgrenze
 } Titel;
+
+/** Ab dieser Größe landet ein Titel in einer Temp-Datei (sonst halten Titel davor/jetzt/danach leicht Gigabytes im RAM).
+ *  AW_SPEICHER_MB setzt die Grenze (Tests). */
+static size_t speicher_grenze(void) {
+  static size_t g = 0;
+  if (!g) {
+    const char *e = getenv("AW_SPEICHER_MB");
+    long mb = e && *e ? atol(e) : 48;
+    g = (size_t)(mb > 0 ? mb : 48) << 20;
+  }
+  return g;
+}
+
+/** Temp-Datei, die beim Schließen (auch bei Absturz) wieder verschwindet */
+static FILE *temp_datei(void) {
+#ifdef _WIN32
+  wchar_t ordner[MAX_PATH + 1], name[MAX_PATH + 1];
+  if (!GetTempPathW(MAX_PATH, ordner) || !GetTempFileNameW(ordner, L"awp", 0, name)) return NULL;
+  HANDLE h = CreateFileW(name, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                         FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+  if (h == INVALID_HANDLE_VALUE) { DeleteFileW(name); return NULL; }
+  int fd = _open_osfhandle((intptr_t)h, _O_RDWR | _O_BINARY);
+  if (fd < 0) { CloseHandle(h); return NULL; }
+  FILE *f = _fdopen(fd, "w+b");
+  if (!f) _close(fd);
+  return f;
+#else
+  return tmpfile();
+#endif
+}
+
+static int datei_an(FILE *f, int64_t pos) {
+#ifdef _WIN32
+  return _fseeki64(f, pos, SEEK_SET);
+#else
+  return fseeko(f, (off_t)pos, SEEK_SET);
+#endif
+}
+
+/** k Bytes anhängen (unter t->m). 0 = ok */
+static int titel_anhaengen(Titel *t, const unsigned char *src, size_t k) {
+  if (!t->datei && t->groesse + k > speicher_grenze()) {
+    FILE *f = temp_datei();
+    if (f) {
+      // bisherige Daten in die Datei, Speicher freigeben
+      if (t->groesse && fwrite(t->daten, 1, t->groesse, f) != t->groesse) { fclose(f); f = NULL; }
+      if (f) { t->datei = f; free(t->daten); t->daten = NULL; t->kap = 0; }
+    }
+    // ohne Temp-Datei (voller Datenträger, keine Rechte): weiter im Speicher wie bisher
+  }
+  if (t->datei) {
+    if (datei_an(t->datei, (int64_t)t->groesse) != 0 || fwrite(src, 1, k, t->datei) != k) return -1;
+    t->groesse += k;
+    return 0;
+  }
+  if (t->groesse + k > t->kap) {
+    size_t neu = t->kap ? t->kap : 1 << 20;
+    while (neu < t->groesse + k) neu = neu + neu / 2;
+    unsigned char *d = realloc(t->daten, neu);
+    if (!d) return -1;
+    t->daten = d; t->kap = neu;
+  }
+  memcpy(t->daten + t->groesse, src, k);
+  t->groesse += k;
+  return 0;
+}
+
+/** k Bytes ab pos lesen (unter t->m, pos + k <= groesse) */
+static size_t titel_holen(Titel *t, void *buf, size_t pos, size_t k) {
+  if (!k) return 0;
+  if (t->datei) {
+    if (datei_an(t->datei, (int64_t)pos) != 0) return 0;
+    return fread(buf, 1, k, t->datei);
+  }
+  memcpy(buf, t->daten + pos, k);
+  return k;
+}
 
 static void *download_thread(void *arg) {
   Titel *t = arg;
@@ -143,8 +221,10 @@ static void *download_thread(void *arg) {
   }
   t->netz = n;
   t->gesamt = gesamt;
-  size_t start_kap = gesamt > 0 ? (size_t)gesamt : (size_t)8 << 20;
-  t->daten = malloc(start_kap);
+  // Größe bekannt und klein: gleich passend reservieren; große Titel gehen beim ersten Block in die Temp-Datei
+  size_t start_kap = gesamt > 0 && (size_t)gesamt <= speicher_grenze() ? (size_t)gesamt : (size_t)8 << 20;
+  if (gesamt > 0 && (size_t)gesamt > speicher_grenze()) start_kap = 0;
+  t->daten = start_kap ? malloc(start_kap) : NULL;
   t->kap = t->daten ? start_kap : 0;
   pthread_mutex_unlock(&t->m);
   unsigned char *tmp = malloc(256 * 1024);
@@ -154,15 +234,11 @@ static void *download_thread(void *arg) {
     if (t->abbruch == 1) { pthread_mutex_unlock(&t->m); break; }   // 2 = nur das Lesen des Dekoders unterbrochen
     if (k < 0) { t->fehler = 1; snprintf(t->fehlertext, sizeof t->fehlertext, "Verbindung abgebrochen"); pthread_cond_broadcast(&t->c); pthread_mutex_unlock(&t->m); break; }
     if (k == 0) { t->fertig = 1; pthread_cond_broadcast(&t->c); pthread_mutex_unlock(&t->m); break; }
-    if (t->groesse + (size_t)k > t->kap) {
-      size_t neu = t->kap ? t->kap : 1 << 20;
-      while (neu < t->groesse + (size_t)k) neu = neu + neu / 2;
-      unsigned char *d = realloc(t->daten, neu);
-      if (!d) { t->fehler = 1; snprintf(t->fehlertext, sizeof t->fehlertext, "zu wenig Speicher"); pthread_cond_broadcast(&t->c); pthread_mutex_unlock(&t->m); break; }
-      t->daten = d; t->kap = neu;
+    if (titel_anhaengen(t, tmp, (size_t)k) != 0) {
+      t->fehler = 1;
+      snprintf(t->fehlertext, sizeof t->fehlertext, t->datei ? "Zwischenspeichern fehlgeschlagen (Datenträger voll?)" : "zu wenig Speicher");
+      pthread_cond_broadcast(&t->c); pthread_mutex_unlock(&t->m); break;
     }
-    memcpy(t->daten + t->groesse, tmp, (size_t)k);
-    t->groesse += (size_t)k;
     pthread_cond_broadcast(&t->c);
     pthread_mutex_unlock(&t->m);
   }
@@ -217,6 +293,7 @@ static void titel_frei(Titel *t) {
   if (t->flac) drflac_close(t->flac);
   if (t->wav) { drwav_uninit(t->wav); free(t->wav); }
   free(t->daten);
+  if (t->datei) fclose(t->datei);
   free(t->url);
   free(t->kopf);
   pthread_mutex_destroy(&t->m);
@@ -232,7 +309,7 @@ static size_t flac_lesen(void *u, void *buf, size_t n) {
   if (!t->abbruch) {
     k = t->groesse - t->lesepos;
     if (k > n) k = n;
-    memcpy(buf, t->daten + t->lesepos, k);
+    k = titel_holen(t, buf, t->lesepos, k);
     t->lesepos += k;
   }
   pthread_mutex_unlock(&t->m);

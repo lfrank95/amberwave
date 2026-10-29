@@ -2,15 +2,16 @@
 
 ## 0.9.1-beta.2 – large libraries
 
-Load test with a synthetic library of 20,000 real files (scanned) and 100,000 tracks (database), plus three independent
-code reviews focused on scaling. Everything below was found that way.
+Load test with a synthetic library (20,000 real files scanned, database multiplied to 100,000 tracks) on a real
+MariaDB 11.4, plus independent reviews of the code and the migration system. Result: with MariaDB, Amberwave was already
+fast at 100,000 tracks – lists, album pages and search answer in 10–200 ms. This release fixes the weak spots that
+showed up anyway and makes updates of big databases safe.
 
-- **Album and artist lists stay fast with big collections.** Sorting by artist, grouping by artist, letter filter and
-  the artist sorts "most albums" / "most played" used a subquery per album or artist – about a minute per page at 8,000
-  tracks. Now well under half a second at 100,000 tracks (same order as before, verified row by row).
-- **Album pages** pick the best file per track in one query instead of one per track (1.9 s → 0.09 s at 20,000 tracks).
+- **Typo search** (only used when the normal search finds nothing) has a time budget: 2.1 s → 1.2 s at 100,000 tracks.
+- **Artist pages** of artists with many albums: 0.18 s → 0.07 s (roles and collaborators are looked up from the artist).
+- Album and artist lists, album pages: queries rewritten without per-row subqueries (same results, verified row by
+  row) – this matters for databases that optimise less well than MariaDB.
 - Going back to a list where you clicked "Load more" several times reloads it in **one request** instead of page by page.
-- Typo-tolerant search has a time budget, so a misspelled search can't stall on huge libraries.
 - **Fewer background database writes:** technical updates (loudness, genres, popularity, artwork lookups) no longer mark
   albums as changed, genre families are only recalculated when something changed, the sound-analysis index is rebuilt
   far less often, and the scanner skips clean-up passes when nothing changed.
@@ -19,7 +20,7 @@ code reviews focused on scaling. Everything below was found that way.
 - PHP OPcache enabled in the Docker image; the schema check runs once per start instead of on every request.
 - Player: the queue is saved less often and in a bounded window (very long queues no longer write megabytes on every
   track change).
-- New indexes for large libraries (best file per track, play counts, album titles, artist sort names).
+- New indexes for large libraries (best file per track, play counts).
 - Fixed: removing a track from a playlist could also remove it from a playlist you had opened earlier.
 - Fixed: hidden admin panels kept refreshing at full speed in the background.
 - `DB_PUFFER` (optional) sets the MariaDB buffer pool size in the compose files (default 512M).
@@ -34,9 +35,13 @@ Updates on big databases (from an independent review of the migration system):
   retries on every request (2-minute pause, clear message) and can't rotate that backup away.
 - The backup streams rows instead of loading whole tables into memory (test with 100,000 tracks: about 1 MB of PHP memory).
 - Schema changes give up after 20 s if a table is busy (e.g. a running scan) instead of blocking everything.
-- Artist pages: roles and frequent collaborators are looked up from the artist instead of across the whole library.
 - Redundant indexes removed (less work for every scan); the scanner reads only the columns it needs.
 - New manual GitHub workflow "Load test": real MariaDB, synthetic library, scan, 100,000 tracks, API timings.
+
+Windows client:
+
+- **Large tracks no longer fill the RAM:** a track bigger than 48 MB (hi-res, long classical works) is buffered in a
+  temporary file instead of memory; the file is deleted automatically. Playback stays gapless and bit-perfect.
 
 ## 0.9.1-beta.1 – first public beta
 

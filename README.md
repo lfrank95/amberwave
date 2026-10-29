@@ -152,7 +152,9 @@ MusicBrainz editions and full credits, bit-perfect playback in its own Windows c
 devices and a family setup with accounts that need approval and can expire. It does not do video.
 
 **What hardware do I need?** Any x86-64 machine that runs Docker. The first scan of a large library takes a while
-(every file is read once). Keep the app data on an SSD if you can.
+(every file is read once – about 100 files per second in our load test). Keep the app data on an SSD if you can.
+With 100,000 tracks, lists, album pages and search answer in well under a second; a search with a typo takes about a
+second (load test on MariaDB 11.4).
 
 **Where is my data, and how do I back it up?** Everything Amberwave creates lives in `APPDATA_PFAD` (database, covers,
 keys). Amberwave backs up its database daily (Settings → Backup & update) and before every update. Back up the
