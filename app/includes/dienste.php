@@ -2,9 +2,8 @@
 // Anfragen an fremde Dienste (MusicBrainz, AcoustID, Cover Art Archive, Deezer, fanart.tv, ListenBrainz, Cloudflare,
 // Let's Encrypt …): eine gemeinsame Kennung und ein Zähler.
 //
-// Kennung (User-Agent): „Amberwave/0.2.106 (Pro; Installation 3f9a2c1b; kontakt@…)“ – so sehen die Betreiber in ihren
-// Logs, wie viel von Amberwave kommt, wie viele Installationen es sind und wie viel davon aus der Free- bzw. Pro-Version.
-// Die Installations-Kennung ist eine zufällige Zeichenfolge ohne Bezug zu Personen.
+// Kennung (User-Agent): „Amberwave/0.9.1 ( https://github.com/… )“ – Name, Version und Kontakt, wie MusicBrainz & Co. es
+// verlangen. Bewusst ohne Installations-Kennung: Amberwave zählt keine Installationen und meldet nichts nach außen.
 // Zähler: je Dienst und Tag Anfragen und Fehler (Tabelle dienst_anfragen) – zu sehen unter Einstellungen › Dienste & Schlüssel.
 declare(strict_types=1);
 require_once __DIR__ . '/db.php';
@@ -70,15 +69,10 @@ function amberwave_user_agent(bool $admin_mail = false): string
     if (isset($ua[$admin_mail])) {
         return $ua[$admin_mail];
     }
-    $teile = [amberwave_edition(), 'Installation ' . installation_id()];
+    // nur Name, Version und Kontakt (wie MusicBrainz es verlangt) – keine Installations-Kennung, keine Edition
     $k = dienste_kontakt($admin_mail);
-    if ($k !== '') {
-        $teile[] = $k;
-    }
-    $text = (string) preg_replace('/[^\x20-\x7E]/', '', 'Amberwave/' . app_version() . ' (' . implode('; ', $teile) . ')');
-    if (installation_id() !== '00000000') {
-        $ua[$admin_mail] = $text;
-    }
+    $text = (string) preg_replace('/[^\x20-\x7E]/', '', 'Amberwave/' . app_version() . ($k !== '' ? ' ( ' . $k . ' )' : ''));
+    $ua[$admin_mail] = $text;
     return $text;
 }
 
@@ -90,7 +84,7 @@ function dienst_von(string $url): string
         'musicbrainz.org' => 'MusicBrainz', 'coverartarchive.org' => 'Cover Art Archive', 'archive.org' => 'Cover Art Archive',
         'acoustid.org' => 'AcoustID', 'deezer.com' => 'Deezer', 'dzcdn.net' => 'Deezer', 'fanart.tv' => 'fanart.tv',
         'listenbrainz.org' => 'ListenBrainz', 'metabrainz.org' => 'MetaBrainz', 'cloudflare.com' => 'Cloudflare',
-        'letsencrypt.org' => "Let's Encrypt", 'anthropic.com' => 'Claude (Übersetzung)', 'wikipedia.org' => 'Wikipedia', 'wikidata.org' => 'Wikidata',
+        'letsencrypt.org' => "Let's Encrypt", 'anthropic.com' => 'Claude', 'wikipedia.org' => 'Wikipedia', 'wikidata.org' => 'Wikidata',
         'upf.edu' => 'Music Technology Group', 'essentia.upf.edu' => 'Music Technology Group', 'github.com' => 'GitHub', 'githubusercontent.com' => 'GitHub',
         'huggingface.co' => 'Hugging Face', 'voxengo.com' => 'Voxengo',
     ];

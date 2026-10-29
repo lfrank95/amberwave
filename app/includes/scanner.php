@@ -345,7 +345,7 @@ function scan_ordner_aufbauen(int $lauf, string $wurzel, string $basis, array $d
     foreach ($eintraege as $e) {
         $albumtitel = scan_albumtitel_bereinigen(tag1($e['tags'], 'ALBUM'));
         if ($albumtitel === '') {
-            $albumtitel = $basis === '.' ? 'Ohne Album' : basename($basis);
+            $albumtitel = $basis === '.' ? t('Ohne Album') : basename($basis);
         }
         $nach_titel[name_norm($albumtitel) ?: mb_strtolower($albumtitel)][] = $e + ['albumtitel' => $albumtitel];
     }

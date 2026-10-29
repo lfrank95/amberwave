@@ -4,10 +4,17 @@
 in a bit-perfect Windows client. At home you get the original files, on the go a smooth stream; every device can
 remote-control every other one. Metadata comes from MusicBrainz, with credits down to producers and session musicians.
 
-> **Public beta – 0.9.0-beta.4.** Please back up your music before you try it. Amberwave only **reads** your music
+> **Public beta – 0.9.1-beta.1.** Please back up your music before you try it. Amberwave only **reads** your music
 > by default; it writes nothing until you allow it. *Deutsche Anleitung: [README.de.md](README.de.md)*
 
-<!-- Screenshots: add docs/screenshots/*.png here (record crate, now playing, remote control, effects rack) -->
+![Home](docs/screenshots/home.png)
+
+| | |
+|---|---|
+| ![Album](docs/screenshots/album.png) | ![Now playing](docs/screenshots/now-playing.png) |
+| ![Albums](docs/screenshots/albums.png) | ![Effects rack](docs/screenshots/effects-rack.png) |
+
+<sub>Screenshots use a demo library with made-up artists and generated cover art.</sub>
 
 ## What it does
 
@@ -52,6 +59,12 @@ you when a new release is out (switch off under Settings → Backup & update).
 `MUSIK_PFAD=/mnt/user/music`, `APPDATA_PFAD=/mnt/cache/appdata/amberwave`, `PUID=99`, `PGID=100`) → **Compose Up**.
 The setup link is in the logs of the `amberwave_app` container. Update with **Update Stack**.
 
+**Synology (DSM 7.2, Container Manager):** create a shared folder for Amberwave's data, e.g. `/volume1/docker/amberwave`,
+and put `docker-compose.yml` and your `.env` into it (`MUSIK_PFAD=/volume1/music`, `APPDATA_PFAD=/volume1/docker/amberwave/data`;
+`PUID`/`PGID` = the user that owns your music, often `1026`/`100` – check with `id <user>` over SSH). Then Container Manager →
+**Project → Create**, choose that folder as path and "Use existing docker-compose.yml" → **Build**. The setup link is in the
+log of `amberwave_app` (Container → amberwave_app → Log). Update: Project → amberwave → **Action → Build** (pulls the new image).
+
 **Self-build instead of the image:** [`docker-compose.build.yml`](docker-compose.build.yml) (mounts the code as a folder;
 updates then come as a zip under Settings → Backup & update). Every `.env` option is documented (in German) in
 [`.env.reference`](.env.reference) – almost all of them can also be changed in the app.
@@ -64,7 +77,7 @@ updates then come as a zip under Settings → Backup & update). Every `.env` opt
 - Even with writing allowed nothing happens on its own: tidy-up always shows a preview and only runs what you approve;
   replaced files go to `.amberwave-papierkorb` inside your music folder.
 - **Usenet downloads are off** until you switch them on (Settings → Downloads). You are responsible for what you download.
-- No telemetry. Amberwave talks to MusicBrainz, Cover Art Archive, AcoustID, fanart.tv, Deezer and ListenBrainz for
+- No telemetry, no installation ID, no counting of installations. Amberwave talks to MusicBrainz, Cover Art Archive, AcoustID, fanart.tv, Deezer and ListenBrainz for
   metadata, to GitHub for the update notice, and – only if you set them up – to Cloudflare and your own services.
 
 ## Remote access
@@ -84,11 +97,54 @@ Download it from the [releases](../../releases). It is not code-signed yet, so W
 protected your PC" on first start: click **More info → Run anyway**. The client finds your server in the home network by
 itself. Details (German): [windows-client/README.md](windows-client/README.md).
 
+VST3 plug-in support is **experimental** in the beta: each plug-in runs in its own process, so a crashing plug-in doesn't
+stop the music – but third-party plug-ins are the most likely source of trouble. Please report problems with the plug-in's
+name and version.
+
 ## Known limitations of the beta
 
+- **The interface still needs polish.** Finding the right balance between simple, good-looking and detailed is ongoing
+  work – feedback on what feels cluttered or missing is very welcome.
 - Docker image for amd64 only (arm64 needs the effects renderer ported).
 - Code comments and parts of the documentation are German; the app itself is German and English.
-- The Windows client is unsigned and has no auto-update yet.
+- The Windows client is unsigned, has no auto-update yet (it tells you when a new version is out) and VST3 support is
+  experimental.
+- No Subsonic/OpenSubsonic API yet, so third-party Subsonic apps don't work – use the web app (installable on phones)
+  or the Windows client.
+
+## Roadmap
+
+No dates, just direction:
+
+- **Mid-term:** Amberwave server for Windows (no Docker needed).
+- **Long-term:** a standalone Windows version (server and player in one), an Android app.
+- **Further out, not ruled out:** versions for macOS, iPhone and Linux desktops.
+- Along the way: UI polish, arm64 image, more import and tidy-up tools – shaped by your feedback.
+
+## FAQ
+
+**Does Amberwave change my files?** Not by default. The music folder is read-only until you allow writing, and even
+then every change (tags, renaming, tidy-up) is shown as a preview first and only runs after you approve it.
+
+**How is it different from Plex, Jellyfin or Navidrome?** Amberwave is music-only and built around a well-kept library:
+MusicBrainz editions and full credits, bit-perfect playback in its own Windows client, remote control between all your
+devices and a family setup with accounts that need approval and can expire. It does not do video.
+
+**What hardware do I need?** Any x86-64 machine that runs Docker. The first scan of a large library takes a while
+(every file is read once). Keep the app data on an SSD if you can.
+
+**Where is my data, and how do I back it up?** Everything Amberwave creates lives in `APPDATA_PFAD` (database, covers,
+keys). Amberwave backs up its database daily (Settings → Backup & update) and before every update. Back up the
+app-data folder with your usual NAS backup as well.
+
+**Can I use it without MusicBrainz?** Yes – albums work from your file tags alone. Matching adds editions, credits and
+better artist pages.
+
+**Is it free?** The core is open source (AGPL-3.0) and everything is free during the beta. Possible paid "Pro"
+extensions later will be separate; what is open now stays open.
+
+**I found a bug / have an idea.** [GitHub issues](../../issues) for bugs, [r/Amberwave](https://www.reddit.com/r/Amberwave)
+for questions and ideas.
 
 ## Feedback
 

@@ -1,4 +1,4 @@
-# Amberwave 0.9.0-beta.4
+# Amberwave 0.9.1-beta.1
 
 Selbst gehosteter Musikserver für die Familie: deine Sammlung (FLAC & Co.) im Browser, als installierbare Web-App und
 im Windows-Client hören – zuhause bitgenau, unterwegs gestreamt, mit sauberen Metadaten von MusicBrainz und
@@ -6,6 +6,10 @@ Fernsteuerung zwischen allen Geräten. *English: [README.md](README.md)*
 
 > **Beta:** Amberwave ist in der öffentlichen Beta. Mach vorher eine Sicherung deiner Musiksammlung. Amberwave liest
 > deine Musik standardmäßig nur – geschrieben wird erst, wenn du es erlaubst.
+
+![Startseite](docs/screenshots/home.png)
+
+<sub>Die Bilder zeigen eine Demo-Sammlung mit erfundenen Künstlern und erzeugten Covern.</sub>
 
 ## Installation mit dem fertigen Image (empfohlen)
 
@@ -44,6 +48,17 @@ Notfall-Zugang: `docker exec -it amberwave_app php /var/www/html/scripts/create_
 
 Update: beim Stack **Update Stack** (bzw. **Compose Pull**, dann **Compose Up**).
 
+### Synology (DSM 7.2, Container Manager)
+
+1. Einen Ordner anlegen, z. B. `/volume1/docker/amberwave`, und `docker-compose.yml` und die `.env` hineinlegen
+   (`MUSIK_PFAD=/volume1/music`, `APPDATA_PFAD=/volume1/docker/amberwave/data`; `PUID`/`PGID` = Besitzer der Musik,
+   oft `1026`/`100` – per SSH mit `id <benutzer>` prüfen).
+2. Container Manager → **Projekt → Erstellen**, diesen Ordner als Pfad wählen, „Vorhandene docker-compose.yml verwenden“
+   → **Erstellen**.
+3. Den Einrichtungslink findest du unter Container → `amberwave_app` → Protokoll.
+
+Update: Projekt `amberwave` → **Aktion → Erstellen** (holt das neue Image).
+
 ### Selbst bauen (bisherige Art)
 
 `docker-compose.build.yml` baut das Image lokal und bindet den Code als Ordner ein (`AMBERWAVE_ORDNER` in der .env auf
@@ -77,6 +92,42 @@ Für Entwickler: nach Änderungen an `app/js/*.js` neu bündeln (`bash app/scrip
 Bitgenaue Wiedergabe über WASAPI exklusiv oder ASIO, lückenlos, Abtastrate folgt der Datei, Effekte und VST3-Plug-ins.
 Download unter den Releases. Er ist (noch) nicht signiert – Windows zeigt beim ersten Start „Der Computer wurde durch
 Windows geschützt“: **Weitere Informationen → Trotzdem ausführen**. Details: [windows-client/README.md](windows-client/README.md).
+
+VST3-Plug-ins sind in der Beta **experimentell**: Jedes Plug-in läuft in einem eigenen Prozess, ein Absturz hält die
+Musik nicht an – fremde Plug-ins sind aber die häufigste Fehlerquelle. Bitte Probleme mit Name und Version melden.
+
+## Bekannte Grenzen der Beta
+
+- **Die Oberfläche braucht noch Feinschliff** – die Balance zwischen einfach, schön und detailliert ist noch nicht
+  überall gefunden. Rückmeldungen dazu sind sehr willkommen.
+- Docker-Image nur für x86-64 (ARM/Raspberry Pi folgt).
+- Der Windows-Client ist nicht signiert und aktualisiert sich nicht selbst (er meldet aber neue Versionen).
+- Noch keine Subsonic-Schnittstelle – Subsonic-Apps funktionieren nicht; dafür gibt es die installierbare Web-App.
+- Keine Telemetrie, keine Installations-Kennung: Amberwave meldet nichts nach außen.
+
+## Roadmap
+
+Ohne Termine, nur die Richtung:
+
+- **Mittelfristig:** Amberwave-Server für Windows (ohne Docker).
+- **Langfristig:** eine eigenständige Windows-Version (Server und Player in einem), eine Android-App.
+- **In weiterer Ferne, aber nicht ausgeschlossen:** Versionen für macOS, iPhone und Linux.
+- Unterwegs: Feinschliff der Oberfläche, ARM-Image, mehr Werkzeuge – je nach euren Rückmeldungen.
+
+## Häufige Fragen
+
+**Verändert Amberwave meine Dateien?** Standardmäßig nicht. Der Musikordner ist schreibgeschützt, bis du es erlaubst –
+und auch dann läuft jede Änderung erst nach Vorschau und Freigabe.
+
+**Was unterscheidet Amberwave von Plex, Jellyfin oder Navidrome?** Nur Musik, dafür gründlich: MusicBrainz-Editionen
+und vollständige Mitwirkende, bitgenaue Wiedergabe im eigenen Windows-Client, Fernsteuerung zwischen allen Geräten und
+Familienkonten mit Freischaltung und Ablauf. Kein Video.
+
+**Wo liegen meine Daten?** Alles, was Amberwave anlegt, liegt in `APPDATA_PFAD` (Datenbank, Cover, Schlüssel). Die
+Datenbank wird täglich und vor jedem Update gesichert; den Ordner zusätzlich mit der normalen NAS-Sicherung sichern.
+
+**Ist Amberwave kostenlos?** Der Kern ist Open Source (AGPL-3.0), in der Beta ist alles frei. Mögliche „Pro“-Erweiterungen
+kämen später getrennt dazu; was jetzt offen ist, bleibt offen.
 
 ## Mehr
 

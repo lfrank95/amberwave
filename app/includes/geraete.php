@@ -64,7 +64,7 @@ function geraete_begrenzen(array $user, int $behalten_id): void
         rate_zaehlen('geraet_wechsel', (string) $user['id']);
     }
     if ($zuviel > 0) {
-        log_sicherheitsereignis((int) $user['id'], 'geraet_verdraengt', $zuviel . ' Gerät(e) abgemeldet');
+        log_sicherheitsereignis((int) $user['id'], 'geraet_verdraengt', tn($zuviel, 'Ein Gerät abgemeldet', '{n} Geräte abgemeldet'));
     }
 }
 

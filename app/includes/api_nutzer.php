@@ -59,7 +59,7 @@ function api_token_anmelden(): array
         throw new ApiFehler(t('Bitte zuerst im Browser ein eigenes Passwort festlegen.'), 403, ['passwort_aendern' => true]);
     }
     [$token, $geraet] = api_token_erstellen($r['user'], (string) api_wert('geraet_name', 'App'));
-    log_sicherheitsereignis((int) $r['user']['id'], 'app_anmeldung', 'Gerät #' . $geraet);
+    log_sicherheitsereignis((int) $r['user']['id'], 'app_anmeldung', t('Gerät #{id}', ['id' => $geraet]));
     return ['ok' => true, 'token' => $token, 'geraet_id' => $geraet, 'user_id' => (int) $r['user']['id']];
 }
 

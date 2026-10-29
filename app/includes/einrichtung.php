@@ -672,7 +672,7 @@ function einr_festlegungen(): array
         $ordner[] = $o;
     }
     $d = $k['pfade']['downloads'] ?? '';
-    if ($d !== '' && is_dir($d)) {
+    if ($d !== '' && is_dir($d) && einr_usenet_an()) {
         $o = einr_ordner_info('downloads', t('Downloads'), $d, $host('DOWNLOAD_PFAD'), true, true);
         $o['quelle'] = t('DOWNLOAD_PFAD in der .env');
         $ordner[] = $o;
@@ -727,7 +727,7 @@ function einrichtung_systempruefung(): array
     $ordner[] = $c;
     $ordner[] = $b;
     $d = $k['pfade']['downloads'] ?? '';
-    if ($d !== '' && is_dir($d)) {
+    if ($d !== '' && is_dir($d) && einr_usenet_an()) {
         $ordner[] = einr_ordner_info('downloads', t('Downloads'), $d, $host('DOWNLOAD_PFAD'), true, true);
     }
     $z = einrichtung_zustand(true);
@@ -782,4 +782,14 @@ function einrichtung_scan_zusammenfassung(): array
     $top = db_alle('SELECT c.anzeige AS name, COUNT(*) AS n FROM tracks t JOIN credits c ON c.id = t.credit_id GROUP BY t.credit_id, c.anzeige ORDER BY n DESC LIMIT 5');
     return $s + ['spielzeit_ms' => $ms, 'aeltestes' => $j['a'] !== null ? (int) $j['a'] : null, 'neuestes' => $j['n'] !== null ? (int) $j['n'] : null,
         'top' => array_map(static fn($r) => ['name' => (string) $r['name'], 'n' => (int) $r['n']], $top)];
+}
+
+/** Downloads-Ordner nur zeigen, wenn Usenet-Downloads eingeschaltet sind (sonst ist er für Tester nur verwirrend) */
+function einr_usenet_an(): bool
+{
+    try {
+        return function_exists('einstellung') && einstellung('usenet_aktiv') === '1';
+    } catch (Throwable $e) {
+        return false;
+    }
 }

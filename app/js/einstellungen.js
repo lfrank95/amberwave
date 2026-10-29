@@ -998,10 +998,10 @@ async function anfragenKarte(inhalt, signal) {
     ? d.dienste.map((x) => `<tr><th scope="row">${h(x.dienst)}</th><td>${z(x.heute)}</td><td>${z(x.woche)}</td><td>${z(x.monat)}${x.monat_pro ? `<small> ${t('davon {n} Pro', { n: z(x.monat_pro) })}</small>` : ''}${x.fehler_monat ? `<small class="fehler-text"> · ${t('{n} fehlgeschlagen', { n: z(x.fehler_monat) })}</small>` : ''}</td><td>${z(x.vormonat)}</td></tr>`).join('')
     : `<tr><td colspan="5" class="einst-anfragen-leer">${t('Noch keine Anfragen gezählt.')}</td></tr>`;
   platz.outerHTML = karte(t('Anfragen an Dienste'), `
-    <p class="einst-karten-hinweis">${t('Jede Anfrage trägt diese Kennung. So sehen die Betreiber, wie viel von Amberwave kommt, wie viele Installationen es sind und ob sie aus der Free- oder Pro-Version kommen. Die Installations-Nummer ist zufällig und hat keinen Bezug zu dir.')}</p>
+    <p class="einst-karten-hinweis">${t('Jede Anfrage trägt diese Kennung – nur Name, Version und Projektadresse, wie MusicBrainz und andere Dienste es verlangen. Keine Installations-Nummer, nichts über dich. Die Zählung unten bleibt auf deinem Server.')}</p>
     <div class="einst-zeile"><code class="einst-ua">${h(d.user_agent)}</code></div>
     <div class="einst-anfragen"><table><thead><tr><th scope="col">${t('Dienst')}</th><th scope="col">${t('Heute')}</th><th scope="col">${t('7 Tage')}</th><th scope="col">${t('Dieser Monat')}</th><th scope="col">${t('Vormonat')}</th></tr></thead><tbody>${zeilen}</tbody></table></div>`,
-  chip(t('{edition}-Version', { edition: d.edition }), d.edition === 'Pro' ? 'gut' : ''));
+  '');
 }
 
 // ---------- Kopfchips je Bereich ----------

@@ -364,7 +364,7 @@ $routen = [
             session_write_close();
         }
         $r = af_rechte_reparieren();
-        log_sicherheitsereignis((int) $u['id'], 'rechte_repariert', $r['geaendert'] . ' geändert');
+        log_sicherheitsereignis((int) $u['id'], 'rechte_repariert', t('{n} geändert', ['n' => $r['geaendert']]));
         return $r;
     }],
     ['POST', '/admin/aufraeumen/papierkorb-leeren', function () {
@@ -930,7 +930,7 @@ $routen = [
         $u = api_user(true);
         require_once __DIR__ . '/../includes/downloads.php';
         $r = dl_dienst_loeschen((string) api_wert('art', ''), (int) api_wert('id', 0));
-        log_sicherheitsereignis((int) $u['id'], 'einstellungen_geaendert', 'Download-Anbieter gelöscht');
+        log_sicherheitsereignis((int) $u['id'], 'einstellungen_geaendert', t('Download-Anbieter gelöscht'));
         return $r;
     }],
     ['POST', '/admin/downloads/dienste/test', function () {

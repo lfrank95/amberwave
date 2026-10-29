@@ -32,7 +32,7 @@ function api_admin_uebersicht(): array
         'image' => getenv('AMBERWAVE_IMAGE') === '1',
         'musikordner' => konfig()['pfade']['musik'],
         'musikordner_ok' => is_dir(konfig()['pfade']['musik']),
-        'secret_key' => empty(konfig()['app_secret_key_erzeugt']) && konfig()['app_secret_key'] !== '',
+        'secret_key' => empty(konfig()['app_secret_key_fluechtig']) && konfig()['app_secret_key'] !== '',
         'mail_eingerichtet' => mail_konfiguriert(),
     ];
 }
@@ -281,7 +281,7 @@ const ADMIN_EINSTELLUNGEN = ['smtp_host', 'smtp_port', 'smtp_verschluesselung', 
 function api_admin_einstellungen(): array
 {
     require_once __DIR__ . '/downloads.php';
-    return ['einstellungen' => einstellungen_fuer_oberflaeche(ADMIN_EINSTELLUNGEN), 'secret_key' => empty(konfig()['app_secret_key_erzeugt']) && konfig()['app_secret_key'] !== '',
+    return ['einstellungen' => einstellungen_fuer_oberflaeche(ADMIN_EINSTELLUNGEN), 'secret_key' => empty(konfig()['app_secret_key_fluechtig']) && konfig()['app_secret_key'] !== '',
         'downloads_bereit' => dl_prowlarr_bereit() && dl_sab_bereit()];
 }
 
@@ -358,8 +358,8 @@ function api_admin_einstellungen_speichern(array $admin): array
         if ($k === 'scan_auto_stunden' && ((int) $w < 0 || (int) $w > 720)) {
             throw new ApiFehler(t('Automatischer Scan: 0 bis 720 Stunden.'));
         }
-        if ($def['geheim'] && (konfig()['app_secret_key'] === '' || !empty(konfig()['app_secret_key_erzeugt']))) {
-            throw new ApiFehler(t('Zum Speichern von Passwörtern und Schlüsseln muss APP_SECRET_KEY in der .env gesetzt sein.'));
+        if ($def['geheim'] && (konfig()['app_secret_key'] === '' || !empty(konfig()['app_secret_key_fluechtig']))) {
+            throw new ApiFehler(t('Zum Speichern von Passwörtern und Schlüsseln braucht Amberwave einen festen Schlüssel: Der App-Daten-Ordner ist nicht beschreibbar – bitte die Rechte prüfen oder APP_SECRET_KEY in der .env setzen.'));
         }
         einstellung_setzen($k, $w);
     }

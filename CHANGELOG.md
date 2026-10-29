@@ -1,7 +1,19 @@
 # Changelog
 
-## 0.9.0-beta.4
+## 0.9.1-beta.1 – first public beta
 
+- **Fresh installs without `APP_SECRET_KEY` work fully:** the key Amberwave generates and keeps in the app-data folder is
+  now treated as permanent – saving mail passwords and API keys is no longer blocked, and the red warning on the admin
+  overview only appears if that folder isn't writable.
+- **Automatic database backup before updates** done by pulling a new image (shown as "Before update" under Backup &
+  update, last three kept). Tested: upgrade from 0.2.100 to this version keeps all data; backup and restore round-trip,
+  including restoring the pre-update backup and migrating again.
+- **No installation ID any more:** requests to MusicBrainz & co. only carry name, version and the project address.
+- VST3 support in the Windows client is marked **experimental**.
+- Player bar: on screens 1024–1700 px wide the stop button and the quality chip no longer overlap.
+- Security log shows readable event names; remaining German strings (album "No album", log details) translated.
+- Settings → System hides the downloads folder while Usenet downloads are off.
+- README: screenshots (demo library), Synology guide, FAQ, known limitations, roadmap.
 - **New custom-designed Windows installer** in the Amberwave look: frameless dark window with its own title bar, Space
   Grotesk/Manrope type, animated logo on the welcome page, the waveform doubles as the progress bar, in-window
   confirmations instead of Windows message boxes. Follows the Windows display language (German/English) and scales

@@ -572,7 +572,7 @@ export const verwaltungsAnsichten = {
     const r = await api.get('/admin/uebersicht', { signal });
     const z = r.zahlen;
     const hinweise = [];
-    if (!r.secret_key) hinweise.push(`<div class="fehler">${t('<b>APP_SECRET_KEY fehlt in der .env.</b> Amberwave nutzt einen selbst erzeugten Ersatzschlüssel im Cache-Ordner. Geht der Cache verloren, sind gespeicherte Passwörter (E-Mail, API-Schlüssel) unlesbar und alle Geräte müssen sich neu verbinden – bitte einen festen Schlüssel in die .env eintragen.')}</div>`);
+    if (!r.secret_key) hinweise.push(`<div class="fehler">${t('<b>Kein dauerhafter Schlüssel.</b> Amberwave kann seinen Schlüssel nicht im App-Daten-Ordner ablegen (keine Schreibrechte?). Gespeicherte Passwörter (E-Mail, API-Schlüssel) wären nach einem Neustart unlesbar und Geräte müssten sich neu verbinden – bitte die Rechte des App-Daten-Ordners prüfen oder APP_SECRET_KEY in der .env setzen.')}</div>`);
     if (!r.musikordner_ok) hinweise.push(`<div class="fehler">${t('Der Musikordner <code>{ordner}</code> ist im Container nicht vorhanden. Bitte <code>MUSIK_PFAD</code> in der .env prüfen.', { ordner: h(r.musikordner) })}</div>`);
     if (z.konten_wartend) hinweise.push(`<div class="hinweis-box">${tn(z.konten_wartend, '{n} Registrierung wartet auf Freigabe. <a href="/verwaltung/konten" data-link>Jetzt ansehen</a>', '{n} Registrierungen warten auf Freigabe. <a href="/verwaltung/konten" data-link>Jetzt ansehen</a>')}</div>`);
     if (r.update) hinweise.push(`<div class="hinweis-box">${t('<b>Neue Version {version} verfügbar.</b>', { version: h(r.update.version) })} ${r.update.url ? `<a href="${h(r.update.url)}" target="_blank" rel="noopener">${t('Was ist neu?')}</a> · ` : ''}${r.image ? t('Update auf dem Server: <code>docker compose pull &amp;&amp; docker compose up -d</code>') : `<a href="/einstellungen/sicherung" data-link>${t('Update einspielen')}</a>`}</div>`);
@@ -1113,7 +1113,7 @@ export const verwaltungsAnsichten = {
     const log = await api.get('/admin/sicherheitslog', { signal });
     ziel.innerHTML = tabs('/verwaltung/protokoll') + kopf(t('Sicherheitsprotokoll'), `${h(app.ich.app.name)} ${h(app.ich.app.version)} · ${t('Anmeldungen, Sperren, Passwort- und Rechteänderungen')}`) + `
       <div class="glass-panel" style="padding:8px"><div class="tabelle-scroll"><table><thead><tr><th>${t('Zeit')}</th><th>${t('Ereignis')}</th><th>${t('Nutzer')}</th><th>Details</th><th>IP</th></tr></thead>
-      <tbody>${log.eintraege.map((z) => `<tr><td><small>${datumZeit(z.zeit)}</small></td><td>${h(z.ereignis.replace(/_/g, ' '))}</td><td>${h(z.nutzer || '–')}</td><td><small>${h(z.details || '')}</small></td><td><small>${h(z.ip || '')}</small></td></tr>`).join('')}</tbody></table></div></div>`;
+      <tbody>${log.eintraege.map((z) => `<tr><td><small>${datumZeit(z.zeit)}</small></td><td>${h(ereignisText(z.ereignis))}</td><td>${h(z.nutzer || '–')}</td><td><small>${h(z.details || '')}</small></td><td><small>${h(z.ip || '')}</small></td></tr>`).join('')}</tbody></table></div></div>`;
   },
 
   /** Alte Adresse „System“ → Protokoll */
@@ -2006,6 +2006,45 @@ async function vergleichZeigen(app, ed, mbid) {
 // ---------------------------------------------------------------------------------------------
 // Bearbeiten-Dialoge
 // ---------------------------------------------------------------------------------------------
+
+/** Ereignisse im Sicherheitsprotokoll lesbar (unbekannte: Unterstriche zu Leerzeichen) */
+const EREIGNISSE = {
+  album_bearbeitet: () => t('Album bearbeitet'),
+  app_anmeldung: () => t('App angemeldet'),
+  cover_geaendert: () => t('Cover geändert'),
+  dateien_aufraeumen: () => t('Dateien aufgeräumt'),
+  datenbank_passwort_geaendert: () => t('Datenbank-Passwort geändert'),
+  datenbank_zugang_angezeigt: () => t('Datenbank-Zugang angezeigt'),
+  edition_bearbeitet: () => t('Edition bearbeitet'),
+  edition_geloescht: () => t('Edition gelöscht'),
+  einstellungen_geaendert: () => t('Einstellungen geändert'),
+  geraet_verdraengt: () => t('Gerät abgemeldet (zu viele)'),
+  konto_angelegt: () => t('Konto angelegt'),
+  konto_entsperrt: () => t('Konto entsperrt'),
+  konto_freigeschaltet: () => t('Konto freigeschaltet'),
+  konto_geaendert: () => t('Konto geändert'),
+  konto_geloescht: () => t('Konto gelöscht'),
+  konto_gesperrt: () => t('Konto gesperrt'),
+  konto_verlaengert: () => t('Konto verlängert'),
+  kuenstler_bearbeitet: () => t('Künstler bearbeitet'),
+  kuenstler_musicbrainz: () => t('Künstler mit MusicBrainz verknüpft'),
+  login_erfolgreich: () => t('Anmeldung'),
+  mitwirkende_ergaenzt: () => t('Mitwirkende ergänzt'),
+  musicbrainz_geloest: () => t('MusicBrainz-Verknüpfung gelöst'),
+  musicbrainz_uebernommen: () => t('MusicBrainz übernommen'),
+  name_geaendert: () => t('Name geändert'),
+  papierkorb_geleert: () => t('Papierkorb geleert'),
+  passwort_geaendert: () => t('Passwort geändert'),
+  passwort_gesetzt: () => t('Passwort gesetzt'),
+  rechte_repariert: () => t('Rechte repariert'),
+  registrierung_abgelehnt: () => t('Registrierung abgelehnt'),
+  sicherung_erstellt: () => t('Sicherung erstellt'),
+  sicherung_geloescht: () => t('Sicherung gelöscht'),
+  titel_bearbeitet: () => t('Titel bearbeitet'),
+  titel_uebernommen: () => t('Titel übernommen'),
+  titelliste_bearbeitet: () => t('Titelliste bearbeitet'),
+};
+const ereignisText = (e) => EREIGNISSE[e]?.() || String(e || '').replace(/_/g, ' ');
 
 const VERBINDUNGEN = ['', ' & ', ', ', ' feat. ', ' x ', ' vs. ', ' und ', ' with ', ' / '];
 

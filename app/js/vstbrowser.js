@@ -13,8 +13,8 @@ export function vstKarte(inhalt, signal) {
   const karte = document.createElement('div');
   karte.className = 'einst-karte vst-karte';
   karte.innerHTML = `
-    <h2><span>VST3-Plug-ins</span><span class="einst-chip" data-vst-zahl>…</span></h2>
-    <p class="einst-karten-hinweis">${t('Eigene Effekt-Plug-ins (Stereo) für den Signalweg. Du bringst sie selbst mit; Amberwave sucht sie in <code>C:\\Program Files\\Common Files\\VST3</code> und in den Ordnern, die du hier ergänzt. Jedes Plug-in läuft in einem eigenen Prozess – stürzt eines ab, läuft die Musik weiter.')}</p>
+    <h2><span>VST3-Plug-ins</span><span class="einst-chip einst-chip-exp" title="${t('In der Beta experimentell: Fremde Plug-ins sind die häufigste Absturzquelle. Bitte Probleme mit Name und Version des Plug-ins melden.')}">${t('Experimentell')}</span><span class="einst-chip" data-vst-zahl>…</span></h2>
+    <p class="einst-karten-hinweis">${t('Eigene Effekt-Plug-ins (Stereo) für den Signalweg. Du bringst sie selbst mit; Amberwave sucht sie in <code>C:\\Program Files\\Common Files\\VST3</code> und in den Ordnern, die du hier ergänzt. Jedes Plug-in läuft in einem eigenen Prozess – stürzt eines ab, läuft die Musik weiter.')} ${t('In der Beta ist das noch experimentell – melde Probleme bitte mit Name und Version des Plug-ins.')}</p>
     <div class="vst-leiste">
       <input type="search" class="einst-feld vst-suche" placeholder="${t('Plug-ins durchsuchen …')}" aria-label="${t('Plug-ins durchsuchen')}" data-vst-suche>
       <button type="button" class="btn btn-zweit btn-klein" data-vst-scan>${t('Neu suchen')}</button>
@@ -142,7 +142,7 @@ export async function vstWaehler(anker) {
     if (oben) { el.style.top = ''; el.style.bottom = `${Math.round(window.innerHeight - r.top + 6)}px`; el.style.maxHeight = `${Math.round(r.top - 14)}px`; }
     else { el.style.bottom = ''; el.style.top = `${Math.round(r.bottom + 6)}px`; el.style.maxHeight = `${Math.round(window.innerHeight - r.bottom - 14)}px`; }
   };
-  el.innerHTML = `${blatt ? '<div class="fx-wahl-zug"></div>' : ''}<div class="fx-wahl-titel"><span>${t('VST3-Plug-in hinzufügen')}</span></div>
+  el.innerHTML = `${blatt ? '<div class="fx-wahl-zug"></div>' : ''}<div class="fx-wahl-titel"><span>${t('VST3-Plug-in hinzufügen')}</span><span class="einst-chip einst-chip-exp">${t('Experimentell')}</span></div>
     <div class="vst-wahl-kopf"><input type="search" class="einst-feld" placeholder="${t('Plug-ins durchsuchen …')}" aria-label="${t('Plug-ins durchsuchen')}" data-vw-suche></div>
     <div class="vst-wahl-liste" data-vw-liste><div class="lade"></div></div>
     <div class="fx-wahl-trenn"></div>

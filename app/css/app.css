@@ -1238,7 +1238,7 @@ body.nerd-offen .jetzt-bild { gap: 10px; }
 .klang-k.an, .klang-k.an:hover { background: var(--accent-a); color: var(--auf-akzent); }
 .klang-k svg { flex: none; }
 /* Wird die rechte Spalte eng: nur Symbole, schmalerer Lautstärkeregler (Play bleibt mittig, die Spalten sind gleich breit) */
-@container (max-width: 560px) {
+@container (max-width: 760px) {
     .klang-t { display: none; }
     .klang-k { padding: 0 10px; }
     .player-rechts .regler { width: 84px; }
@@ -3955,3 +3955,27 @@ dialog.dialog.eqf:not([open]) { display: none; }
 }
 .dl-anbieter-fehler { margin: 0; color: var(--accent-text); font-size: .84rem; }
 .dl-titel small span.dl-client { color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+
+/* VST3: in der Beta als experimentell gekennzeichnet */
+.einst-chip-exp { color: var(--accent-text); border-color: rgba(255,181,71,.38); background: rgba(255,181,71,.08); }
+.fx-wahl-titel .einst-chip-exp { margin-left: 8px; font-size: .7rem; vertical-align: 1px; }
+.einst-karte > h2 > .einst-chip-exp { margin-right: auto; margin-left: -4px; }
+
+/* Player-Leiste 1024–1700 px: die mittlere Spalte (Knöpfe) nimmt, was sie braucht, die rechte (Klang, Rack, Lautstärke)
+   bekommt mehr Platz als der Titel – sonst überlappten Stopp-Knopf und Qualitäts-Chip */
+@media (min-width: 1024px) and (max-width: 1700px) {
+    .player { grid-template-columns: minmax(170px, .7fr) auto minmax(0, 1.5fr); gap: 14px; }
+}
+@container (max-width: 640px) {
+    .player .klang-rack .klang-t { display: none !important; }
+    .player .klang-rack { padding: 0 10px; }
+}
+@container (max-width: 560px) {
+    .player-rechts [data-nerd] { display: none; }
+}
+@media (min-width: 1024px) and (max-width: 1180px) {
+    .player-knoepfe [data-stopp], .player-knoepfe [data-fav] { display: none; }
+}
+@media (min-width: 1024px) and (max-width: 1100px) {
+    .player { grid-template-columns: minmax(150px, .45fr) auto minmax(0, 1.5fr); }
+}

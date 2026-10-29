@@ -496,7 +496,7 @@ function api_admin_mb_uebernehmen(array $admin, int $editionId): array
     $zuordnung = api_mb_zuordnung();
     $loesen = $zuordnung !== null && (bool) api_wert('sperren_loesen', false);
     $r = mb_fehler_umwandeln(static fn() => mb_edition_uebernehmen($editionId, $mbid, $cover, $zuordnung, $loesen));
-    log_sicherheitsereignis((int) $admin['id'], 'musicbrainz_uebernommen', '#' . $editionId . ' ' . $mbid . ($zuordnung !== null ? ' (Zuordnung von Hand)' : ''));
+    log_sicherheitsereignis((int) $admin['id'], 'musicbrainz_uebernommen', '#' . $editionId . ' ' . $mbid . ($zuordnung !== null ? ' ' . t('(Zuordnung von Hand)') : ''));
     // Gleich im Hintergrund nachholen: Daten und Bilder der (oft neuen) Künstler dieses Albums – Gäste, Produzenten, Mitglieder
     try {
         require_once __DIR__ . '/metadatenjob.php';

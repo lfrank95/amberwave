@@ -66,6 +66,13 @@ function migrationen_ausfuehren_intern(PDO $pdo): array
     $dateien = array_merge(glob(__DIR__ . '/../migrations/*.sql') ?: [], glob(__DIR__ . '/../migrations/*.php') ?: []);
     usort($dateien, static fn($a, $b) => strnatcmp(basename($a), basename($b)));
 
+    // Vor dem ersten Schritt eines Updates (z. B. nach „docker compose pull“): die Datenbank sichern – genau wie das
+    // Update-Paket es tut. Erscheint unter Einstellungen › Sicherung als „Vor Update“ und lässt sich dort zurückspielen.
+    $offen = array_filter($dateien, static fn($d) => preg_match('/^(\d+)_/', basename($d), $m) && !in_array((int) $m[1], $angewendet, true));
+    if ($dbVersion > 0 && $offen) {
+        migration_vorher_sichern($dbVersion);
+    }
+
     $neu = [];
     foreach ($dateien as $datei) {
         if (!preg_match('/^(\d+)_/', basename($datei), $t)) {
@@ -97,6 +104,34 @@ function migrationen_ausfuehren_intern(PDO $pdo): array
         }
     }
     return $neu;
+}
+
+/** Sicherung vor ausstehenden Migrationen (Fehler werden protokolliert, halten das Update aber nicht auf) */
+function migration_vorher_sichern(int $schema): void
+{
+    try {
+        require_once __DIR__ . '/../includes/sicherung.php';
+        $ordner = rtrim((string) konfig()['pfade']['backups'], '/');
+        // gerade eben schon gesichert (Update-Paket über die Oberfläche)? Dann nicht doppelt
+        foreach (glob($ordner . '/amberwave_*_datenbank.sql.gz') ?: [] as $p) {
+            if (time() - (int) @filemtime($p) < 600) {
+                return;
+            }
+        }
+        $ziel = $ordner . '/amberwave_' . date('Y-m-d_H-i-s') . '_datenbank.sql.gz';
+        datenbank_dump($ziel . '.teil');
+        rename($ziel . '.teil', $ziel);
+        @chmod($ziel, 0640);
+        error_log('Amberwave: Datenbank vor dem Update gesichert (Schema ' . $schema . '): ' . $ziel);
+        // nur die letzten drei dieser Sicherungen behalten
+        $alle = glob($ordner . '/amberwave_*_datenbank.sql.gz') ?: [];
+        rsort($alle);
+        foreach (array_slice($alle, 3) as $alt) {
+            @unlink($alt);
+        }
+    } catch (Throwable $e) {
+        error_log('Amberwave: Sicherung vor dem Update fehlgeschlagen: ' . $e->getMessage());
+    }
 }
 
 if (PHP_SAPI === 'cli' && realpath($argv[0] ?? '') === realpath(__FILE__)) {

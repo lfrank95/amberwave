@@ -60,7 +60,7 @@ if (!function_exists('konfig')) {
         }
 
         $k = [
-            'version' => '0.9.0-beta.4',
+            'version' => '0.9.1-beta.1',
             'zeitzone' => date_default_timezone_get(),
             'db' => [
                 'host' => $env('DB_HOST', 'db'),
@@ -355,6 +355,9 @@ if (!function_exists('konfig')) {
         if ($k['app_secret_key'] === '') {
             $k['app_secret_key'] = konfig_notschluessel($k['pfade']['cache']);
             $k['app_secret_key_erzeugt'] = true;
+            // dauerhaft im App-Daten-Ordner abgelegt (Normalfall, die Einrichtung sichert eine Kopie) – nur wenn das nicht ging,
+            // ist der Schlüssel flüchtig und gespeicherte Zugangsdaten wären nach einem Neustart unlesbar
+            $k['app_secret_key_fluechtig'] = !is_file($k['pfade']['cache'] . '/.app_secret_key');
         }
         return $k;
     }

@@ -604,7 +604,7 @@ function erk_abschluss(int $editionId, array $ed, array $bewertet, bool $hires, 
         return erk_merken($editionId, $doppelt ? 'doppelt' : 'fehler', $wahl['sicherheit'], $wahl['mbid'], $e->getMessage(), $kandText, $weg);
     }
     return erk_merken($editionId, 'uebernommen', $wahl['sicherheit'], $wahl['mbid'],
-        $info . ($status === 'regeln' ? ' Automatisch übernommen – bitte bei Gelegenheit prüfen.' : ''), $kandText, $weg) + ['regeln' => $status === 'regeln'];
+        $info . ($status === 'regeln' ? ' ' . t('Automatisch übernommen – bitte bei Gelegenheit prüfen.') : ''), $kandText, $weg) + ['regeln' => $status === 'regeln'];
 }
 
 /**
@@ -618,7 +618,7 @@ function erk_anhalt(array $ed, array $album): array
     $kuenstler = trim((string) ($album['kuenstler'] ?? ''));
     $titel = trim((string) ($album['titel'] ?? ''));
     $unbekannt = $kuenstler === '' || $kuenstler === '[unbekannt]';
-    $ohneTitel = $titel === '' || $titel === 'Ohne Album';
+    $ohneTitel = $titel === '' || $titel === 'Ohne Album' || $titel === 'No album' || $titel === t('Ohne Album');
     if (ist_uuid($ed['mbid'] ?? '')) {
         return ['art' => 'mbid', 'titel' => $titel, 'kuenstler' => $kuenstler];
     }
