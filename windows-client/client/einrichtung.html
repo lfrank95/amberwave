@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title data-i="Amberwave Windows Client – Server verbinden">Amberwave Windows Client – Server verbinden</title>
+<style>
+  :root {
+    --bg: #120d0a; --glas: rgba(255,244,230,.055); --glas-stark: rgba(255,244,230,.09); --rand: rgba(255,236,214,.14);
+    --text: #f6efe7; --leise: #bcae9f; --akzent-a: #ffb547; --akzent-b: #ff7a3d; --akzent-text: #ffc976; --fehler: #ff8a7a; --gut: #5fdca4;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--text); font-size: 15px;
+    background: radial-gradient(circle at 18% -12%, #3a2412 0%, var(--bg) 46%), radial-gradient(circle at 92% 8%, #3a1a14 0%, transparent 42%), var(--bg);
+    display: grid; place-items: center; padding: 24px; user-select: none;
+  }
+  .karte { width: min(560px, 100%); background: var(--glas); border: 1px solid var(--rand); border-radius: 22px; padding: 30px 30px 24px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.45); backdrop-filter: blur(18px); }
+  .kopf { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  /* Titelleiste: oben ein Streifen zum Ziehen, rechts die Windows-Knöpfe */
+  .titel-streifen { position: fixed; top: 0; left: 0; right: 0; height: env(titlebar-area-height, 40px); -webkit-app-region: drag; app-region: drag; }
+  .kopf img { width: 52px; height: 52px; }
+  h1 { font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif; font-size: 1.45rem; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  .unter { color: var(--leise); font-size: .9rem; margin-top: 2px; }
+  .meldung { background: rgba(255,138,122,.1); border: 1px solid rgba(255,138,122,.35); color: #ffd2ca; border-radius: 12px; padding: 10px 12px; margin: 0 0 14px; font-size: .9rem; }
+  .status { display: flex; align-items: center; gap: 10px; color: var(--leise); margin: 6px 0 12px; min-height: 22px; }
+  .kreis { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,181,71,.25); border-top-color: var(--akzent-a); animation: dreh .8s linear infinite; flex: none; }
+  @keyframes dreh { to { transform: rotate(360deg); } }
+  .liste { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .server { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--glas-stark); border: 1px solid var(--rand);
+    border-radius: 14px; padding: 12px 14px; color: var(--text); font: inherit; cursor: pointer; transition: border-color .15s, transform .15s, background .15s; }
+  .server:hover, .server:focus-visible { border-color: rgba(255,181,71,.6); background: rgba(255,181,71,.08); outline: none; }
+  .server:active { transform: scale(.99); }
+  .server .punkt { width: 10px; height: 10px; border-radius: 50%; background: var(--gut); box-shadow: 0 0 10px rgba(95,220,164,.6); flex: none; }
+  .server .n { font-weight: 600; }
+  .server .a { color: var(--leise); font-size: .85rem; }
+  .server .los { margin-left: auto; color: var(--akzent-text); font-weight: 600; font-size: .9rem; }
+  .leer { color: var(--leise); font-size: .92rem; line-height: 1.45; margin: 4px 0 10px; }
+  .knopf { appearance: none; border: 0; border-radius: 12px; padding: 10px 16px; font: inherit; font-weight: 650; cursor: pointer;
+    background: linear-gradient(135deg, var(--akzent-a), var(--akzent-b)); color: #1d1208; }
+  .knopf.zweit { background: var(--glas-stark); color: var(--text); border: 1px solid var(--rand); font-weight: 550; }
+  .knopf:disabled { opacity: .5; cursor: default; }
+  .zeile { display: flex; gap: 8px; align-items: center; }
+  details { margin-top: 18px; border-top: 1px solid var(--rand); padding-top: 14px; }
+  summary { cursor: pointer; color: var(--akzent-text); font-weight: 600; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: '›'; display: inline-block; margin-right: 8px; transition: transform .15s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  label { display: block; color: var(--leise); font-size: .85rem; margin: 12px 0 5px; }
+  input { width: 100%; background: rgba(0,0,0,.25); border: 1px solid var(--rand); border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; user-select: text; }
+  input:focus { outline: none; border-color: rgba(255,181,71,.6); }
+  .port { width: 110px; flex: none; }
+  .fehler { color: var(--fehler); font-size: .88rem; margin-top: 8px; min-height: 1.2em; }
+  body.laedt .karte { visibility: hidden; }
+  .sprache { background: transparent; color: var(--leise); border: 1px solid var(--rand); border-radius: 8px; padding: 2px 6px; font: inherit; width: auto; }
+  .sprache option { background: #1d1511; color: var(--text); }
+  .fuss { margin-top: 18px; color: var(--leise); font-size: .78rem; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body class="laedt">
+  <div class="titel-streifen"></div>
+  <main class="karte">
+    <div class="kopf">
+      <img src="bilder/icon.png" alt="">
+      <div><h1 data-i="Amberwave verbinden">Amberwave verbinden</h1><div class="unter" data-i="Wähle deinen Amberwave-Server im Heimnetz.">Wähle deinen Amberwave-Server im Heimnetz.</div></div>
+    </div>
+    <div class="meldung" id="meldung" hidden></div>
+    <div class="status" id="status"></div>
+    <div class="liste" id="liste"></div>
+    <div class="zeile"><button class="knopf zweit" id="nochmal" type="button" data-i="Erneut suchen">Erneut suchen</button></div>
+    <details id="hand">
+      <summary data-i="Adresse von Hand eingeben">Adresse von Hand eingeben</summary>
+      <label for="adresse" data-i="Adresse des Servers">Adresse des Servers</label>
+      <input id="adresse" placeholder="z. B. 192.168.1.10 oder https://musik.example.de" data-i-ph="z. B. 192.168.1.10 oder https://musik.example.de" spellcheck="false" autocomplete="off">
+      <label for="port" data-i="Port (im Heimnetz)">Port (im Heimnetz)</label>
+      <div class="zeile"><input id="port" class="port" inputmode="numeric" value="9950"><button class="knopf" id="verbinden" type="button" data-i="Verbinden">Verbinden</button></div>
+      <div class="fehler" id="fehler"></div>
+    </details>
+    <div class="fuss"><span data-i="Gesucht wird nur im eigenen Netz, auf dem Amberwave-Port.">Gesucht wird nur im eigenen Netz, auf dem Amberwave-Port.</span><span id="version"></span></div>
+    <div class="fuss"><label for="sprache" style="margin:0">Sprache / Language</label>
+      <select id="sprache" class="sprache"><option value="auto">Auto</option><option value="de">Deutsch</option><option value="en">English</option></select></div>
+  </main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let laeuft = false;
+  setTimeout(() => document.body.classList.remove('laedt'), 2500);   // falls die Info nicht kommt
+  // Übersetzung: deutscher Text = Schlüssel, Wörterbuch (Englisch) kommt vom Client; ohne Eintrag bleibt es Deutsch
+  let WB = {};
+  const T = (de, p) => String(Object.prototype.hasOwnProperty.call(WB, de) ? WB[de] : de).replace(/\{(\w+)\}/g, (m, k) => (p && k in p ? p[k] : m));
+  function uebersetzen() {
+    document.documentElement.lang = Object.keys(WB).length ? 'en' : 'de';
+    for (const el of document.querySelectorAll('[data-i]')) el.textContent = T(el.dataset.i);
+    for (const el of document.querySelectorAll('[data-i-ph]')) el.placeholder = T(el.dataset.iPh);
+    document.title = T('Amberwave Windows Client – Server verbinden');
+  }
+
+  async function verbinden(server, knopf) {
+    if (knopf) { knopf.disabled = true; knopf.querySelector('.los').textContent = T('Verbinde …'); }
+    const ok = await window.einrichtung.verbinden(server);
+    if (!ok) {
+      if (knopf) { knopf.disabled = false; knopf.querySelector('.los').textContent = T('Verbinden'); }
+      $('meldung').hidden = false;
+      $('meldung').textContent = T('Der Server antwortet gerade nicht. Bitte erneut versuchen.');
+    }
+  }
+
+  async function suchen() {
+    if (laeuft) return;
+    laeuft = true;
+    $('nochmal').disabled = true;
+    $('liste').innerHTML = '';
+    $('status').innerHTML = '<span class="kreis"></span><span>' + esc(T('Suche Amberwave im Heimnetz …')) + '</span>';
+    const port = Number($('port').value) || 9950;
+    const funde = await window.einrichtung.suchen(port);
+    laeuft = false;
+    $('nochmal').disabled = false;
+    if (!funde.length) {
+      $('status').innerHTML = '';
+      $('liste').innerHTML = `<div class="leer">${esc(T('Kein Server gefunden. Läuft Amberwave auf dem Server, und ist dieser PC im selben Netz? Steht Amberwave auf einem anderen Port als {port}, unten bei „Adresse von Hand“ den Port ändern und erneut suchen.', { port }))}</div>`;
+      $('hand').open = true;
+      return;
+    }
+    $('status').innerHTML = `<span>${esc(funde.length === 1 ? T('Ein Server gefunden') : T('{n} Server gefunden', { n: funde.length }))}:</span>`;
+    for (const f of funde) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'server';
+      b.innerHTML = `<span class="punkt"></span><span><div class="n">${esc(f.name)}</div><div class="a">${esc(f.lan.replace(/^https?:\/\//, ''))}${f.version ? ` · ${esc(T('Version {version}', { version: f.version }))}` : ''}</div></span><span class="los">${esc(T('Verbinden'))}</span>`;
+      b.addEventListener('click', () => verbinden(f, b));
+      $('liste').append(b);
+    }
+    // genau einer: gleich vorauswählen (Fokus), verbunden wird erst auf Klick
+    $('liste').querySelector('.server')?.focus();
+  }
+
+  $('nochmal').addEventListener('click', suchen);
+  $('verbinden').addEventListener('click', async () => {
+    $('fehler').textContent = '';
+    $('verbinden').disabled = true;
+    const r = await window.einrichtung.pruefen($('adresse').value, Number($('port').value) || 9950);
+    $('verbinden').disabled = false;
+    if (r.fehler) { $('fehler').textContent = r.fehler; return; }
+    await verbinden(r.server, null);
+  });
+  $('adresse').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('verbinden').click(); });
+
+  (async () => {
+    const info = await window.einrichtung.info();
+    WB = info.woerterbuch || {};
+    uebersetzen();
+    document.body.classList.remove('laedt');
+    $('sprache').value = info.spracheEinst || 'auto';
+    $('sprache').addEventListener('change', () => window.einrichtung.spracheSetzen($('sprache').value));
+    $('version').textContent = T('Windows Client · Version {version}', { version: info.version });
+    $('port').value = info.port || 9950;
+    if (info.meldung) { $('meldung').hidden = false; $('meldung').textContent = info.meldung; }
+    if (info.server?.lan) $('adresse').value = info.server.lan.replace(/^http:\/\//, '');
+    suchen();
+  })();
+</script>
+</body>
+</html>

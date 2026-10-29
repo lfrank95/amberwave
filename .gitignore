@@ -1,0 +1,18 @@
+# Laufzeit und Geheimnisse
+.env
+*.log
+cache/
+log/
+
+# Python / Node
+__pycache__/
+*.pyc
+node_modules/
+
+# Windows-Client: Build-Ergebnisse (die fertige exe kommt als Release-Datei)
+windows-client/build/
+windows-client/dist/
+windows-client/log/
+
+# Quelltext-Karten des Bündels
+app/js/_b/*.map

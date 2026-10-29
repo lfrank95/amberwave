@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest an idea (bigger discussions work best in the subreddit)
+labels: ["idea"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do that Amberwave can't do yet?
+    validations:
+      required: true
+  - type: textarea
+    id: vorschlag
+    attributes:
+      label: How could it work?

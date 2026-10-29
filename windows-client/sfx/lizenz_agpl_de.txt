@@ -1,0 +1,760 @@
+INOFFIZIELLE ÜBERSETZUNG
+Dies ist eine inoffizielle Übersetzung der GNU Affero General Public License
+ins Deutsche. Sie wurde nicht von der Free Software Foundation herausgegeben
+und legt die Bedingungen für Software unter der GNU AGPL nicht rechtsgültig
+fest – das leistet allein der englische Originaltext. Die Übersetzung soll
+deutschsprachigen Lesern helfen, die GNU AGPL besser zu verstehen.
+
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19. November 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Jeder darf dieses Lizenzdokument wortgetreu kopieren und unveränderte
+ Kopien davon vertreiben, Änderungen daran sind jedoch nicht erlaubt.
+
+                            Präambel
+
+  Die GNU Affero General Public License ist eine freie Copyleft-Lizenz für
+Software und andere Arten von Werken, die speziell dafür entworfen wurde,
+im Fall von Netzwerk-Server-Software die Zusammenarbeit mit der
+Gemeinschaft sicherzustellen.
+
+  Die Lizenzen für die meisten Software und andere praktisch nutzbare
+Werke sind darauf ausgelegt, Ihnen die Freiheit zu nehmen, die Werke zu
+teilen und zu verändern. Im Gegensatz dazu sollen unsere General Public
+Licenses Ihnen die Freiheit garantieren, alle Versionen eines Programms zu
+teilen und zu verändern – um sicherzustellen, dass es für alle seine
+Benutzer freie Software bleibt.
+
+  Wenn wir von freier Software sprechen, so beziehen wir uns auf Freiheit,
+nicht auf den Preis. Unsere General Public Licenses sind darauf ausgelegt,
+sicherzustellen, dass Sie die Freiheit haben, Kopien freier Software zu
+vertreiben (und dafür etwas zu berechnen, wenn Sie möchten), dass Sie den
+Quelltext erhalten oder ihn bekommen können, wenn Sie ihn wollen, dass Sie
+die Software verändern oder Teile davon in neuen freien Programmen
+verwenden können, und dass Sie wissen, dass Sie all dies tun dürfen.
+
+  Entwickler, die unsere General Public Licenses verwenden, schützen Ihre
+Rechte in zwei Schritten: (1) Sie machen das Urheberrecht an der Software
+geltend, und (2) sie bieten Ihnen diese Lizenz an, die Ihnen die
+rechtliche Erlaubnis gibt, die Software zu kopieren, zu vertreiben
+und/oder zu verändern.
+
+  Ein zusätzlicher Vorteil der Verteidigung der Freiheit aller Benutzer
+besteht darin, dass Verbesserungen, die in alternativen Versionen des
+Programms vorgenommen werden, anderen Entwicklern zur Übernahme zur
+Verfügung stehen, sofern diese Versionen breite Verwendung finden. Viele
+Entwickler freier Software fühlen sich durch die daraus entstehende
+Zusammenarbeit ermutigt und bestärkt. Im Fall von Software, die auf
+Netzwerk-Servern eingesetzt wird, kann dieses Ergebnis jedoch ausbleiben.
+Die GNU General Public License erlaubt es, eine veränderte Version zu
+erstellen und der Öffentlichkeit auf einem Server Zugang zu ihr zu
+gewähren, ohne jemals ihren Quelltext der Öffentlichkeit zugänglich zu
+machen.
+
+  Die GNU Affero General Public License ist speziell dafür entworfen,
+sicherzustellen, dass in solchen Fällen der veränderte Quelltext der
+Gemeinschaft zur Verfügung gestellt wird. Sie verpflichtet den Betreiber
+eines Netzwerk-Servers, den Benutzern dieses Servers den Quelltext der
+dort laufenden veränderten Version bereitzustellen. Daher verschafft die
+öffentliche Nutzung einer veränderten Version auf einem öffentlich
+zugänglichen Server der Öffentlichkeit Zugang zum Quelltext der
+veränderten Version.
+
+  Eine ältere Lizenz, die sogenannte Affero General Public License, die
+von Affero veröffentlicht wurde, sollte ähnliche Ziele erreichen. Dies ist
+eine andere Lizenz und keine Version der Affero GPL, Affero hat jedoch
+eine neue Version der Affero GPL veröffentlicht, die eine Neulizenzierung
+unter dieser Lizenz erlaubt.
+
+  Es folgen die genauen Bedingungen für das Kopieren, den Vertrieb und die
+Veränderung.
+
+                          LIZENZBEDINGUNGEN
+
+  0. Definitionen.
+
+  „Diese Lizenz“ bezeichnet Version 3 der GNU Affero General Public
+License.
+
+  „Urheberrecht“ („Copyright“) umfasst auch urheberrechtsähnliche Gesetze,
+die auf andere Arten von Werken anwendbar sind, etwa auf Halbleitermasken.
+
+  „Das Programm“ bezeichnet jedes urheberrechtlich schützbare Werk, das
+unter dieser Lizenz lizenziert ist. Jeder Lizenznehmer wird mit „Sie“
+angesprochen. „Lizenznehmer“ und „Empfänger“ können natürliche Personen
+oder Organisationen sein.
+
+  Ein Werk zu „verändern“ bedeutet, das Werk ganz oder teilweise auf eine
+Weise zu kopieren oder anzupassen, die eine urheberrechtliche Erlaubnis
+erfordert, mit Ausnahme der Anfertigung einer exakten Kopie. Das daraus
+entstehende Werk wird als „veränderte Version“ des früheren Werks oder als
+Werk „auf Grundlage“ des früheren Werks bezeichnet.
+
+  Ein „betroffenes Werk“ ist entweder das unveränderte Programm oder ein
+Werk auf Grundlage des Programms.
+
+  Ein Werk zu „verbreiten“ bedeutet, irgendetwas damit zu tun, was Sie
+ohne Erlaubnis nach dem anwendbaren Urheberrecht unmittelbar oder
+mittelbar wegen einer Rechtsverletzung haftbar machen würde, mit Ausnahme
+der Ausführung auf einem Computer und der Veränderung einer privaten
+Kopie. Die Verbreitung umfasst das Kopieren, den Vertrieb (mit oder ohne
+Veränderung), das öffentliche Zugänglichmachen und in einigen Ländern auch
+weitere Tätigkeiten.
+
+  Ein Werk „weiterzugeben“ (zu „übertragen“) bedeutet jede Art der
+Verbreitung, die es Dritten ermöglicht, Kopien anzufertigen oder zu
+erhalten. Die bloße Interaktion mit einem Benutzer über ein
+Computernetzwerk ohne Übertragung einer Kopie ist keine Weitergabe.
+
+  Eine interaktive Benutzerschnittstelle zeigt „angemessene rechtliche
+Hinweise“ an, soweit sie eine benutzerfreundliche und deutlich sichtbare
+Funktion enthält, die (1) einen angemessenen Urheberrechtsvermerk anzeigt
+und (2) dem Benutzer mitteilt, dass für das Werk keine Gewährleistung
+besteht (außer soweit Gewährleistungen übernommen werden), dass
+Lizenznehmer das Werk unter dieser Lizenz weitergeben dürfen und wie eine
+Kopie dieser Lizenz eingesehen werden kann. Stellt die Schnittstelle eine
+Liste von Benutzerbefehlen oder -optionen dar, etwa ein Menü, so erfüllt
+ein deutlich sichtbarer Eintrag in dieser Liste dieses Kriterium.
+
+  1. Quelltext.
+
+  Der „Quelltext“ eines Werks bezeichnet die für die Vornahme von
+Veränderungen am Werk bevorzugte Form des Werks. „Objektcode“ bezeichnet
+jede Form eines Werks, die kein Quelltext ist.
+
+  Eine „Standardschnittstelle“ ist eine Schnittstelle, die entweder ein
+offizieller, von einem anerkannten Normungsgremium festgelegter Standard
+ist oder – im Fall von Schnittstellen, die für eine bestimmte
+Programmiersprache spezifiziert sind – unter den Entwicklern, die in
+dieser Sprache arbeiten, weithin gebräuchlich ist.
+
+  Die „Systembibliotheken“ eines ausführbaren Werks umfassen alles, mit
+Ausnahme des Werks als Ganzem, was (a) in der üblichen Form der
+Paketierung einer Hauptkomponente enthalten, aber nicht Teil dieser
+Hauptkomponente ist, und (b) ausschließlich dazu dient, die Nutzung des
+Werks mit dieser Hauptkomponente zu ermöglichen oder eine
+Standardschnittstelle zu implementieren, für die eine Implementierung in
+Form von Quelltext öffentlich verfügbar ist. Eine „Hauptkomponente“
+bezeichnet in diesem Zusammenhang eine wesentliche Kernkomponente (Kernel,
+Fenstersystem usw.) des jeweiligen Betriebssystems (sofern vorhanden), auf
+dem das ausführbare Werk läuft, oder einen Compiler, der zur Erzeugung des
+Werks verwendet wird, oder einen Objektcode-Interpreter, der zu seiner
+Ausführung verwendet wird.
+
+  Der „korrespondierende Quelltext“ eines Werks in Form von Objektcode
+bezeichnet den gesamten Quelltext, der benötigt wird, um den Objektcode zu
+erzeugen, zu installieren und (bei einem ausführbaren Werk) auszuführen
+sowie um das Werk zu verändern, einschließlich der Skripte zur Steuerung
+dieser Vorgänge. Er umfasst jedoch nicht die Systembibliotheken des Werks
+und auch keine Allzweckwerkzeuge oder allgemein verfügbaren freien
+Programme, die bei der Durchführung dieser Vorgänge unverändert verwendet
+werden, aber nicht Teil des Werks sind. Der korrespondierende Quelltext
+umfasst beispielsweise die zu den Quelldateien des Werks gehörenden
+Schnittstellendefinitionsdateien sowie den Quelltext gemeinsam genutzter
+Bibliotheken und dynamisch gebundener Unterprogramme, die das Werk
+ausdrücklich voraussetzt, etwa durch engen Datenaustausch oder
+Kontrollfluss zwischen diesen Unterprogrammen und anderen Teilen des
+Werks.
+
+  Der korrespondierende Quelltext muss nichts enthalten, was Benutzer
+automatisch aus anderen Teilen des korrespondierenden Quelltextes neu
+erzeugen können.
+
+  Der korrespondierende Quelltext eines Werks in Form von Quelltext ist
+dieses Werk selbst.
+
+  2. Grundlegende Erlaubnisse.
+
+  Alle unter dieser Lizenz gewährten Rechte werden für die Dauer des
+Urheberrechts am Programm gewährt und sind unwiderruflich, sofern die
+genannten Bedingungen erfüllt sind. Diese Lizenz bestätigt ausdrücklich
+Ihre uneingeschränkte Erlaubnis, das unveränderte Programm auszuführen.
+Die Ausgabe, die durch die Ausführung eines betroffenen Werks entsteht,
+fällt nur dann unter diese Lizenz, wenn die Ausgabe aufgrund ihres Inhalts
+ein betroffenes Werk darstellt. Diese Lizenz erkennt Ihre Rechte aus „Fair
+Use“ oder gleichwertige Rechte an, wie sie das Urheberrecht vorsieht.
+
+  Sie dürfen betroffene Werke, die Sie nicht weitergeben, ohne Bedingungen
+erstellen, ausführen und verbreiten, solange Ihre Lizenz im Übrigen in
+Kraft bleibt. Sie dürfen betroffene Werke an Dritte weitergeben, allein zu
+dem Zweck, dass diese ausschließlich für Sie Veränderungen daran vornehmen
+oder Ihnen Einrichtungen zur Ausführung dieser Werke bereitstellen,
+vorausgesetzt, Sie halten bei der Weitergabe allen Materials, über dessen
+Urheberrecht Sie nicht verfügen, die Bedingungen dieser Lizenz ein.
+Diejenigen, die die betroffenen Werke auf diese Weise für Sie erstellen
+oder ausführen, müssen dies ausschließlich in Ihrem Auftrag, nach Ihrer
+Weisung und unter Ihrer Kontrolle tun, und zwar zu Bedingungen, die es
+ihnen untersagen, außerhalb ihrer Beziehung zu Ihnen Kopien Ihres
+urheberrechtlich geschützten Materials anzufertigen.
+
+  Unter allen anderen Umständen ist die Weitergabe ausschließlich zu den
+nachstehend genannten Bedingungen gestattet. Eine Unterlizenzierung ist
+nicht erlaubt; Abschnitt 10 macht sie überflüssig.
+
+  3. Schutz der gesetzlichen Rechte der Benutzer vor
+      Umgehungsverbotsgesetzen.
+
+  Kein betroffenes Werk gilt als Teil einer wirksamen technischen
+Schutzmaßnahme nach einem anwendbaren Gesetz, das die Verpflichtungen aus
+Artikel 11 des am 20. Dezember 1996 verabschiedeten
+WIPO-Urheberrechtsvertrags erfüllt, oder nach ähnlichen Gesetzen, die die
+Umgehung solcher Maßnahmen verbieten oder einschränken.
+
+  Wenn Sie ein betroffenes Werk weitergeben, verzichten Sie auf jegliche
+rechtliche Befugnis, die Umgehung technischer Maßnahmen zu verbieten,
+soweit eine solche Umgehung durch die Ausübung von Rechten unter dieser
+Lizenz in Bezug auf das betroffene Werk erfolgt, und Sie erklären, keine
+Absicht zu haben, den Betrieb oder die Veränderung des Werks
+einzuschränken, um gegenüber den Benutzern des Werks Ihre Rechte oder die
+Rechte Dritter auf ein Verbot der Umgehung technischer Maßnahmen
+durchzusetzen.
+
+  4. Weitergabe unveränderter Kopien.
+
+  Sie dürfen unveränderte Kopien des Quelltextes des Programms, so wie Sie
+ihn erhalten haben, auf jedem beliebigen Medium weitergeben,
+vorausgesetzt, Sie veröffentlichen auf jeder Kopie deutlich sichtbar und
+in angemessener Weise einen angemessenen Urheberrechtsvermerk; Sie
+belassen alle Hinweise unverändert, die besagen, dass diese Lizenz und
+etwaige gemäß Abschnitt 7 hinzugefügte nicht-erlaubende Bestimmungen auf
+den Code anwendbar sind; Sie belassen alle Hinweise auf das Fehlen
+jeglicher Gewährleistung unverändert; und Sie geben allen Empfängern
+zusammen mit dem Programm eine Kopie dieser Lizenz.
+
+  Sie dürfen für jede Kopie, die Sie weitergeben, einen beliebigen oder
+gar keinen Preis verlangen, und Sie dürfen gegen Entgelt Support oder
+Gewährleistungsschutz anbieten.
+
+  5. Weitergabe veränderter Quelltextversionen.
+
+  Sie dürfen ein Werk auf Grundlage des Programms oder die Veränderungen,
+mit denen es aus dem Programm erzeugt wird, in Form von Quelltext gemäß
+den Bedingungen von Abschnitt 4 weitergeben, vorausgesetzt, Sie erfüllen
+außerdem alle folgenden Bedingungen:
+
+    a) Das Werk muss deutlich sichtbare Hinweise enthalten, die besagen,
+    dass Sie es verändert haben, und die ein entsprechendes Datum angeben.
+
+    b) Das Werk muss deutlich sichtbare Hinweise enthalten, die besagen,
+    dass es unter dieser Lizenz und etwaigen gemäß Abschnitt 7
+    hinzugefügten Bedingungen veröffentlicht wird. Diese Anforderung
+    ändert die Anforderung aus Abschnitt 4, „alle Hinweise unverändert zu
+    belassen“.
+
+    c) Sie müssen das gesamte Werk als Ganzes unter dieser Lizenz an jeden
+    lizenzieren, der in den Besitz einer Kopie gelangt. Diese Lizenz gilt
+    daher, zusammen mit etwaigen anwendbaren zusätzlichen Bestimmungen
+    gemäß Abschnitt 7, für das gesamte Werk und alle seine Teile,
+    unabhängig davon, wie diese zusammengestellt sind. Diese Lizenz
+    erteilt keine Erlaubnis, das Werk auf andere Weise zu lizenzieren,
+    macht eine solche Erlaubnis jedoch nicht ungültig, wenn Sie sie
+    gesondert erhalten haben.
+
+    d) Hat das Werk interaktive Benutzerschnittstellen, so muss jede von
+    ihnen angemessene rechtliche Hinweise anzeigen; hat das Programm
+    jedoch interaktive Schnittstellen, die keine angemessenen rechtlichen
+    Hinweise anzeigen, so muss Ihr Werk diese nicht dazu bringen, dies zu
+    tun.
+
+  Eine Zusammenstellung eines betroffenen Werks mit anderen gesonderten
+und unabhängigen Werken, die ihrer Natur nach keine Erweiterungen des
+betroffenen Werks sind und die nicht so mit ihm kombiniert sind, dass sie
+ein größeres Programm bilden, in oder auf einem Speicher- oder
+Vertriebsmedium wird als „Aggregat“ bezeichnet, wenn die Zusammenstellung
+und das daraus entstehende Urheberrecht nicht dazu verwendet werden, den
+Zugang oder die gesetzlichen Rechte der Benutzer der Zusammenstellung über
+das hinaus einzuschränken, was die einzelnen Werke erlauben. Die Aufnahme
+eines betroffenen Werks in ein Aggregat bewirkt nicht, dass diese Lizenz
+auf die anderen Teile des Aggregats anwendbar wird.
+
+  6. Weitergabe in Nicht-Quelltext-Form.
+
+  Sie dürfen ein betroffenes Werk in Form von Objektcode gemäß den
+Bedingungen der Abschnitte 4 und 5 weitergeben, vorausgesetzt, Sie geben
+auch den maschinenlesbaren korrespondierenden Quelltext gemäß den
+Bedingungen dieser Lizenz weiter, und zwar auf eine der folgenden Arten:
+
+    a) Sie geben den Objektcode in einem physischen Produkt
+    (einschließlich eines physischen Vertriebsmediums) oder in ein solches
+    eingebettet weiter, begleitet vom korrespondierenden Quelltext, der
+    auf einem dauerhaften physischen Medium fixiert ist, das üblicherweise
+    für den Austausch von Software verwendet wird.
+
+    b) Sie geben den Objektcode in einem physischen Produkt
+    (einschließlich eines physischen Vertriebsmediums) oder in ein solches
+    eingebettet weiter, begleitet von einem schriftlichen Angebot, das
+    mindestens drei Jahre lang und so lange gültig ist, wie Sie für dieses
+    Produktmodell Ersatzteile oder Kundendienst anbieten, jedem, der den
+    Objektcode besitzt, entweder (1) eine Kopie des korrespondierenden
+    Quelltextes für die gesamte Software in dem Produkt, die unter diese
+    Lizenz fällt, auf einem dauerhaften physischen Medium, das
+    üblicherweise für den Austausch von Software verwendet wird, zu einem
+    Preis bereitzustellen, der Ihre angemessenen Kosten für die physische
+    Durchführung dieser Weitergabe des Quelltextes nicht übersteigt, oder
+    (2) kostenlos Zugang zum Kopieren des korrespondierenden Quelltextes
+    von einem Netzwerk-Server zu gewähren.
+
+    c) Sie geben einzelne Kopien des Objektcodes zusammen mit einer Kopie
+    des schriftlichen Angebots weiter, den korrespondierenden Quelltext
+    bereitzustellen. Diese Alternative ist nur gelegentlich und
+    nicht-kommerziell zulässig, und nur dann, wenn Sie den Objektcode mit
+    einem solchen Angebot gemäß Unterabschnitt 6b erhalten haben.
+
+    d) Sie geben den Objektcode weiter, indem Sie an einem dafür
+    bestimmten Ort (kostenlos oder gegen Entgelt) Zugang zu ihm anbieten,
+    und Sie bieten auf die gleiche Weise über denselben Ort ohne
+    zusätzliche Kosten gleichwertigen Zugang zum korrespondierenden
+    Quelltext an. Sie müssen die Empfänger nicht verpflichten, den
+    korrespondierenden Quelltext zusammen mit dem Objektcode zu kopieren.
+    Ist der Ort zum Kopieren des Objektcodes ein Netzwerk-Server, so darf
+    sich der korrespondierende Quelltext auf einem anderen Server befinden
+    (der von Ihnen oder einem Dritten betrieben wird), der gleichwertige
+    Kopiermöglichkeiten unterstützt, vorausgesetzt, Sie bringen neben dem
+    Objektcode klare Hinweise an, die angeben, wo der korrespondierende
+    Quelltext zu finden ist. Unabhängig davon, auf welchem Server sich der
+    korrespondierende Quelltext befindet, bleiben Sie verpflichtet
+    sicherzustellen, dass er so lange verfügbar ist, wie es zur Erfüllung
+    dieser Anforderungen erforderlich ist.
+
+    e) Sie geben den Objektcode mittels Peer-to-Peer-Übertragung weiter,
+    vorausgesetzt, Sie teilen anderen Peers mit, wo der Objektcode und der
+    korrespondierende Quelltext des Werks gemäß Unterabschnitt 6d der
+    Allgemeinheit kostenlos angeboten werden.
+
+  Ein abtrennbarer Teil des Objektcodes, dessen Quelltext als
+Systembibliothek vom korrespondierenden Quelltext ausgenommen ist, muss
+bei der Weitergabe des Objektcode-Werks nicht enthalten sein.
+
+  Ein „Benutzerprodukt“ ist entweder (1) ein „Verbraucherprodukt“, d. h.
+jede bewegliche körperliche Sache, die normalerweise für persönliche,
+familiäre oder häusliche Zwecke verwendet wird, oder (2) alles, was für
+den Einbau in eine Wohnung entworfen oder verkauft wird. Bei der
+Entscheidung, ob ein Produkt ein Verbraucherprodukt ist, sind
+Zweifelsfälle zugunsten der Einbeziehung zu entscheiden. Für ein
+bestimmtes Produkt, das ein bestimmter Benutzer erhalten hat, bezieht sich
+„normalerweise verwendet“ auf eine typische oder übliche Verwendung dieser
+Produktklasse, unabhängig vom Status des jeweiligen Benutzers oder davon,
+wie der jeweilige Benutzer das Produkt tatsächlich verwendet oder zu
+verwenden erwartet oder wie von ihm erwartet wird, es zu verwenden. Ein
+Produkt ist ein Verbraucherprodukt, unabhängig davon, ob das Produkt
+wesentliche gewerbliche, industrielle oder nicht verbraucherbezogene
+Verwendungen hat, es sei denn, solche Verwendungen stellen die einzige
+bedeutende Art der Verwendung des Produkts dar.
+
+  „Installationsinformationen“ für ein Benutzerprodukt bezeichnen alle
+Methoden, Verfahren, Autorisierungsschlüssel oder sonstigen Informationen,
+die erforderlich sind, um veränderte Versionen eines betroffenen Werks aus
+einer veränderten Version seines korrespondierenden Quelltextes in diesem
+Benutzerprodukt zu installieren und auszuführen. Die Informationen müssen
+ausreichen, um sicherzustellen, dass das weitere Funktionieren des
+veränderten Objektcodes in keinem Fall allein deshalb verhindert oder
+beeinträchtigt wird, weil eine Veränderung vorgenommen wurde.
+
+  Wenn Sie ein Objektcode-Werk gemäß diesem Abschnitt in einem
+Benutzerprodukt, zusammen mit einem Benutzerprodukt oder speziell zur
+Verwendung in einem Benutzerprodukt weitergeben und die Weitergabe im
+Rahmen eines Geschäfts erfolgt, bei dem das Recht zum Besitz und zur
+Nutzung des Benutzerprodukts dauerhaft oder für einen bestimmten Zeitraum
+auf den Empfänger übergeht (unabhängig davon, wie das Geschäft bezeichnet
+wird), so muss der gemäß diesem Abschnitt weitergegebene korrespondierende
+Quelltext von den Installationsinformationen begleitet sein. Diese
+Anforderung gilt jedoch nicht, wenn weder Sie noch ein Dritter die
+Möglichkeit behält, veränderten Objektcode auf dem Benutzerprodukt zu
+installieren (zum Beispiel, wenn das Werk in einem ROM installiert wurde).
+
+  Die Anforderung, Installationsinformationen bereitzustellen, schließt
+keine Verpflichtung ein, weiterhin Support, Gewährleistung oder
+Aktualisierungen für ein Werk bereitzustellen, das vom Empfänger verändert
+oder installiert wurde, oder für das Benutzerprodukt, in dem es verändert
+oder installiert wurde. Der Zugang zu einem Netzwerk kann verweigert
+werden, wenn die Veränderung selbst den Betrieb des Netzwerks wesentlich
+und nachteilig beeinträchtigt oder gegen die Regeln und Protokolle für die
+Kommunikation über das Netzwerk verstößt.
+
+  Der gemäß diesem Abschnitt weitergegebene korrespondierende Quelltext
+und die bereitgestellten Installationsinformationen müssen in einem Format
+vorliegen, das öffentlich dokumentiert ist (und für das eine
+Implementierung in Form von Quelltext öffentlich verfügbar ist), und
+dürfen zum Entpacken, Lesen oder Kopieren kein besonderes Passwort und
+keinen besonderen Schlüssel erfordern.
+
+  7. Zusätzliche Bestimmungen.
+
+  „Zusätzliche Erlaubnisse“ sind Bestimmungen, die die Bestimmungen dieser
+Lizenz ergänzen, indem sie Ausnahmen von einer oder mehreren ihrer
+Bedingungen vorsehen. Zusätzliche Erlaubnisse, die auf das gesamte
+Programm anwendbar sind, werden so behandelt, als wären sie in dieser
+Lizenz enthalten, soweit sie nach dem anwendbaren Recht gültig sind.
+Gelten zusätzliche Erlaubnisse nur für einen Teil des Programms, so darf
+dieser Teil gesondert unter diesen Erlaubnissen verwendet werden, das
+gesamte Programm unterliegt jedoch weiterhin dieser Lizenz, ohne
+Berücksichtigung der zusätzlichen Erlaubnisse.
+
+  Wenn Sie eine Kopie eines betroffenen Werks weitergeben, dürfen Sie nach
+eigenem Ermessen alle zusätzlichen Erlaubnisse von dieser Kopie oder von
+jedem ihrer Teile entfernen. (Zusätzliche Erlaubnisse können so formuliert
+sein, dass sie in bestimmten Fällen, in denen Sie das Werk verändern, ihre
+eigene Entfernung verlangen.) Sie dürfen für Material, das Sie einem
+betroffenen Werk hinzugefügt haben und für das Sie die entsprechende
+urheberrechtliche Erlaubnis haben oder erteilen können, zusätzliche
+Erlaubnisse vorsehen.
+
+  Ungeachtet anderer Bestimmungen dieser Lizenz dürfen Sie für Material,
+das Sie einem betroffenen Werk hinzufügen, (sofern Sie von den
+Urheberrechtsinhabern dieses Materials dazu ermächtigt sind) die
+Bestimmungen dieser Lizenz um Bestimmungen ergänzen, die
+
+    a) die Gewährleistung ausschließen oder die Haftung abweichend von den
+    Bestimmungen der Abschnitte 15 und 16 dieser Lizenz beschränken; oder
+
+    b) die Erhaltung bestimmter angemessener rechtlicher Hinweise oder
+    Urheberangaben in diesem Material oder in den angemessenen rechtlichen
+    Hinweisen verlangen, die von Werken angezeigt werden, die es
+    enthalten; oder
+
+    c) eine falsche Darstellung der Herkunft dieses Materials verbieten
+    oder verlangen, dass veränderte Versionen dieses Materials in
+    angemessener Weise als von der Originalversion abweichend
+    gekennzeichnet werden; oder
+
+    d) die Verwendung der Namen von Lizenzgebern oder Urhebern des
+    Materials zu Werbezwecken einschränken; oder
+
+    e) die Gewährung von Rechten nach dem Markenrecht für die Verwendung
+    bestimmter Handelsnamen, Warenzeichen oder Dienstleistungsmarken
+    ablehnen; oder
+
+    f) von jedem, der das Material (oder veränderte Versionen davon)
+    weitergibt und dabei gegenüber dem Empfänger vertragliche
+    Haftungsübernahmen eingeht, verlangen, die Lizenzgeber und Urheber
+    dieses Materials von jeder Haftung freizustellen, die diese
+    vertraglichen Haftungsübernahmen diesen Lizenzgebern und Urhebern
+    unmittelbar auferlegen.
+
+  Alle anderen nicht-erlaubenden zusätzlichen Bestimmungen gelten als
+„weitere Einschränkungen“ im Sinne von Abschnitt 10. Enthält das Programm,
+so wie Sie es erhalten haben, oder ein Teil davon einen Hinweis, dass es
+dieser Lizenz unterliegt, zusammen mit einer Bestimmung, die eine weitere
+Einschränkung darstellt, so dürfen Sie diese Bestimmung entfernen. Enthält
+ein Lizenzdokument eine weitere Einschränkung, erlaubt aber die
+Neulizenzierung oder Weitergabe unter dieser Lizenz, so dürfen Sie einem
+betroffenen Werk Material hinzufügen, das den Bestimmungen dieses
+Lizenzdokuments unterliegt, vorausgesetzt, die weitere Einschränkung
+bleibt bei einer solchen Neulizenzierung oder Weitergabe nicht bestehen.
+
+  Wenn Sie einem betroffenen Werk gemäß diesem Abschnitt Bestimmungen
+hinzufügen, müssen Sie in den betreffenden Quelldateien eine Erklärung
+über die zusätzlichen Bestimmungen anbringen, die für diese Dateien
+gelten, oder einen Hinweis darauf, wo die anwendbaren Bestimmungen zu
+finden sind.
+
+  Zusätzliche Bestimmungen, ob erlaubend oder nicht-erlaubend, können in
+Form einer gesondert verfassten Lizenz oder als Ausnahmen angegeben
+werden; die obigen Anforderungen gelten in beiden Fällen.
+
+  8. Beendigung.
+
+  Sie dürfen ein betroffenes Werk nur so verbreiten oder verändern, wie es
+unter dieser Lizenz ausdrücklich vorgesehen ist. Jeder anderweitige
+Versuch, es zu verbreiten oder zu verändern, ist nichtig und beendet
+automatisch Ihre Rechte unter dieser Lizenz (einschließlich aller
+Patentlizenzen, die gemäß dem dritten Absatz von Abschnitt 11 gewährt
+wurden).
+
+  Wenn Sie jedoch alle Verstöße gegen diese Lizenz einstellen, wird Ihre
+Lizenz von einem bestimmten Urheberrechtsinhaber wiederhergestellt, und
+zwar (a) vorläufig, sofern und solange der Urheberrechtsinhaber Ihre
+Lizenz nicht ausdrücklich und endgültig beendet, und (b) dauerhaft, wenn
+der Urheberrechtsinhaber Sie nicht vor Ablauf von 60 Tagen nach der
+Einstellung auf angemessene Weise über den Verstoß in Kenntnis setzt.
+
+  Darüber hinaus wird Ihre Lizenz von einem bestimmten
+Urheberrechtsinhaber dauerhaft wiederhergestellt, wenn der
+Urheberrechtsinhaber Sie auf angemessene Weise über den Verstoß in
+Kenntnis setzt, Sie zum ersten Mal von diesem Urheberrechtsinhaber eine
+Mitteilung über einen Verstoß gegen diese Lizenz (für irgendein Werk)
+erhalten haben und Sie den Verstoß vor Ablauf von 30 Tagen nach Erhalt der
+Mitteilung beheben.
+
+  Die Beendigung Ihrer Rechte gemäß diesem Abschnitt beendet nicht die
+Lizenzen von Parteien, die unter dieser Lizenz Kopien oder Rechte von
+Ihnen erhalten haben. Wenn Ihre Rechte beendet und nicht dauerhaft
+wiederhergestellt wurden, sind Sie nicht berechtigt, gemäß Abschnitt 10
+neue Lizenzen für dasselbe Material zu erhalten.
+
+  9. Annahme der Lizenz keine Voraussetzung für den Besitz von Kopien.
+
+  Sie müssen diese Lizenz nicht annehmen, um eine Kopie des Programms zu
+erhalten oder auszuführen. Eine begleitende Verbreitung eines betroffenen
+Werks, die ausschließlich als Folge der Nutzung einer
+Peer-to-Peer-Übertragung zum Erhalt einer Kopie erfolgt, erfordert
+ebenfalls keine Annahme. Jedoch erteilt Ihnen nichts außer dieser Lizenz
+die Erlaubnis, ein betroffenes Werk zu verbreiten oder zu verändern. Diese
+Handlungen verletzen das Urheberrecht, wenn Sie diese Lizenz nicht
+annehmen. Indem Sie ein betroffenes Werk verändern oder verbreiten,
+bringen Sie daher Ihre Annahme dieser Lizenz zum Ausdruck, um dies zu tun.
+
+  10. Automatische Lizenzierung nachfolgender Empfänger.
+
+  Jedes Mal, wenn Sie ein betroffenes Werk weitergeben, erhält der
+Empfänger automatisch von den ursprünglichen Lizenzgebern eine Lizenz,
+dieses Werk vorbehaltlich dieser Lizenz auszuführen, zu verändern und zu
+verbreiten. Sie sind nicht dafür verantwortlich, die Einhaltung dieser
+Lizenz durch Dritte durchzusetzen.
+
+  Eine „Unternehmenstransaktion“ ist eine Transaktion, durch die die
+Kontrolle über eine Organisation oder im Wesentlichen ihr gesamtes
+Vermögen übertragen wird, eine Organisation aufgeteilt wird oder
+Organisationen verschmolzen werden. Ergibt sich die Verbreitung eines
+betroffenen Werks aus einer Unternehmenstransaktion, so erhält jede an
+dieser Transaktion beteiligte Partei, die eine Kopie des Werks erhält,
+auch alle Lizenzen für das Werk, die der Rechtsvorgänger der Partei hatte
+oder gemäß dem vorstehenden Absatz erteilen konnte, sowie ein Recht auf
+Besitz des korrespondierenden Quelltextes des Werks vom Rechtsvorgänger,
+sofern der Rechtsvorgänger ihn hat oder mit angemessenem Aufwand
+beschaffen kann.
+
+  Sie dürfen der Ausübung der unter dieser Lizenz gewährten oder
+bestätigten Rechte keine weiteren Einschränkungen auferlegen.
+Beispielsweise dürfen Sie für die Ausübung der unter dieser Lizenz
+gewährten Rechte keine Lizenzgebühr, keine Tantiemen und kein sonstiges
+Entgelt verlangen, und Sie dürfen keinen Rechtsstreit einleiten
+(einschließlich einer Gegenklage oder Widerklage in einem
+Gerichtsverfahren), in dem behauptet wird, dass durch das Herstellen,
+Verwenden, Verkaufen, Anbieten zum Verkauf oder Einführen des Programms
+oder eines Teils davon ein Patentanspruch verletzt wird.
+
+  11. Patente.
+
+  Ein „Mitwirkender“ ist ein Urheberrechtsinhaber, der die Nutzung des
+Programms oder eines Werks, auf dem das Programm beruht, unter dieser
+Lizenz gestattet. Das auf diese Weise lizenzierte Werk wird als
+„Mitwirkenden-Version“ des Mitwirkenden bezeichnet.
+
+  Die „wesentlichen Patentansprüche“ eines Mitwirkenden sind alle
+Patentansprüche, die im Eigentum oder unter der Kontrolle des Mitwirkenden
+stehen, ob bereits erworben oder künftig erworben, und die durch
+irgendeine nach dieser Lizenz erlaubte Art des Herstellens, Verwendens
+oder Verkaufens seiner Mitwirkenden-Version verletzt würden; sie umfassen
+jedoch keine Ansprüche, die nur als Folge einer weiteren Veränderung der
+Mitwirkenden-Version verletzt würden. Im Sinne dieser Definition umfasst
+„Kontrolle“ das Recht, Patent-Unterlizenzen in einer Weise zu erteilen,
+die mit den Anforderungen dieser Lizenz vereinbar ist.
+
+  Jeder Mitwirkende gewährt Ihnen eine nicht-ausschließliche, weltweite,
+gebührenfreie Patentlizenz unter den wesentlichen Patentansprüchen des
+Mitwirkenden, um den Inhalt seiner Mitwirkenden-Version herzustellen, zu
+verwenden, zu verkaufen, zum Verkauf anzubieten, einzuführen und
+anderweitig auszuführen, zu verändern und zu verbreiten.
+
+  In den folgenden drei Absätzen ist eine „Patentlizenz“ jede
+ausdrückliche Vereinbarung oder Zusage, wie auch immer bezeichnet, ein
+Patent nicht durchzusetzen (etwa eine ausdrückliche Erlaubnis zur Nutzung
+eines Patents oder eine Zusage, nicht wegen Patentverletzung zu klagen).
+Einer Partei eine solche Patentlizenz zu „gewähren“ bedeutet, eine solche
+Vereinbarung oder Zusage zu treffen, ein Patent nicht gegen diese Partei
+durchzusetzen.
+
+  Wenn Sie ein betroffenes Werk weitergeben und sich dabei wissentlich auf
+eine Patentlizenz stützen und der korrespondierende Quelltext des Werks
+nicht für jedermann kostenlos und gemäß den Bedingungen dieser Lizenz über
+einen öffentlich zugänglichen Netzwerk-Server oder andere leicht
+zugängliche Mittel zum Kopieren verfügbar ist, dann müssen Sie entweder
+(1) dafür sorgen, dass der korrespondierende Quelltext auf diese Weise
+verfügbar ist, oder (2) dafür sorgen, dass Sie selbst auf den Vorteil der
+Patentlizenz für dieses bestimmte Werk verzichten, oder (3) in einer mit
+den Anforderungen dieser Lizenz vereinbaren Weise dafür sorgen, dass die
+Patentlizenz auf nachfolgende Empfänger ausgedehnt wird. „Sich wissentlich
+stützen“ bedeutet, dass Sie tatsächlich wissen, dass ohne die Patentlizenz
+Ihre Weitergabe des betroffenen Werks in einem Land oder die Nutzung des
+betroffenen Werks durch Ihren Empfänger in einem Land ein oder mehrere
+identifizierbare Patente in diesem Land verletzen würde, die Sie begründet
+für gültig halten.
+
+  Wenn Sie aufgrund oder im Zusammenhang mit einer einzelnen Transaktion
+oder Vereinbarung ein betroffenes Werk weitergeben oder durch Veranlassung
+seiner Weitergabe verbreiten und einigen der Parteien, die das betroffene
+Werk erhalten, eine Patentlizenz gewähren, die ihnen erlaubt, eine
+bestimmte Kopie des betroffenen Werks zu verwenden, zu verbreiten, zu
+verändern oder weiterzugeben, so wird die von Ihnen gewährte Patentlizenz
+automatisch auf alle Empfänger des betroffenen Werks und der darauf
+beruhenden Werke ausgedehnt.
+
+  Eine Patentlizenz ist „diskriminierend“, wenn sie eines oder mehrere der
+unter dieser Lizenz ausdrücklich gewährten Rechte nicht in ihren
+Geltungsbereich einschließt, ihre Ausübung verbietet oder von ihrer
+Nichtausübung abhängig macht. Sie dürfen ein betroffenes Werk nicht
+weitergeben, wenn Sie Partei einer Vereinbarung mit einem Dritten sind,
+der geschäftsmäßig Software vertreibt, nach der Sie an den Dritten
+Zahlungen leisten, die sich nach dem Umfang Ihrer Tätigkeit der Weitergabe
+des Werks bemessen, und nach der der Dritte einer der Parteien, die das
+betroffene Werk von Ihnen erhalten würden, eine diskriminierende
+Patentlizenz gewährt, und zwar (a) im Zusammenhang mit von Ihnen
+weitergegebenen Kopien des betroffenen Werks (oder von diesen Kopien
+angefertigten Kopien) oder (b) hauptsächlich für und im Zusammenhang mit
+bestimmten Produkten oder Zusammenstellungen, die das betroffene Werk
+enthalten, es sei denn, Sie haben diese Vereinbarung vor dem 28. März 2007
+geschlossen oder diese Patentlizenz wurde vor diesem Datum gewährt.
+
+  Nichts in dieser Lizenz ist so auszulegen, dass es eine stillschweigende
+Lizenz oder andere Einwendungen gegen eine Rechtsverletzung ausschließt
+oder beschränkt, die Ihnen nach dem anwendbaren Patentrecht anderweitig
+zustehen können.
+
+  12. Keine Preisgabe der Freiheit anderer.
+
+  Werden Ihnen (durch Gerichtsbeschluss, Vereinbarung oder auf andere
+Weise) Bedingungen auferlegt, die den Bedingungen dieser Lizenz
+widersprechen, so entbinden diese Sie nicht von den Bedingungen dieser
+Lizenz. Wenn Sie ein betroffenes Werk nicht so weitergeben können, dass
+Sie gleichzeitig Ihre Verpflichtungen unter dieser Lizenz und andere
+einschlägige Verpflichtungen erfüllen, dann dürfen Sie es folglich
+überhaupt nicht weitergeben. Wenn Sie beispielsweise Bedingungen
+zustimmen, die Sie verpflichten, von denjenigen, an die Sie das Programm
+weitergeben, eine Lizenzgebühr für die weitere Weitergabe zu erheben,
+bestünde die einzige Möglichkeit, sowohl diese Bedingungen als auch diese
+Lizenz zu erfüllen, darin, ganz auf die Weitergabe des Programms zu
+verzichten.
+
+  13. Fernzugriff über ein Netzwerk; Verwendung mit der GNU General Public
+      License.
+
+  Ungeachtet anderer Bestimmungen dieser Lizenz gilt: Wenn Sie das
+Programm verändern, muss Ihre veränderte Version allen Benutzern, die über
+ein Computernetzwerk aus der Ferne mit ihr interagieren (sofern Ihre
+Version eine solche Interaktion unterstützt), deutlich sichtbar die
+Möglichkeit anbieten, den korrespondierenden Quelltext Ihrer Version zu
+erhalten, indem kostenloser Zugang zum korrespondierenden Quelltext von
+einem Netzwerk-Server über ein standardmäßiges oder übliches Mittel zum
+Kopieren von Software bereitgestellt wird. Dieser korrespondierende
+Quelltext muss den korrespondierenden Quelltext jedes Werks umfassen, das
+unter Version 3 der GNU General Public License steht und gemäß dem
+folgenden Absatz eingebunden ist.
+
+  Ungeachtet anderer Bestimmungen dieser Lizenz haben Sie die Erlaubnis,
+jedes betroffene Werk mit einem Werk, das unter Version 3 der GNU General
+Public License lizenziert ist, zu einem einzigen kombinierten Werk zu
+verbinden oder zu kombinieren und das daraus entstehende Werk
+weiterzugeben. Die Bedingungen dieser Lizenz gelten weiterhin für den
+Teil, der das betroffene Werk ist, das Werk, mit dem es kombiniert wird,
+unterliegt jedoch weiterhin Version 3 der GNU General Public License.
+
+  14. Überarbeitete Versionen dieser Lizenz.
+
+  Die Free Software Foundation kann von Zeit zu Zeit überarbeitete
+und/oder neue Versionen der GNU Affero General Public License
+veröffentlichen. Solche neuen Versionen werden der vorliegenden Version im
+Geiste ähnlich sein, können sich aber im Detail unterscheiden, um neuen
+Problemen oder Anliegen Rechnung zu tragen.
+
+  Jede Version erhält eine unterscheidende Versionsnummer. Gibt das
+Programm an, dass eine bestimmte nummerierte Version der GNU Affero
+General Public License „oder jede spätere Version“ darauf anwendbar ist,
+so haben Sie die Wahl, entweder den Bestimmungen und Bedingungen dieser
+nummerierten Version oder einer beliebigen späteren, von der Free Software
+Foundation veröffentlichten Version zu folgen. Gibt das Programm keine
+Versionsnummer der GNU Affero General Public License an, so dürfen Sie
+jede jemals von der Free Software Foundation veröffentlichte Version
+wählen.
+
+  Gibt das Programm an, dass ein Bevollmächtigter entscheiden kann, welche
+künftigen Versionen der GNU Affero General Public License verwendet werden
+dürfen, so berechtigt Sie die öffentliche Erklärung dieses
+Bevollmächtigten über die Annahme einer Version dauerhaft, diese Version
+für das Programm zu wählen.
+
+  Spätere Lizenzversionen können Ihnen zusätzliche oder andere Erlaubnisse
+gewähren. Jedoch werden keinem Urheber oder Urheberrechtsinhaber
+zusätzliche Verpflichtungen auferlegt, weil Sie sich dafür entscheiden,
+einer späteren Version zu folgen.
+
+  15. Gewährleistungsausschluss.
+
+  FÜR DAS PROGRAMM BESTEHT KEINE GEWÄHRLEISTUNG, SOWEIT DIES NACH DEM
+ANWENDBAREN RECHT ZULÄSSIG IST. SOFERN NICHT ANDERWEITIG SCHRIFTLICH
+ANGEGEBEN, STELLEN DIE URHEBERRECHTSINHABER UND/ODER ANDERE PARTEIEN DAS
+PROGRAMM „WIE ES IST“ ZUR VERFÜGUNG, OHNE GEWÄHRLEISTUNG JEGLICHER ART,
+WEDER AUSDRÜCKLICH NOCH STILLSCHWEIGEND, EINSCHLIESSLICH, ABER NICHT
+BESCHRÄNKT AUF DIE STILLSCHWEIGENDE GEWÄHRLEISTUNG DER MARKTREIFE UND DER
+EIGNUNG FÜR EINEN BESTIMMTEN ZWECK. DAS GESAMTE RISIKO HINSICHTLICH DER
+QUALITÄT UND LEISTUNGSFÄHIGKEIT DES PROGRAMMS LIEGT BEI IHNEN. SOLLTE SICH
+DAS PROGRAMM ALS FEHLERHAFT ERWEISEN, TRAGEN SIE DIE KOSTEN FÜR ALLE
+NOTWENDIGEN WARTUNGS-, REPARATUR- ODER KORREKTURMASSNAHMEN.
+
+  16. Haftungsbeschränkung.
+
+  IN KEINEM FALL, ES SEI DENN, DIES IST NACH DEM ANWENDBAREN RECHT
+VORGESCHRIEBEN ODER SCHRIFTLICH VEREINBART, HAFTET IHNEN GEGENÜBER EIN
+URHEBERRECHTSINHABER ODER EINE ANDERE PARTEI, DIE DAS PROGRAMM WIE OBEN
+ERLAUBT VERÄNDERT UND/ODER WEITERGIBT, FÜR SCHÄDEN, EINSCHLIESSLICH
+ALLGEMEINER, BESONDERER, ZUFÄLLIGER ODER FOLGESCHÄDEN, DIE AUS DER NUTZUNG
+ODER DER UNMÖGLICHKEIT DER NUTZUNG DES PROGRAMMS ENTSTEHEN
+(EINSCHLIESSLICH, ABER NICHT BESCHRÄNKT AUF DEN VERLUST VON DATEN, DAS
+UNRICHTIGWERDEN VON DATEN, VERLUSTE, DIE IHNEN ODER DRITTEN ENTSTEHEN,
+ODER DAS UNVERMÖGEN DES PROGRAMMS, MIT ANDEREN PROGRAMMEN
+ZUSAMMENZUARBEITEN), SELBST WENN DIESER INHABER ODER DIESE ANDERE PARTEI
+AUF DIE MÖGLICHKEIT SOLCHER SCHÄDEN HINGEWIESEN WURDE.
+
+  17. Auslegung der Abschnitte 15 und 16.
+
+  Können der oben angegebene Gewährleistungsausschluss und die oben
+angegebene Haftungsbeschränkung nach ihrem Wortlaut nach örtlichem Recht
+keine Rechtswirkung entfalten, so haben die überprüfenden Gerichte
+dasjenige örtliche Recht anzuwenden, das einem vollständigen Verzicht auf
+jegliche zivilrechtliche Haftung im Zusammenhang mit dem Programm am
+nächsten kommt, es sei denn, einer Kopie des Programms liegt gegen Entgelt
+eine Gewährleistung oder Haftungsübernahme bei.
+
+                     ENDE DER LIZENZBEDINGUNGEN
+
+       Wie Sie diese Bedingungen auf Ihre neuen Programme anwenden
+
+  Wenn Sie ein neues Programm entwickeln und möchten, dass es für die
+Allgemeinheit von größtmöglichem Nutzen ist, erreichen Sie dies am besten,
+indem Sie es zu freier Software machen, die jeder unter diesen Bedingungen
+weitervertreiben und verändern kann.
+
+  Fügen Sie dazu die folgenden Hinweise zum Programm hinzu. Am sichersten
+ist es, sie an den Anfang jeder Quelldatei zu setzen, um den
+Gewährleistungsausschluss am wirksamsten mitzuteilen; und jede Datei
+sollte mindestens die „Copyright“-Zeile und einen Verweis darauf
+enthalten, wo der vollständige Hinweis zu finden ist.
+
+    <Eine Zeile mit dem Namen des Programms und einer kurzen Beschreibung
+    dessen, was es tut.>
+    Copyright (C) <Jahr>  <Name des Autors>
+
+    Dieses Programm ist freie Software: Sie können es unter den
+    Bedingungen der GNU Affero General Public License, wie von der Free
+    Software Foundation veröffentlicht, weitergeben und/oder verändern,
+    entweder gemäß Version 3 der Lizenz oder (nach Ihrer Wahl) jeder
+    späteren Version.
+
+    Dieses Programm wird in der Hoffnung vertrieben, dass es nützlich
+    ist, aber OHNE JEDE GEWÄHRLEISTUNG; sogar ohne die stillschweigende
+    Gewährleistung der MARKTREIFE oder der EIGNUNG FÜR EINEN BESTIMMTEN
+    ZWECK. Weitere Einzelheiten finden Sie in der GNU Affero General
+    Public License.
+
+    Sie sollten zusammen mit diesem Programm eine Kopie der GNU Affero
+    General Public License erhalten haben. Falls nicht, siehe
+    <https://www.gnu.org/licenses/>.
+
+Fügen Sie außerdem Angaben hinzu, wie man Sie per E-Mail und per Briefpost
+erreichen kann.
+
+  Wenn Ihre Software über ein Computernetzwerk aus der Ferne mit Benutzern
+interagieren kann, sollten Sie außerdem sicherstellen, dass sie den
+Benutzern eine Möglichkeit bietet, ihren Quelltext zu erhalten. Wenn Ihr
+Programm beispielsweise eine Webanwendung ist, könnte seine Oberfläche
+einen Link „Quelltext“ anzeigen, der die Benutzer zu einem Archiv des
+Codes führt. Es gibt viele Möglichkeiten, Quelltext anzubieten, und für
+unterschiedliche Programme eignen sich unterschiedliche Lösungen besser;
+die konkreten Anforderungen finden Sie in Abschnitt 13.
+
+  Sie sollten außerdem Ihren Arbeitgeber (wenn Sie als Programmierer
+arbeiten) bzw. Ihre Schule, falls zutreffend, dazu bringen, bei Bedarf
+einen „Copyright-Verzicht“ für das Programm zu unterzeichnen. Weitere
+Informationen dazu sowie zur Anwendung und Einhaltung der GNU AGPL finden
+Sie unter <https://www.gnu.org/licenses/>.

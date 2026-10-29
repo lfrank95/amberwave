@@ -1,0 +1,26 @@
+# Schnelle Prüfung bei jedem Push und Pull Request: PHP-Syntax, JavaScript-Syntax, Übersetzungen.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - name: PHP syntax
+        run: find app -name '*.php' -print0 | xargs -0 -n1 -P4 php -l > /dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: JavaScript syntax
+        run: for f in app/js/*.js windows-client/client/*.js; do node --check "$f" || exit 1; done
+      - name: Translations
+        working-directory: app
+        run: python3 scripts/i18n_pruefen.py

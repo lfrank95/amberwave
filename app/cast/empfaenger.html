@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amberwave</title>
+<!--
+  Amberwave-Empfänger für Google Cast (Fernseher, Google TV, Nest Hub, Chromecast mit Bildschirm) – sieht aus wie
+  „Läuft gerade“ in der App: Plattenkiste (Cover-Flow mit CD) aus der Warteschlange, darunter Titel, Zeit, Format.
+  In der Google Cast SDK Developer Console als „Custom Receiver“ mit der HTTPS-Adresse dieser Seite eintragen, die App-ID
+  unter Einstellungen › Geräte im Heimnetz (oder CAST_APP_ID in der .env) hinterlegen.
+  Vorschau ohne Cast-Gerät (angemeldet im selben Browser): ?demo=1 (&zustand=PAUSED, &leer=1)
+-->
+<!-- Schriften kommen vom Amberwave-Server (über app.css), nicht von Google -->
+<link rel="preload" as="font" type="font/woff2" href="/fonts/manrope-latin-v1.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/fonts/spacegrotesk-latin-v1.woff2" crossorigin>
+<link rel="stylesheet" href="/css/app.css">
+<style>
+  /* Seite wie „Läuft gerade“: warmes Licht von oben, dunkler Grund */
+  html, body { height: 100%; margin: 0; overflow: hidden; scrollbar-gutter: auto; }
+  ::-webkit-scrollbar { display: none; }
+  body { cursor: none; color: var(--text-primary);
+    background: radial-gradient(circle at 50% -10%, rgba(255, 150, 60, .22), transparent 55%), linear-gradient(180deg, #22160e, #140e0b 70%); }
+  audio { display: none; }
+  /* ein Hauch der Coverfarben im Hintergrund (weich, kaum sichtbar) */
+  .farbe { position: absolute; inset: -15%; background-size: cover; background-position: center; opacity: 0; filter: blur(90px) saturate(1.4);
+    transition: opacity 1.8s ease; pointer-events: none; }
+  .farbe.an { opacity: .2; }
+
+  .tv { position: absolute; inset: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; justify-items: center;
+    padding: 4.5vh 0 5vh; animation: wandern 600s ease-in-out infinite alternate; transition: opacity .8s ease; }
+  @keyframes wandern { 0% { transform: translate(0, 0); } 33% { transform: translate(.5vw, -.6vh); } 66% { transform: translate(-.4vw, .5vh); } 100% { transform: translate(.3vw, .7vh); } }
+
+  .tv-kopf { text-align: center; display: flex; flex-direction: column; align-items: center; gap: .3vh; min-height: 9vh; }
+  .tv-kopf small { font: 800 1.55vh var(--font-body); letter-spacing: .2em; text-transform: uppercase; color: var(--text-leise); }
+  .tv-kopf b { font: 700 2.3vh var(--font-body); color: var(--text-primary); }
+  .tv-kopf span { font: 500 1.9vh var(--font-body); color: var(--text-muted); }
+
+  /* Plattenkiste: Größe kommt vom unsichtbaren .jetzt-cover */
+  .tv .pk { align-self: center; width: 100vw; max-width: none; padding-top: calc(var(--g) * .08); cursor: none; }
+  .tv .pk > .jetzt-cover { visibility: hidden; box-shadow: none; background: none; width: min(46vh, 34vw); margin: 0; }
+
+  .tv-titel { text-align: center; max-width: 80vw; margin-top: -1vh; }
+  .tv-titel .tv-rolle { font: 800 1.45vh var(--font-body); letter-spacing: .18em; text-transform: uppercase; color: var(--accent-text); height: 2.2vh; opacity: 0; transition: opacity .3s; }
+  .tv-titel .tv-rolle.an { opacity: 1; }
+  .tv-titel h1 { margin: .2vh 0 0; font: 700 5.4vh/1.1 var(--font-display); letter-spacing: -.01em; text-wrap: balance;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tv-titel .k { margin-top: .9vh; font: 500 2.7vh var(--font-body); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .tv-zeit { width: min(58vw, 900px); margin-top: 3.2vh; display: grid; grid-template-columns: 6vh minmax(0, 1fr) 6vh; align-items: center; gap: 1.6vh;
+    font: 600 1.8vh var(--font-body); color: var(--text-leise); font-variant-numeric: tabular-nums; }
+  .tv-zeit span:last-child { text-align: right; }
+  .tv-balken { position: relative; height: .6vh; border-radius: 1vh; background: rgba(255, 244, 230, .14); }
+  .tv-balken i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: var(--accent-gradient, linear-gradient(90deg, #ff8a3d, #ffb547)); transition: width .5s linear; }
+  .tv-balken i::after { content: ""; position: absolute; right: -.9vh; top: 50%; width: 1.8vh; height: 1.8vh; margin-top: -.9vh; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 1.2vh rgba(255, 181, 71, .6); }
+
+  .tv-fuss { width: 100%; padding: 0 5vw; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 2vw; margin-top: 3.4vh; min-height: 7vh; }
+  .tv-marke { display: flex; align-items: center; gap: 1vh; font: 700 1.7vh var(--font-body); color: var(--text-leise); }
+  .tv-marke img { width: 3vh; height: 3vh; }
+  .tv-chips { display: flex; gap: 1vh; justify-content: center; }
+  .tv-chip { display: inline-flex; align-items: center; gap: .8vh; padding: .7vh 1.6vh; border-radius: 99px; border: 1px solid var(--glass-border);
+    font: 700 1.6vh var(--font-body); color: var(--text-muted); background: rgba(255, 244, 230, .05); }
+  .tv-chip.gut::before { content: ""; width: 1vh; height: 1vh; border-radius: 50%; background: var(--success); }
+  .tv-chip.akzent { color: var(--accent-text); border-color: rgba(255, 181, 71, .45); background: rgba(255, 181, 71, .08); }
+  .tv-chip:empty { display: none; }
+  .tv-naechstes { justify-self: end; display: flex; align-items: center; gap: 1.4vh; max-width: 34vw; opacity: 0; transition: opacity .8s; }
+  .tv-naechstes.an { opacity: 1; }
+  .tv-naechstes img { width: 5.6vh; height: 5.6vh; border-radius: .6vh; object-fit: cover; background: rgba(255, 181, 71, .1); flex: none; }
+  .tv-naechstes div { min-width: 0; text-align: right; }
+  .tv-naechstes small { display: block; font: 800 1.3vh var(--font-body); letter-spacing: .18em; text-transform: uppercase; color: var(--text-leise); }
+  .tv-naechstes b { display: block; font: 700 2vh var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tv-naechstes span { display: block; font: 500 1.7vh var(--font-body); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* nichts geladen: Logo und Uhr */
+  .bereit { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; opacity: 0; transition: opacity 1s; pointer-events: none; }
+  .bereit > div { display: flex; flex-direction: column; align-items: center; gap: 2vh; animation: wandern 600s ease-in-out infinite alternate; }
+  .bereit img { width: 11vh; height: 11vh; }
+  .bereit .uhr { font: 600 13vh/1 var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .bereit .name { font: 800 2vh var(--font-body); letter-spacing: .34em; text-transform: uppercase; color: var(--accent-text); }
+  .bereit p { margin: 0; font: 500 2.3vh var(--font-body); color: var(--text-muted); }
+  body.leer .bereit { opacity: 1; }
+  body.leer .tv, body.leer .farbe { opacity: 0; }
+
+  .laden { position: absolute; left: 0; right: 0; top: 0; height: .4vh; opacity: 0; transition: opacity .4s; pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--accent-a, #ffb547), transparent) no-repeat; background-size: 40% 100%; animation: laden 1.4s linear infinite; }
+  body.laedt .laden { opacity: .8; }
+  @keyframes laden { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+
+  /* Nest Hub & Co. (1024×600, Touch): etwas kleiner, Wischen blättert wie in der App */
+  @media (max-height: 650px) {
+    .tv { padding: 3vh 0 3.5vh; }
+    .tv-fuss { padding: 0 4vw; }
+    .tv .pk > .jetzt-cover { width: min(44vh, 34vw); }
+    .tv-titel h1 { font-size: 5.6vh; }
+    body.touch { cursor: default; }
+    body.touch .tv .pk { cursor: grab; }
+  }
+  @media (prefers-reduced-motion: reduce) { .tv, .bereit > div { animation: none; } }
+</style>
+</head>
+<body class="leer">
+<div class="farbe" id="f1"></div><div class="farbe" id="f2"></div>
+<div class="laden"></div>
+
+<div class="tv">
+  <header class="tv-kopf"><small id="quelle-art">Spielt aus Album</small><b id="quelle"></b><span id="quelle-k"></span></header>
+  <div class="pk" data-pk tabindex="-1">
+    <div class="jetzt-cover" aria-hidden="true"></div>
+    <div class="pk-buehne"><div class="pk-3d" data-pk-3d></div></div>
+  </div>
+  <div class="tv-titel"><div class="tv-rolle" id="rolle"></div><h1 id="titel"></h1><div class="k" id="kuenstler"></div></div>
+  <div class="tv-zeit"><span id="jetzt">0:00</span><div class="tv-balken"><i id="fortschritt"></i></div><span id="gesamt"></span></div>
+  <footer class="tv-fuss">
+    <div class="tv-marke"><img src="/img/logo.svg" alt="">Amberwave</div>
+    <div class="tv-chips"><span class="tv-chip gut" id="technik"></span><span class="tv-chip akzent" id="klang"></span><span class="tv-chip" id="pausiert"></span></div>
+    <div class="tv-naechstes" id="naechstes"><div><small>Als Nächstes</small><b id="n-titel"></b><span id="n-k"></span></div><img id="n-cover" alt=""></div>
+  </footer>
+</div>
+
+<div class="bereit"><div>
+  <img src="/img/logo.svg" alt="">
+  <div class="name">Amberwave</div>
+  <div class="uhr" id="uhr">--:--</div>
+  <p data-t>Bereit – in Amberwave unter „Wiedergabe auf“ dieses Gerät wählen.</p>
+</div></div>
+
+<audio id="ton"></audio>
+
+<script type="module">
+import { Plattenkiste, gruppenVon } from '/js/plattenkiste.js';
+
+const NS = 'urn:x-cast:de.amberwave';
+const $ = (id) => document.getElementById(id);
+const zeit = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`; };
+// Sprache des Fernsehers: Englisch, außer das Gerät ist auf Deutsch gestellt
+const EN = !/^de\b/i.test(navigator.language || '');
+const WOERTER = { 'Kommt noch · doppelt tippen': 'Up next · double-tap', 'Schon gespielt · doppelt tippen': 'Already played · double-tap',
+  'Spielt aus Album': 'Playing from album', 'Läuft gerade': 'Now playing', 'umgerechnet': 'converted', 'bitgenau': 'bit-perfect', 'Pausiert': 'Paused',
+  'Bereit – in Amberwave unter „Wiedergabe auf“ dieses Gerät wählen.': 'Ready – choose this device under “Play on” in Amberwave.' };
+const T = (x) => (EN && WOERTER[x]) || x;
+const kText = (k) => (Array.isArray(k) ? k.map((x) => (typeof x === 'string' ? x : x.name)).filter(Boolean).join(', ') : String(k || ''));
+
+// ---------- Zustand ----------
+const z = { liste: [], index: -1, versatz: 0, spielt: false, zustand: 'IDLE', zeit: 0, dauer: 0, technik: '', klang: '', blaettert: null };
+let kiste = null;
+let sende = () => {};   // springen(i) an Amberwave
+
+function kisteBauen() {
+  kiste = new Plattenkiste(document.querySelector('[data-pk]'), {
+    liste: () => z.liste,
+    index: () => z.index,
+    spielt: () => z.spielt,
+    spielen: (i) => sende({ type: 'springen', i: i + z.versatz }),
+    zeiger: (info) => { z.blaettert = info.d ? info : null; titelZeigen(); },
+  });
+}
+
+let farbeJetzt = '', farbeSeite = 1;
+function farbeSetzen(url) {
+  if (url === farbeJetzt) return;
+  farbeJetzt = url;
+  const alt = $(`f${farbeSeite}`), neu = $(`f${3 - farbeSeite}`);
+  if (!url) { alt.classList.remove('an'); return; }
+  const b = new Image();
+  b.onload = () => { if (farbeJetzt !== url) return; neu.style.backgroundImage = `url("${url.replace(/"/g, '%22')}")`; neu.classList.add('an'); alt.classList.remove('an'); farbeSeite = 3 - farbeSeite; };
+  b.src = url;
+}
+
+/** Titelzeile: der laufende Titel – beim Blättern (Nest Hub) der gewählte */
+function titelZeigen() {
+  const t = z.liste[z.blaettert ? z.blaettert.wahl : z.index];
+  $('rolle').textContent = z.blaettert ? (z.blaettert.d > 0 ? T('Kommt noch · doppelt tippen') : T('Schon gespielt · doppelt tippen')) : '';
+  $('rolle').classList.toggle('an', !!z.blaettert);
+  if (!t) return;
+  $('titel').textContent = t.titel || '';
+  $('kuenstler').textContent = kText(t.kuenstler);
+}
+
+function zeichnen() {
+  const t = z.liste[z.index];
+  const leer = !t;
+  document.body.classList.toggle('leer', leer);
+  if (leer) return;
+  document.body.classList.toggle('laedt', z.zustand === 'BUFFERING' || z.zustand === 'LOADING');
+  const gs = gruppenVon(z.liste);
+  const g = gs.find((x) => x.ti.includes(z.index));
+  const mehrere = g && g.ti.length > 1;
+  $('quelle-art').textContent = mehrere ? T('Spielt aus Album') : T('Läuft gerade');
+  $('quelle').textContent = t.album?.titel || '';
+  $('quelle-k').textContent = mehrere ? kText(t.kuenstler) : '';
+  titelZeigen();
+  $('technik').textContent = z.technik;
+  $('klang').textContent = /^umgerechnet/.test(z.klang) ? T('umgerechnet') : z.klang && z.klang !== 'Original' ? z.klang : (z.klang === 'Original' && z.technik ? T('bitgenau') : '');
+  $('pausiert').textContent = z.zustand === 'PAUSED' ? T('Pausiert') : '';
+  farbeSetzen(t.album?.cover || '');
+  const n = z.liste[z.index + 1];
+  $('naechstes').classList.toggle('an', !!n);
+  if (n) {
+    $('n-titel').textContent = n.titel || '';
+    $('n-k').textContent = kText(n.kuenstler);
+    if (n.album?.cover) { $('n-cover').src = n.album.cover; $('n-cover').style.visibility = ''; } else $('n-cover').style.visibility = 'hidden';
+  }
+  if (!kiste) kisteBauen();
+  kiste.neu(!z.blaettert);
+  kiste.zustand();
+  fortschritt();
+}
+
+function fortschritt() {
+  $('fortschritt').style.width = z.dauer > 0 ? `${Math.min(100, (z.zeit / z.dauer) * 100)}%` : '0';
+  $('jetzt').textContent = zeit(z.zeit);
+  $('gesamt').textContent = z.dauer > 0 ? zeit(z.dauer) : '';
+}
+
+document.querySelectorAll('[data-t]').forEach((e) => { e.textContent = T(e.textContent.trim()); });
+if (EN) document.documentElement.lang = 'en';
+function uhr() { const d = new Date(); $('uhr').textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+uhr(); setInterval(uhr, 10000);
+if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+
+// ---------- Vorschau (?demo=1): Warteschlange aus den neuesten Alben der Sammlung ----------
+const p = new URLSearchParams(location.search);
+if (p.has('demo')) {
+  document.body.style.cursor = 'default';
+  if (!p.get('leer')) {
+    let liste = [];
+    try {
+      const r = await (await fetch('/api/v1/start', { credentials: 'same-origin' })).json();
+      for (const a of (r.neu || []).slice(0, 5)) {
+        const al = await (await fetch(`/api/v1/alben/${a.id}`, { credentials: 'same-origin' })).json();
+        const info = { id: al.id, titel: al.titel, edition_id: al.edition.id, cover: al.edition.cover ? al.edition.cover.replace('g=300', 'g=600') : null };
+        liste = liste.concat(al.tracks.filter((t) => t.verfuegbar).slice(0, 2).map((t) => ({ ...t, album: info })));
+      }
+    } catch (e) { /* ohne Anmeldung: Beispiel ohne Cover */ }
+    if (!liste.length) liste = ['Comfortably Numb', 'Hey You', 'Time'].map((titel, i) => ({ id: i + 1, titel, kuenstler: [{ name: 'Pink Floyd' }], album: { id: i + 1, titel: ['The Wall', 'The Wall', 'Dark Side'][i] } }));
+    Object.assign(z, { liste, index: Math.min(3, liste.length - 1), spielt: p.get('zustand') !== 'PAUSED', zustand: p.get('zustand') || 'PLAYING', zeit: 96, dauer: 383, technik: 'FLAC · 24 bit · 96 kHz', klang: 'Original' });
+    zeichnen();
+    setInterval(() => { if (z.spielt) { z.zeit += 1; fortschritt(); } }, 1000);
+  }
+} else {
+  // ---------- Cast Application Framework ----------
+  await new Promise((ok, f) => { const s = document.createElement('script'); s.src = 'https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js'; s.onload = ok; s.onerror = f; document.head.appendChild(s); });
+  const ctx = cast.framework.CastReceiverContext.getInstance();
+  const pm = ctx.getPlayerManager();
+  pm.setMediaElement($('ton'));
+  const E = cast.framework.events.EventType;
+  let sender = null;
+  // Nur Amberwave darf laden: Der Empfänger ist für jeden Sender mit der App-ID erreichbar; ohne Amberwave-Kennung im
+  // Auftrag (customData.amberwave) und ohne http(s)-Adresse wird der Titel nicht gespielt
+  pm.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, (req) => {
+    const m = req.media || {};
+    const ok = m.customData && typeof m.customData.amberwave === 'object' && /^https?:\/\//i.test(String(m.contentId || m.contentUrl || ''));
+    if (ok) return req;
+    const err = new cast.framework.messages.ErrorData(cast.framework.messages.ErrorType.LOAD_FAILED);
+    err.reason = cast.framework.messages.ErrorReason.NOT_SUPPORTED;
+    return err;
+  });
+  const bildOk = (u) => /^https?:\/\//i.test(String(u || ''));
+
+  // Warteschlange und Stand von Amberwave (eigener Kanal)
+  ctx.addCustomMessageListener(NS, (e) => {
+    sender = e.senderId;
+    const d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+    if (d?.type === 'liste') {
+      const liste = (Array.isArray(d.liste) ? d.liste : []).map((t) => (t && t.album && !bildOk(t.album.cover) ? { ...t, album: { ...t.album, cover: null } } : t));
+      Object.assign(z, { liste, index: d.index ?? -1, versatz: d.versatz || 0 });
+      zeichnen();
+    }
+  });
+  sende = (d) => { try { if (sender) ctx.sendCustomMessage(NS, sender, d); } catch (e) { /* egal */ } };
+
+  /** Laufender Titel aus dem Player – ohne Liste von Amberwave genügt er für ein Cover */
+  const ausPlayer = () => {
+    const info = pm.getMediaInformation();
+    z.zustand = pm.getPlayerState();
+    z.spielt = z.zustand === 'PLAYING' || z.zustand === 'BUFFERING';
+    if (!info) { if (z.zustand === 'IDLE') { z.liste = []; z.index = -1; } zeichnen(); return; }
+    const aw = (info.customData && info.customData.amberwave) || {};
+    z.technik = aw.technik || '';
+    z.klang = aw.klang || '';
+    z.dauer = pm.getDurationSec() || info.duration || 0;
+    z.zeit = pm.getCurrentTimeSec();
+    // Liste von Amberwave passt nicht (noch nicht da oder anderer Titel): bis sie kommt, nur dieser Titel
+    if (!z.liste[z.index] || (aw.id && z.liste[z.index].id !== aw.id)) {
+      const j = aw.id ? z.liste.findIndex((t) => t.id === aw.id) : -1;
+      if (j >= 0) z.index = j;
+      else {
+        const m = info.metadata || {};
+        z.liste = [{ id: aw.id || 0, titel: m.title || '', kuenstler: [{ name: m.artist || '' }], album: { titel: m.albumName || '', cover: m.images && m.images[0] ? m.images[0].url : null } }];
+        z.index = 0; z.versatz = 0;
+      }
+    }
+    zeichnen();
+  };
+  pm.addEventListener([E.PLAYER_LOAD_COMPLETE, E.PLAYING, E.PAUSE, E.BUFFERING, E.ENDED, E.MEDIA_FINISHED, E.MEDIA_STATUS, E.EMPTIED], ausPlayer);
+  setInterval(() => { if (!pm.getMediaInformation()) return; z.zeit = pm.getCurrentTimeSec(); z.dauer = pm.getDurationSec() || z.dauer; fortschritt(); }, 500);
+
+  // Nest Hub: kurz tippen (nicht auf die Kiste) pausiert bzw. spielt weiter
+  document.querySelector('.tv-titel').addEventListener('click', () => { const s = pm.getPlayerState(); if (s === 'PLAYING') pm.pause(); else if (s === 'PAUSED') pm.play(); });
+
+  const opts = new cast.framework.CastReceiverOptions();
+  opts.maxInactivity = 3600;
+  opts.touchScreenOptimizedApp = true;
+  opts.supportedCommands = cast.framework.messages.Command.ALL_BASIC_MEDIA;
+  opts.customNamespaces = { [NS]: cast.framework.system.MessageType.JSON };
+  ctx.start(opts);
+}
+</script>
+</body>
+</html>

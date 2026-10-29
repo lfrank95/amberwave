@@ -1,0 +1,27 @@
+-- Migration 004: Grundausstattung an Rollen (Beziehungstypen), Namen wie bei MusicBrainz
+
+INSERT IGNORE INTO beziehungstypen (schluessel, mb_name, name_de, gruppe, reihenfolge) VALUES
+ ('producer',        'producer',          'Produzent',        'produktion',  10),
+ ('exec_producer',   'executive producer','Ausführender Produzent','produktion', 12),
+ ('composer',        'composer',          'Komponist',        'songwriting', 20),
+ ('lyricist',        'lyricist',          'Texter',           'songwriting', 21),
+ ('writer',          'writer',            'Songwriter',       'songwriting', 22),
+ ('arranger',        'arranger',          'Arrangement',      'songwriting', 23),
+ ('orchestrator',    'orchestrator',      'Orchestrierung',   'songwriting', 24),
+ ('librettist',      'librettist',        'Libretto',         'songwriting', 25),
+ ('vocal',           'vocal',             'Gesang',           'musiker',     30),
+ ('instrument',      'instrument',        'Instrument',       'musiker',     31),
+ ('performer',       'performer',         'Mitwirkung',       'musiker',     32),
+ ('orchestra',       'performing orchestra','Orchester',      'musiker',     33),
+ ('conductor',       'conductor',         'Dirigent',         'musiker',     34),
+ ('chorus_master',   'chorus master',     'Chorleitung',      'musiker',     35),
+ ('mix',             'mix',               'Mix',              'technik',     40),
+ ('mastering',       'mastering',         'Mastering',        'technik',     41),
+ ('recording',       'recording',         'Aufnahme',         'technik',     42),
+ ('engineer',        'engineer',          'Toningenieur',     'technik',     43),
+ ('programming',     'programming',       'Programmierung',   'technik',     44),
+ ('remixer',         'remixer',           'Remix',            'sonstiges',   50),
+ ('dj_mix',          'mix-DJ',            'DJ-Mix',           'sonstiges',   51),
+ ('member',          'member of band',    'Mitglied',         'band',        60),
+ ('remix_of',        'remix',             'Remix von',        'sonstiges',   70),
+ ('cover_of',        'cover',             'Cover-Version von','sonstiges',   71)

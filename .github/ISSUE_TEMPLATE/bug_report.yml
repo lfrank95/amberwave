@@ -1,0 +1,54 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Amberwave! Questions and ideas are welcome in the subreddit: https://www.reddit.com/r/Amberwave
+        Please never paste API keys, passwords or your public address into an issue.
+  - type: input
+    id: version
+    attributes:
+      label: Amberwave version
+      description: "Shown in the user menu (top right) and under Admin → Overview, e.g. 0.9.0-beta.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: teil
+    attributes:
+      label: Where does it happen?
+      options:
+        - Web app / PWA (browser)
+        - Windows client
+        - Server / Docker / setup
+        - Remote access / remote control
+        - Downloads (Usenet)
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: "Server host (Unraid, Synology, Linux …), browser or Windows version, client version if used"
+    validations:
+      required: true
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open …\n2. Click …\n3. See …"
+    validations:
+      required: true
+  - type: textarea
+    id: erwartet
+    attributes:
+      label: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Server: `docker logs amberwave_app --tail 200`. Windows client: menu → Create diagnostic file. Remove anything private."
+      render: text

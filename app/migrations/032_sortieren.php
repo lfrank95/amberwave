@@ -1,0 +1,68 @@
+<?php
+// Migration 032 (PHP): Sortier-Assistent für unsortierte Musik (Eingangsordner → Fingerabdruck je Datei → Albumvorschlag).
+declare(strict_types=1);
+$pdo->exec("CREATE TABLE IF NOT EXISTS sortier_dateien (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pfad_hash CHAR(64) NOT NULL,
+    pfad VARCHAR(2000) NOT NULL,
+    groesse BIGINT NOT NULL DEFAULT 0,
+    mtime INT NOT NULL DEFAULT 0,
+    dauer_ms INT NOT NULL DEFAULT 0,
+    format VARCHAR(10) NOT NULL DEFAULT '',
+    qualitaet VARCHAR(60) NOT NULL DEFAULT '',
+    rang INT NOT NULL DEFAULT 0,
+    tag_kuenstler VARCHAR(500) NOT NULL DEFAULT '',
+    tag_titel VARCHAR(500) NOT NULL DEFAULT '',
+    tag_album VARCHAR(500) NOT NULL DEFAULT '',
+    fp MEDIUMTEXT NULL,
+    status VARCHAR(12) NOT NULL DEFAULT 'neu',
+    fehler VARCHAR(300) NOT NULL DEFAULT '',
+    treffer MEDIUMTEXT NULL,
+    manuell TINYINT(1) NOT NULL DEFAULT 0,
+    aufnahme_mbid CHAR(36) NULL,
+    aufnahme_titel VARCHAR(500) NOT NULL DEFAULT '',
+    aufnahme_kuenstler VARCHAR(500) NOT NULL DEFAULT '',
+    sicherheit TINYINT NOT NULL DEFAULT 0,
+    rolle VARCHAR(12) NOT NULL DEFAULT '',
+    album_id INT NULL,
+    dublette_von INT NULL,
+    bibliothek_info VARCHAR(500) NOT NULL DEFAULT '',
+    bib_datei_id INT NULL,
+    besser TINYINT(1) NOT NULL DEFAULT 0,
+    aktion VARCHAR(12) NOT NULL DEFAULT '',
+    release_fest CHAR(36) NULL,
+    erledigt VARCHAR(12) NOT NULL DEFAULT '',
+    ziel VARCHAR(2000) NOT NULL DEFAULT '',
+    meldung VARCHAR(500) NOT NULL DEFAULT '',
+    UNIQUE KEY uq_sortier_pfad (pfad_hash),
+    INDEX idx_sortier_status (status),
+    INDEX idx_sortier_album (album_id),
+    INDEX idx_sortier_aufnahme (aufnahme_mbid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+$pdo->exec("CREATE TABLE IF NOT EXISTS sortier_releases (
+    mbid CHAR(36) PRIMARY KEY,
+    rg_mbid CHAR(36) NULL,
+    titel VARCHAR(500) NOT NULL DEFAULT '',
+    kuenstler VARCHAR(500) NOT NULL DEFAULT '',
+    va TINYINT(1) NOT NULL DEFAULT 0,
+    typ VARCHAR(30) NOT NULL DEFAULT '',
+    sekundaer VARCHAR(200) NOT NULL DEFAULT '',
+    datum VARCHAR(10) NOT NULL DEFAULT '',
+    land VARCHAR(10) NOT NULL DEFAULT '',
+    format VARCHAR(60) NOT NULL DEFAULT '',
+    tracks INT NOT NULL DEFAULT 0,
+    medien INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+$pdo->exec("CREATE TABLE IF NOT EXISTS sortier_alben (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    release_mbid CHAR(36) NOT NULL,
+    anzahl INT NOT NULL DEFAULT 0,
+    wertung DECIMAL(10,3) NOT NULL DEFAULT 0,
+    sicherheit TINYINT NOT NULL DEFAULT 0,
+    edition_id INT NULL,
+    aktiv TINYINT(1) NOT NULL DEFAULT 1,
+    status VARCHAR(12) NOT NULL DEFAULT 'vorschlag',
+    ordner VARCHAR(2000) NOT NULL DEFAULT '',
+    meldung VARCHAR(500) NOT NULL DEFAULT '',
+    UNIQUE KEY uq_sortier_album_release (release_mbid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");

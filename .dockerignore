@@ -1,0 +1,10 @@
+# Nur app/ gehört ins Image
+.git
+.github
+.env
+windows-client
+dsp
+docs
+**/__pycache__
+**/*.pyc
+app/js/_b/*.map

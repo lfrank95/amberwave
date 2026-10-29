@@ -1,0 +1,93 @@
+# Amberwave – lokal bauen mit eingebundenem Code (bisherige Installationsart, z. B. auf Unraid mit Update per Zip in der App).
+# Start: docker compose -f docker-compose.build.yml up -d --build    (braucht AMBERWAVE_ORDNER in der .env)
+# Für die meisten ist docker-compose.yml einfacher: fertiges Image, Update per „docker compose pull“.
+services:
+  db:
+    image: mariadb:11
+    container_name: amberwave_db
+    restart: unless-stopped
+    environment:
+      # Neu: nichts eintragen. Die Datenbank startet nur mit dem Root-Zugang (ohne Passwort, nur im internen Stack-Netz –
+      # der Port ist nicht veröffentlicht). Datenbank, Benutzer und Passwörter legt die Einrichtungsseite an
+      # (http://<Server>:9950/einrichtung.php) und gibt Root danach ein zufälliges Passwort.
+      # Alt/Selbstbau: Stehen DB_ROOT_PASSWORD / DB_NAME / DB_USER / DB_PASSWORD in der .env, gelten sie wie bisher.
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "1"
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-}
+      MARIADB_DATABASE: ${DB_NAME:-}
+      MARIADB_USER: ${DB_USER:-}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      # Datenbank auf der SSD: DB_DATA_PFAD, sonst <APPDATA_PFAD>/db (Unraid z. B. /mnt/cache/appdata/amberwave/db)
+      - ${DB_DATA_PFAD:-${APPDATA_PFAD:-.}/db}:/var/lib/mysql
+    networks:
+      - amberwave_net
+
+  app:
+    # Bei einem Stack über die Unraid-Oberfläche liegt diese Datei auf dem USB-Stick – deshalb zeigen Code und Build
+    # über AMBERWAVE_ORDNER (in der .env) auf den echten Ordner, z. B. /mnt/user/appdata/amberwave
+    build: ${AMBERWAVE_ORDNER:-.}/docker
+    container_name: amberwave_app
+    restart: unless-stopped
+    # Startskript im Code-Ordner (kommt mit jedem Update): läuft als PUID/PGID (Unraid: 99/100 wie Lidarr),
+    # macht Cache/Backups beschreibbar und startet daneben jede Minute den Zeitplan.
+    command: ["sh", "/var/www/html/scripts/start.sh"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: ${APP_PIDS_LIMIT:-256}
+    depends_on:
+      - db
+    # Alle Einstellungen aus der .env (bei Unraid: „Edit Stack → ENV File“, liegt neben dieser Datei)
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      # Die Ordner auf dem Server (Host), wie Compose sie aufgelöst hat – für die Anzeige „Was Amberwave festgelegt hat“
+      # und die Ordner-Prüfung (im Container sieht Amberwave nur /musik, /cache, /backups)
+      HOST_MUSIK_PFAD: ${MUSIK_PFAD:-./musik}
+      HOST_CACHE_PFAD: ${CACHE_PFAD:-${APPDATA_PFAD:-.}/cache}
+      HOST_BACKUP_PFAD: ${BACKUP_PFAD:-${SICHERUNG_PFAD:-${APPDATA_PFAD:-.}/backups}}
+      HOST_DB_DATA_PFAD: ${DB_DATA_PFAD:-${APPDATA_PFAD:-.}/db}
+      HOST_DOWNLOAD_PFAD: ${DOWNLOAD_PFAD:-./downloads}
+    volumes:
+      # Anwendungscode als Volume -> Updates ohne Neubau des Containers
+      - ${AMBERWAVE_ORDNER:-.}/app:/var/www/html
+      # Musiksammlung (Array). Standard: schreibbar (für „Dateien aufräumen“, nur nach deiner Freigabe). Sicherheitsschalter: MUSIK_MOUNT_MODUS=ro.
+      - ${MUSIK_PFAD:-./musik}:${PFAD_MUSIK:-/musik}:${MUSIK_MOUNT_MODUS:-rw}
+      # Fertige Downloads von SABnzbd (Ordner der Musik-Kategorie, z. B. /mnt/user/downloads/complete/music).
+      # Beschreibbar, damit Amberwave nach dem Import das Original löschen kann; DOWNLOAD_MOUNT_MODUS=ro = Quelle bleibt unangetastet.
+      - ${DOWNLOAD_PFAD:-./downloads}:${PFAD_DOWNLOADS:-/downloads}:${DOWNLOAD_MOUNT_MODUS:-rw}
+      # Cover, Künstlerbilder, Vorschaubilder auf der SSD (Unraid z. B. /mnt/cache/appdata/amberwave/cache)
+      - ${CACHE_PFAD:-${APPDATA_PFAD:-.}/cache}:${PFAD_CACHE:-/cache}
+      # Backup vor jedem Update (immer nur das letzte): BACKUP_PFAD, sonst SICHERUNG_PFAD, sonst <APPDATA_PFAD>/backups
+      - ${BACKUP_PFAD:-${SICHERUNG_PFAD:-${APPDATA_PFAD:-.}/backups}}:${PFAD_BACKUPS:-/backups}
+    ports:
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-9950}:80"
+      # Direktzugang im Heimnetz (HTTPS mit eigenem Let's-Encrypt-Zertifikat) – nur im LAN, keine Router-Freigabe nötig
+      - "${APP_BIND:-0.0.0.0}:${LOKAL_HTTPS_PORT:-8443}:8443"
+    networks:
+      - amberwave_net
+
+  # Von unterwegs: Cloudflare Tunnel (cloudflared, Apache-2.0). Amberwave legt den Tunnel unter Einstellungen › Zugang & Netz
+  # an und schreibt das Token nach <CACHE_PFAD>/tunnel/token – bis dahin startet dieser Container immer wieder neu (harmlos).
+  # Kein offener Port im Router nötig. TUNNEL_IM_STACK=0 in der .env = kein eigener Container (ein schon vorhandenes
+  # cloudflared wird mitbenutzt). Nutzungsbedingungen von Cloudflare: https://www.cloudflare.com/terms/
+  tunnel:
+    image: cloudflare/cloudflared:${TUNNEL_IMAGE_TAG:-latest}
+    container_name: amberwave_tunnel
+    restart: unless-stopped
+    deploy:
+      replicas: ${TUNNEL_IM_STACK:-1}
+    user: "${PUID:-99}:${PGID:-100}"
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/tunnel/token"]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - app
+    volumes:
+      - ${CACHE_PFAD:-${APPDATA_PFAD:-.}/cache}/tunnel:/tunnel:ro
+    networks:
+      - amberwave_net
+
+networks:
+  amberwave_net:

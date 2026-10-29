@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussion (subreddit)
+    url: https://www.reddit.com/r/Amberwave
+    about: Setup help, ideas and general questions
+  - name: Security issue
+    url: https://github.com/lfrank95/amberwave/security/advisories/new
+    about: Please report security problems privately, not as a public issue
