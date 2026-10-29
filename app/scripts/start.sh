@@ -118,6 +118,10 @@ fi
 # und schreibt den Link samt Code ins Log (docker logs amberwave_app).
 (runuser -u www-data -- php /var/www/html/scripts/einrichtung_start.php 2>&1 &)
 
+# Datenbank-Update (Migrationen samt Sicherung vorher) vor dem Webserver – nicht im ersten Seitenaufruf, wo Zeit- und
+# Speichergrenzen gelten. Bricht den Start nie ab; Fehler stehen im Log und auf der Seite.
+runuser -u www-data -- php /var/www/html/scripts/migrate.php --start || true
+
 # Zeitplan (Mails, Ablauf-Erinnerungen, geplanter Scan, fanart.tv) jede Minute
 (while true; do [ "$(stat -c %s /tmp/zeitplan.log 2>/dev/null || echo 0)" -gt 5000000 ] && : > /tmp/zeitplan.log; runuser -u www-data -- php /var/www/html/scripts/zeitplan.php >> /tmp/zeitplan.log 2>&1; sleep 60; done) &
 

@@ -599,34 +599,49 @@ function album_verwandt(int $albumId, int $editionId, array $kuenstler, array $c
 }
 
 /** Alben (angezeigte Edition), bei denen ein Künstler eine der Rollen hat. */
+/**
+ * IDs der Alben, auf denen ein Künstler laut Beziehungen (MusicBrainz) mitwirkt – vom Künstler aus gesucht
+ * (Index auf beziehungen.von_id) statt für jedes Album der Bibliothek zu prüfen.
+ * @return int[]
+ */
+function kuenstler_rollen_alben(int $kuenstlerId, ?array $schluessel = null, ?array $gruppen = null): array
+{
+    $alle = [];
+    foreach ([
+        "SELECT b.zu_id AS album_id FROM beziehungen b JOIN beziehungstypen bt ON bt.id = b.typ_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k AND b.zu_art = 'album' AND %s",
+        "SELECT e.album_id FROM beziehungen b JOIN beziehungstypen bt ON bt.id = b.typ_id JOIN editionen e ON e.id = b.zu_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k AND b.zu_art = 'edition' AND %s",
+        "SELECT DISTINCT e.album_id FROM beziehungen b JOIN beziehungstypen bt ON bt.id = b.typ_id JOIN tracks t ON t.aufnahme_id = b.zu_id
+            JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k AND b.zu_art = 'aufnahme' AND %s",
+        "SELECT DISTINCT e.album_id FROM beziehungen b JOIN beziehungstypen bt ON bt.id = b.typ_id JOIN aufnahme_werke aw ON aw.werk_id = b.zu_id JOIN tracks t ON t.aufnahme_id = aw.aufnahme_id
+            JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k AND b.zu_art = 'werk' AND %s",
+    ] as $sql) {
+        $p = ['k' => $kuenstlerId];
+        $typ_bed = '1=1';
+        if ($schluessel) {
+            [$in, $pi] = db_in(array_values($schluessel), 's');
+            $typ_bed = 'bt.schluessel IN ' . $in;
+            $p += $pi;
+        } elseif ($gruppen) {
+            [$in, $pi] = db_in(array_values($gruppen), 'g');
+            $typ_bed = 'bt.gruppe IN ' . $in;
+            $p += $pi;
+        }
+        foreach (db_alle(sprintf($sql, $typ_bed), $p) as $z) {
+            $alle[(int) $z['album_id']] = true;
+        }
+    }
+    return array_keys($alle);
+}
+
 function alben_mit_rolle(int $kuenstlerId, ?array $schluessel, int $ohneAlbum = 0, int $limit = 60, ?array $gruppen = null): array
 {
-    $p = ['k' => $kuenstlerId, 'oa' => $ohneAlbum];
-    $typ_bed = '1=1';
-    if ($schluessel) {
-        $namen = [];
-        foreach (array_values($schluessel) as $i => $s) {
-            $namen[] = ':s' . $i;
-            $p['s' . $i] = $s;
-        }
-        $typ_bed = 'bt.schluessel IN (' . implode(',', $namen) . ')';
-    } elseif ($gruppen) {
-        $namen = [];
-        foreach (array_values($gruppen) as $i => $g) {
-            $namen[] = ':g' . $i;
-            $p['g' . $i] = $g;
-        }
-        $typ_bed = 'bt.gruppe IN (' . implode(',', $namen) . ')';
+    $ids = array_values(array_diff(kuenstler_rollen_alben($kuenstlerId, $schluessel, $gruppen), [$ohneAlbum]));
+    if (!$ids) {
+        return [];
     }
-    return db_alle('SELECT ' . ALBUM_SPALTEN . " FROM alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0))
-        WHERE e.anzahl_dateien > 0 AND a.id <> :oa AND EXISTS (
-            SELECT 1 FROM beziehungen b JOIN beziehungstypen bt ON bt.id = b.typ_id
-            WHERE b.von_art = 'kuenstler' AND b.von_id = :k AND {$typ_bed} AND (
-                (b.zu_art = 'album' AND b.zu_id = a.id) OR (b.zu_art = 'edition' AND b.zu_id IN (SELECT e9.id FROM editionen e9 WHERE e9.album_id = a.id)) OR
-                (b.zu_art = 'aufnahme' AND b.zu_id IN (SELECT t.aufnahme_id FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e8 ON e8.id = m.edition_id WHERE e8.album_id = a.id)) OR
-                (b.zu_art = 'werk' AND b.zu_id IN (SELECT aw.werk_id FROM aufnahme_werke aw JOIN tracks t2 ON t2.aufnahme_id = aw.aufnahme_id JOIN datentraeger m2 ON m2.id = t2.datentraeger_id JOIN editionen e7 ON e7.id = m2.edition_id WHERE e7.album_id = a.id))
-            ))
-        ORDER BY COALESCE(a.erstjahr, e.jahr), a.titel LIMIT " . (int) $limit, $p);
+    return db_alle('SELECT ' . ALBUM_SPALTEN . ' FROM alben a JOIN editionen e ON e.album_id = a.id AND (e.id = a.anzeige_edition_id OR (a.editionen_einzeln = 1 AND e.anzahl_dateien > 0))
+        WHERE e.anzahl_dateien > 0 AND a.id IN ' . db_ids($ids) . '
+        ORDER BY COALESCE(a.erstjahr, e.jahr), a.titel LIMIT ' . (int) $limit);
 }
 
 function api_kuenstler_liste(array $user): array
@@ -747,32 +762,46 @@ function api_kuenstler(array $user, int $id): array
         $rollen[] = ['gruppe' => $g, 'titel' => $titel, 'alben' => $items];
     }
 
-    // Häufige Partner: andere Künstler auf denselben Alben (Credits und Rollen)
-    $partner = db_alle(
-        "SELECT k2.id, k2.name, k2.bild_datei, COUNT(DISTINCT x.album_id) AS n FROM (
-            SELECT a.id AS album_id FROM alben a JOIN credit_namen cn ON cn.credit_id = a.credit_id WHERE cn.kuenstler_id = :k1
-            UNION
-            SELECT e.album_id FROM beziehungen b JOIN tracks t ON t.aufnahme_id = b.zu_id AND b.zu_art = 'aufnahme'
-              JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k2
-            UNION
-            SELECT e.album_id FROM beziehungen b JOIN editionen e ON e.id = b.zu_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k4 AND b.zu_art = 'edition'
-            UNION
-            SELECT e.album_id FROM beziehungen b JOIN aufnahme_werke aw ON aw.werk_id = b.zu_id AND b.zu_art = 'werk' JOIN tracks t ON t.aufnahme_id = aw.aufnahme_id
-              JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id WHERE b.von_art = 'kuenstler' AND b.von_id = :k5
-         ) mein
-         JOIN (
-            SELECT a.id AS album_id, cn.kuenstler_id FROM alben a JOIN credit_namen cn ON cn.credit_id = a.credit_id
-            UNION
-            SELECT e.album_id, b.von_id FROM beziehungen b JOIN tracks t ON t.aufnahme_id = b.zu_id AND b.zu_art = 'aufnahme'
-              JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id WHERE b.von_art = 'kuenstler'
-            UNION
-            SELECT e.album_id, b.von_id FROM beziehungen b JOIN editionen e ON e.id = b.zu_id WHERE b.von_art = 'kuenstler' AND b.zu_art = 'edition'
-            UNION
-            SELECT e.album_id, b.von_id FROM beziehungen b JOIN aufnahme_werke aw ON aw.werk_id = b.zu_id AND b.zu_art = 'werk' JOIN tracks t ON t.aufnahme_id = aw.aufnahme_id
-              JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id WHERE b.von_art = 'kuenstler'
-         ) x ON x.album_id = mein.album_id
-         JOIN kuenstler k2 ON k2.id = x.kuenstler_id AND k2.id <> :k3
-         GROUP BY k2.id, k2.name, k2.bild_datei ORDER BY n DESC, k2.name LIMIT 10", ['k1' => $id, 'k2' => $id, 'k3' => $id, 'k4' => $id, 'k5' => $id]);
+    // Häufige Partner: andere Künstler auf denselben Alben (Credits und Rollen). Erst die eigenen Alben bestimmen,
+    // dann nur deren Mitwirkende zählen – nicht die Mitwirkenden der ganzen Bibliothek aufbauen.
+    $meine = array_keys(array_flip(array_merge(
+        array_map('intval', array_column(db_alle('SELECT a.id FROM alben a WHERE a.credit_id IN (SELECT cn.credit_id FROM credit_namen cn WHERE cn.kuenstler_id = :k)', ['k' => $id]), 'id')),
+        kuenstler_rollen_alben($id)
+    )));
+    $partner = [];
+    if ($meine) {
+        $zaehler = [];
+        foreach (array_chunk($meine, 2000) as $teil) {
+            $bloecke = [];
+            foreach ([
+                'SELECT a.id AS album_id, cn.kuenstler_id FROM alben a JOIN credit_namen cn ON cn.credit_id = a.credit_id WHERE a.id IN %s',
+                "SELECT e.album_id, b.von_id FROM editionen e JOIN datentraeger m ON m.edition_id = e.id JOIN tracks t ON t.datentraeger_id = m.id
+                    JOIN beziehungen b ON b.zu_art = 'aufnahme' AND b.zu_id = t.aufnahme_id AND b.von_art = 'kuenstler' WHERE e.album_id IN %s",
+                "SELECT e.album_id, b.von_id FROM editionen e JOIN beziehungen b ON b.zu_art = 'edition' AND b.zu_id = e.id AND b.von_art = 'kuenstler' WHERE e.album_id IN %s",
+                "SELECT e.album_id, b.von_id FROM editionen e JOIN datentraeger m ON m.edition_id = e.id JOIN tracks t ON t.datentraeger_id = m.id
+                    JOIN aufnahme_werke aw ON aw.aufnahme_id = t.aufnahme_id JOIN beziehungen b ON b.zu_art = 'werk' AND b.zu_id = aw.werk_id AND b.von_art = 'kuenstler' WHERE e.album_id IN %s",
+            ] as $sql) {
+                $bloecke[] = sprintf($sql, db_ids($teil));
+            }
+            foreach (db_alle('SELECT DISTINCT album_id, kuenstler_id FROM (' . implode(' UNION ', $bloecke) . ') x') as $z) {
+                $kid = (int) $z['kuenstler_id'];
+                if ($kid !== $id) {
+                    $zaehler[$kid] = ($zaehler[$kid] ?? 0) + 1;
+                }
+            }
+        }
+        if ($zaehler) {
+            arsort($zaehler);
+            // alle mit mindestens so vielen gemeinsamen Alben wie der Zehnte (Gleichstand: nach Name)
+            $grenze = array_values($zaehler)[min(9, count($zaehler) - 1)];
+            $kandidaten = array_slice(array_filter($zaehler, static fn($n) => $n >= $grenze), 0, 500, true);
+            foreach (db_alle('SELECT id, name, bild_datei FROM kuenstler WHERE id IN ' . db_ids(array_keys($kandidaten))) as $z) {
+                $partner[] = $z + ['n' => $kandidaten[(int) $z['id']]];
+            }
+            usort($partner, static fn($x, $y) => [$y['n'], $x['name']] <=> [$x['n'], $y['name']]);
+            $partner = array_slice($partner, 0, 10);
+        }
+    }
 
     $mitglieder = db_alle("SELECT k2.id, k2.name, b.beginn, b.ende, (SELECT GROUP_CONCAT(" . instrument_sql() . " SEPARATOR ', ') FROM beziehung_instrumente bi JOIN instrumente i ON i.id = bi.instrument_id WHERE bi.beziehung_id = b.id) AS instr
         FROM beziehungen b JOIN beziehungstypen bt ON bt.id = b.typ_id AND bt.schluessel = 'member' JOIN kuenstler k2 ON k2.id = b.von_id

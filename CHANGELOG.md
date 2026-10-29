@@ -24,6 +24,20 @@ code reviews focused on scaling. Everything below was found that way.
 - Fixed: hidden admin panels kept refreshing at full speed in the background.
 - `DB_PUFFER` (optional) sets the MariaDB buffer pool size in the compose files (default 512M).
 
+Updates on big databases (from an independent review of the migration system):
+
+- **Database updates run at container start**, before the web server – no longer inside the first page request,
+  where time and memory limits could kill the pre-update backup on large libraries.
+- **No parallel migrations:** if another process is still updating, others wait instead of starting the same
+  changes a second time; the page shows "Update in progress" and reloads by itself.
+- **The clean pre-update backup is kept:** exactly one backup per old schema version. A failed update no longer
+  retries on every request (2-minute pause, clear message) and can't rotate that backup away.
+- The backup streams rows instead of loading whole tables into memory (test with 100,000 tracks: about 1 MB of PHP memory).
+- Schema changes give up after 20 s if a table is busy (e.g. a running scan) instead of blocking everything.
+- Artist pages: roles and frequent collaborators are looked up from the artist instead of across the whole library.
+- Redundant indexes removed (less work for every scan); the scanner reads only the columns it needs.
+- New manual GitHub workflow "Load test": real MariaDB, synthetic library, scan, 100,000 tracks, API timings.
+
 ## 0.9.1-beta.1 – first public beta
 
 - **Fresh installs without `APP_SECRET_KEY` work fully:** the key Amberwave generates and keeps in the app-data folder is

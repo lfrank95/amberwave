@@ -9,6 +9,11 @@ class SchemaZuNeu extends RuntimeException
 {
 }
 
+/** Ein anderer Prozess migriert gerade (Update läuft) – später erneut versuchen, nicht parallel loslegen */
+class MigrationLaeuft extends RuntimeException
+{
+}
+
 /** Höchste Schema-Version, die dieser Code kennt (größte Nummer unter /migrations) */
 function migrationen_code_version(): int
 {
@@ -47,11 +52,28 @@ function migrationen_ausfuehren(): array
     $sperre = false;
     try {
         $sperre = (int) $pdo->query("SELECT GET_LOCK(CONCAT('amberwave_migration_', DATABASE()), 30)")->fetchColumn() === 1;
+        if (!$sperre) {
+            // Ein anderer Prozess migriert seit über 30 s (große Datenbank, Sicherung läuft): nicht parallel loslegen
+            throw new MigrationLaeuft(t('Das Update der Datenbank läuft noch – bitte kurz warten.'));
+        }
+    } catch (MigrationLaeuft $e) {
+        throw $e;
+    } catch (Throwable $e) {
+        // Datenbank ohne Sperr-Funktion: wie bisher ohne Sperre
+    }
+    // DDL wartet sonst bis zu 24 h auf eine Tabellensperre (laufender Scan) und blockiert dabei alle anderen Abfragen
+    $warten = null;
+    try {
+        $warten = $pdo->query('SELECT @@SESSION.lock_wait_timeout')->fetchColumn();
+        $pdo->exec('SET SESSION lock_wait_timeout = 20');
     } catch (Throwable $e) {
     }
     try {
         return migrationen_ausfuehren_intern($pdo);
     } finally {
+        if ($warten !== null && $warten !== false) {
+            try { $pdo->exec('SET SESSION lock_wait_timeout = ' . (int) $warten); } catch (Throwable $e) {}
+        }
         if ($sperre) {
             try { $pdo->query("SELECT RELEASE_LOCK(CONCAT('amberwave_migration_', DATABASE()))"); } catch (Throwable $e) {}
         }
@@ -119,9 +141,16 @@ function migration_vorher_sichern(int $schema): void
     try {
         require_once __DIR__ . '/../includes/sicherung.php';
         $ordner = rtrim((string) konfig()['pfade']['backups'], '/');
+        // Genau eine Sicherung je alter Schema-Version: scheitert eine Migration und wird wiederholt, bleibt die
+        // saubere Sicherung vom Stand vor dem Update erhalten (statt von Sicherungen des halb migrierten Stands verdrängt zu werden)
+        $merker = $ordner . '/.vor-update-schema-' . $schema;
+        if (is_file($merker)) {
+            return;
+        }
         // gerade eben schon gesichert (Update-Paket über die Oberfläche)? Dann nicht doppelt
         foreach (glob($ordner . '/amberwave_*_datenbank.sql.gz') ?: [] as $p) {
             if (time() - (int) @filemtime($p) < 600) {
+                @touch($merker);
                 return;
             }
         }
@@ -129,6 +158,7 @@ function migration_vorher_sichern(int $schema): void
         datenbank_dump($ziel . '.teil');
         rename($ziel . '.teil', $ziel);
         @chmod($ziel, 0640);
+        @touch($merker);
         error_log('Amberwave: Datenbank vor dem Update gesichert (Schema ' . $schema . '): ' . $ziel);
         // nur die letzten drei dieser Sicherungen behalten
         $alle = glob($ordner . '/amberwave_*_datenbank.sql.gz') ?: [];
@@ -142,11 +172,38 @@ function migration_vorher_sichern(int $schema): void
 }
 
 if (PHP_SAPI === 'cli' && realpath($argv[0] ?? '') === realpath(__FILE__)) {
+    // --start: beim Containerstart vor dem Webserver (wartet auf die Datenbank, bricht den Start nie ab)
+    $beimStart = in_array('--start', $argv, true);
+    if ($beimStart) {
+        require_once __DIR__ . '/../includes/einrichtung.php';
+        // Nur fertig eingerichtete Installationen; startet die Datenbank gerade erst, bis zu 2 Minuten warten
+        $art = einrichtung_zustand()['art'];
+        for ($i = 0; $i < 60 && $art === 'wartet'; $i++) {
+            sleep(2);
+            $art = einrichtung_zustand(true)['art'];
+        }
+        if ($art !== 'fertig') {
+            exit(0); // Einrichtung übernimmt das später
+        }
+        try {
+            db()->query('SELECT 1');
+        } catch (Throwable $e) {
+            db_schliessen();
+            sleep(5);
+        }
+    }
     try {
         $r = migrationen_ausfuehren();
+        if ($beimStart && ($st = migrationen_stempel()) !== '') {
+            @mkdir(dirname($st), 0775, true);
+            @touch($st);
+        }
     } catch (SchemaZuNeu $e) {
         fwrite(STDERR, $e->getMessage() . "\n");
-        exit(2);
+        exit($beimStart ? 0 : 2);
+    } catch (Throwable $e) {
+        fwrite(STDERR, 'Migration: ' . $e->getMessage() . "\n");
+        exit($beimStart ? 0 : 1);
     }
     echo $r ? 'Angewendet: ' . implode(', ', $r) . "\n" : "Keine neuen Migrationen.\n";
 }

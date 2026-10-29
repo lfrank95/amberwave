@@ -19,27 +19,37 @@ function datenbank_dump(string $ziel): void
         throw new RuntimeException(t('Dump-Datei nicht beschreibbar: {pfad}', ['pfad' => $ziel]));
     }
     gzwrite($f, "-- Amberwave Datenbank-Sicherung " . date('c') . "\nSET FOREIGN_KEY_CHECKS=0;\nSET NAMES utf8mb4;\n\n");
-    foreach ($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $tabelle) {
-        $tabelle = (string) $tabelle;
-        if (!preg_match('/^[A-Za-z0-9_]+$/', $tabelle)) {
-            continue;
-        }
-        $create = $pdo->query("SHOW CREATE TABLE `{$tabelle}`")->fetch(PDO::FETCH_NUM);
-        gzwrite($f, "DROP TABLE IF EXISTS `{$tabelle}`;\n" . $create[1] . ";\n\n");
-        $stmt = $pdo->query("SELECT * FROM `{$tabelle}`", PDO::FETCH_NUM);
-        $puffer = [];
-        $spalten = null;
-        while ($z = $stmt->fetch(PDO::FETCH_NUM)) {
-            $puffer[] = '(' . implode(',', array_map(static fn($w) => $w === null ? 'NULL' : (is_int($w) || is_float($w) ? (string) $w : $pdo->quote((string) $w)), $z)) . ')';
-            if (count($puffer) >= 200) {
-                gzwrite($f, "INSERT INTO `{$tabelle}` VALUES\n" . implode(",\n", $puffer) . ";\n");
-                $puffer = [];
+    // Zeilen direkt vom Server lesen statt jede Tabelle erst komplett in den PHP-Speicher zu laden (große Bibliotheken)
+    $gepuffert = $pdo->getAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY);
+    $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+    try {
+        foreach ($pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN) as $tabelle) {
+            $tabelle = (string) $tabelle;
+            if (!preg_match('/^[A-Za-z0-9_]+$/', $tabelle)) {
+                continue;
             }
+            $st = $pdo->query("SHOW CREATE TABLE `{$tabelle}`");
+            $create = $st->fetch(PDO::FETCH_NUM);
+            $st->closeCursor();
+            gzwrite($f, "DROP TABLE IF EXISTS `{$tabelle}`;\n" . $create[1] . ";\n\n");
+            $stmt = $pdo->query("SELECT * FROM `{$tabelle}`", PDO::FETCH_NUM);
+            $puffer = [];
+            $spalten = null;
+            while ($z = $stmt->fetch(PDO::FETCH_NUM)) {
+                $puffer[] = '(' . implode(',', array_map(static fn($w) => $w === null ? 'NULL' : (is_int($w) || is_float($w) ? (string) $w : $pdo->quote((string) $w)), $z)) . ')';
+                if (count($puffer) >= 200) {
+                    gzwrite($f, "INSERT INTO `{$tabelle}` VALUES\n" . implode(",\n", $puffer) . ";\n");
+                    $puffer = [];
+                }
+            }
+            $stmt->closeCursor();
+            if ($puffer) {
+                gzwrite($f, "INSERT INTO `{$tabelle}` VALUES\n" . implode(",\n", $puffer) . ";\n");
+            }
+            gzwrite($f, "\n");
         }
-        if ($puffer) {
-            gzwrite($f, "INSERT INTO `{$tabelle}` VALUES\n" . implode(",\n", $puffer) . ";\n");
-        }
-        gzwrite($f, "\n");
+    } finally {
+        $pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, $gepuffert);
     }
     gzwrite($f, "SET FOREIGN_KEY_CHECKS=1;\n");
     gzclose($f);

@@ -445,5 +445,10 @@
  "{rolle} (zusätzlich)": "{rolle} (additional)",
  "{var} in der .env": "{var} in the .env file",
  "„{titel}“: Die CD-Nummer muss zwischen 1 und 99 liegen.": "“{titel}”: The disc number must be between 1 and 99.",
- "„{titel}“: Die Titelnummer muss zwischen 1 und 999 liegen.": "“{titel}”: The track number must be between 1 and 999."
+ "„{titel}“: Die Titelnummer muss zwischen 1 und 999 liegen.": "“{titel}”: The track number must be between 1 and 999.",
+ "Update läuft": "Update in progress",
+ "Update fehlgeschlagen": "Update failed",
+ "Das Update der Datenbank läuft noch – bitte kurz warten.": "The database update is still running – please wait a moment.",
+ "Eine Änderung an der Datenbank ist gescheitert (Details im Container-Log).": "A database change failed (details in the container log).",
+ "Amberwave versucht es in zwei Minuten erneut. Eine Sicherung vom Stand vor dem Update liegt im Sicherungsordner (Einstellungen › Sicherung).": "Amberwave will try again in two minutes. A backup from before the update is in the backup folder (Settings › Backup)."
 }

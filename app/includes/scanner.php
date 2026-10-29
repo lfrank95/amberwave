@@ -289,7 +289,7 @@ function scan_ordner_aufbauen(int $lauf, string $wurzel, string $basis, array $d
         $pfad_hash = hash('sha256', $rel);
         $neu_lesen = $voll || !$alt || $alt['groesse'] !== $groesse || $alt['mtime'] !== $mtime;
         if (!$neu_lesen) {
-            $z = db_zeile('SELECT * FROM dateien WHERE pfad_hash = :h', ['h' => $pfad_hash]);
+            $z = db_zeile('SELECT id, fehler, tags_json, laenge_ms, track_id, bild_eingebettet FROM dateien WHERE pfad_hash = :h', ['h' => $pfad_hash]);
             if ($z && $z['fehler'] !== '') {
                 continue; // weiterhin unlesbar, bleibt außerhalb der Bibliothek
             }

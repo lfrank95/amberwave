@@ -116,9 +116,8 @@ function db_beste_dateien(array $trackIds, string $spalten): array
     $trackIds = array_values(array_unique(array_filter(array_map('intval', $trackIds))));
     $aus = [];
     foreach (array_chunk($trackIds, 1000) as $teil) {
-        [$in, $p] = db_in($teil, 'bd');
-        foreach (db_alle("SELECT d.track_id AS __tid, {$spalten} FROM dateien d WHERE d.track_id IN {$in}
-            ORDER BY d.track_id, d.bittiefe DESC, d.abtastrate DESC, d.id", $p) as $z) {
+        foreach (db_alle('SELECT d.track_id AS __tid, ' . $spalten . ' FROM dateien d WHERE d.track_id IN ' . db_ids($teil) . '
+            ORDER BY d.track_id, d.bittiefe DESC, d.abtastrate DESC, d.id') as $z) {
             $tid = (int) $z['__tid'];
             if (!isset($aus[$tid])) {
                 unset($z['__tid']);
@@ -127,6 +126,13 @@ function db_beste_dateien(array $trackIds, string $spalten): array
         }
     }
     return $aus;
+}
+
+/** Liste von IDs als SQL-Literal „(1,2,3)“ – nur Ganzzahlen, daher ohne Platzhalter sicher (große Listen, kein Platzhalter-Limit) */
+function db_ids(array $ids): string
+{
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    return $ids ? '(' . implode(',', $ids) . ')' : '(NULL)';
 }
 
 /**

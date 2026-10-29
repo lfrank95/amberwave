@@ -1,0 +1,135 @@
+# Load test with a real MariaDB: generates a synthetic library, scans it, multiplies the database rows and measures the
+# API. Manual only: Actions → Load test → Run workflow. Results: job summary + "lasttest" artifact.
+name: Load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      titel:
+        description: 'Tracks generated as real files (scanned)'
+        default: '20000'
+      kopien:
+        description: 'Extra copies of the database rows (20000 × (1+4) = 100,000 tracks)'
+        default: '4'
+      app_ref:
+        description: 'Optional: test the app/ folder of another tag or commit (e.g. v0.9.1-beta.1) for a before/after comparison'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  last:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: amberwave
+      DB_USER: amberwave
+      DB_PASSWORD: amberwave-lasttest
+      PFAD_CACHE: /tmp/aw/cache
+      PFAD_MUSIK: /tmp/aw/musik
+      PFAD_BACKUPS: /tmp/aw/backups
+      APP_SECRET_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      SICHERHEIT_HSTS: '0'
+      UPDATE_HINWEIS: '0'
+      # keine Internetdienste im Test
+      MUSICBRAINZ_URL: http://127.0.0.1:9/ws/2
+      COVERART_URL: http://127.0.0.1:9/caa
+      DEEZER_URL: http://127.0.0.1:9/d
+      FANART_URL: http://127.0.0.1:9/f
+      LISTENBRAINZ_URL: http://127.0.0.1:9
+      ACOUSTID_URL: http://127.0.0.1:9/v2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: App version under test
+        if: inputs.app_ref != ''
+        env:
+          REF: ${{ inputs.app_ref }}
+        run: git checkout "$REF" -- app && echo "App aus $REF" | tee -a lasttest-version.txt
+
+      - name: MariaDB (same settings as docker-compose.yml)
+        run: |
+          docker run -d --name db -p 3306:3306 \
+            -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=$DB_NAME -e MARIADB_USER=$DB_USER -e MARIADB_PASSWORD=$DB_PASSWORD \
+            mariadb:11.4 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=512M
+          for i in $(seq 60); do docker exec db healthcheck.sh --connect --innodb_initialized && break; sleep 2; done
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, zip, gd
+          ini-values: memory_limit=512M
+
+      - name: Tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install -q pillow
+          mkdir -p $PFAD_CACHE $PFAD_MUSIK $PFAD_BACKUPS lasttest
+
+      - name: Generate library
+        run: python3 tests/lasttest/erzeugen.py $PFAD_MUSIK ${{ inputs.titel }} | tee lasttest/bibliothek.txt
+
+      - name: Install schema and admin
+        working-directory: app
+        run: |
+          s=$(date +%s.%N); php scripts/migrate.php; echo "Migrationen (frisch): $(echo "$(date +%s.%N) - $s" | bc) s" | tee -a ../lasttest/zeiten.txt
+          php scripts/create_admin.php lasttest lasttest@example.org 'Lasttest-Passwort-2026'
+          docker exec db mariadb -uroot -proot $DB_NAME -e "UPDATE users SET muss_passwort_aendern = 0"
+
+      - name: Full scan
+        working-directory: app
+        run: |
+          s=$(date +%s); php -d memory_limit=1G scripts/scan.php voll > ../lasttest/scan.log 2>&1 || (tail -20 ../lasttest/scan.log; exit 1)
+          d=$(( $(date +%s) - s )); echo "Erster Scan, ${{ inputs.titel }} Dateien: ${d} s ($(( ${{ inputs.titel }} / (d > 0 ? d : 1) )) Dateien/s)" | tee -a ../lasttest/zeiten.txt
+          s=$(date +%s); php -d memory_limit=1G scripts/scan.php neu > ../lasttest/scan2.log 2>&1
+          echo "Zweiter Scan (nichts geändert): $(( $(date +%s) - s )) s" | tee -a ../lasttest/zeiten.txt
+
+      - name: Backup dump (pre-update backup)
+        working-directory: app
+        run: |
+          php -d memory_limit=128M -r 'require "includes/sicherung.php"; $t=microtime(true); datenbank_dump("/tmp/aw/dump.sql.gz"); printf("Sicherung (Dump, %d Titel): %.1f s, %.1f MB, PHP-Speicher %.0f MB\n", db_wert("SELECT COUNT(*) FROM tracks"), microtime(true)-$t, filesize("/tmp/aw/dump.sql.gz")/1e6, memory_get_peak_usage()/1e6);' | tee -a ../lasttest/zeiten.txt
+
+      - name: Measure (scanned size)
+        run: |
+          export SQL_PROFIL=$PWD/lasttest/sql.log
+          (cd app && PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 ../tests/lasttest/router.php > ../lasttest/server.log 2>&1 &)
+          sleep 2
+          export TOKEN=$(curl -s -X POST -H 'Content-Type: application/json' -d '{"benutzername":"lasttest","passwort":"Lasttest-Passwort-2026","geraet_name":"Lasttest"}' http://127.0.0.1:8080/api/v1/auth/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+          python3 tests/lasttest/messen.py http://127.0.0.1:8080 lasttest/messung_klein.txt
+
+      - name: Multiply database rows
+        working-directory: app
+        run: php ../tests/lasttest/klonen.php ${{ inputs.kopien }} | tee -a ../lasttest/klonen.txt
+
+      - name: Measure (multiplied)
+        run: SQL_PROFIL=$PWD/lasttest/sql.log python3 tests/lasttest/messen.py http://127.0.0.1:8080 lasttest/messung_gross.txt
+
+      - name: Upgrade run (pre-update backup + no pending migrations)
+        working-directory: app
+        run: |
+          rm -f $PFAD_CACHE/tmp/schema-*.ok
+          s=$(date +%s.%N); php scripts/migrate.php --start; echo "Start-Prüfung ohne offene Migrationen: $(echo "$(date +%s.%N) - $s" | bc) s" | tee -a ../lasttest/zeiten.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Amberwave load test (MariaDB 11.4)"
+            echo; echo '```'; cat lasttest/bibliothek.txt lasttest/zeiten.txt lasttest/klonen.txt 2>/dev/null; echo '```'
+            for f in klein gross; do
+              [ -f lasttest/messung_$f.txt ] || continue
+              echo; echo "### API ($f)"; echo; echo '```'; grep -v '^      ' lasttest/messung_$f.txt; echo '```'
+            done
+          } >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lasttest
+          path: lasttest/

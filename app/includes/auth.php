@@ -26,12 +26,23 @@ function pruefe_migrationen_einmal(): void
     if ($stempel !== '' && is_file($stempel)) {
         return;
     }
+    // Nach einem Fehler nicht bei jedem Seitenaufruf neu versuchen (und jedes Mal die Datenbank belasten): Pause 2 Minuten
+    $fehlerDatei = $stempel !== '' ? dirname($stempel) . '/migration-fehler.txt' : '';
+    $letzterFehler = $fehlerDatei !== '' && is_file($fehlerDatei) && time() - (int) @filemtime($fehlerDatei) < 120 ? (string) @file_get_contents($fehlerDatei) : '';
     try {
+        if ($letzterFehler !== '') {
+            throw new RuntimeException($letzterFehler);
+        }
         migrationen_ausfuehren();
         if ($stempel !== '') {
             @mkdir(dirname($stempel), 0775, true);
             @touch($stempel);
         }
+        if ($fehlerDatei !== '') {
+            @unlink($fehlerDatei);
+        }
+    } catch (MigrationLaeuft $e) {
+        update_seite(t('Update läuft'), $e->getMessage(), 20);
     } catch (SchemaZuNeu $e) {
         // Datenbank gehört zu einer neueren Version: nichts ausführen, klare Meldung zeigen
         error_log($e->getMessage());
@@ -49,8 +60,34 @@ function pruefe_migrationen_einmal(): void
         }
         exit;
     } catch (Throwable $e) {
-        error_log('Automatische Migration fehlgeschlagen: ' . $e->getMessage());
+        if ($letzterFehler === '') {
+            error_log('Automatische Migration fehlgeschlagen: ' . $e->getMessage());
+            if ($fehlerDatei !== '') {
+                @mkdir(dirname($fehlerDatei), 0775, true);
+                @file_put_contents($fehlerDatei, mb_substr($e->getMessage(), 0, 2000));
+            }
+        }
+        // Halb aktualisierte Datenbank: lieber eine klare Meldung als Folgefehler auf jeder Seite
+        update_seite(t('Update fehlgeschlagen'), t('Eine Änderung an der Datenbank ist gescheitert (Details im Container-Log).') . ' ' . t('Amberwave versucht es in zwei Minuten erneut. Eine Sicherung vom Stand vor dem Update liegt im Sicherungsordner (Einstellungen › Sicherung).'), 120);
     }
+}
+
+/** 503-Seite (bzw. JSON für die API) während oder nach einem Datenbank-Update, beendet den Request */
+function update_seite(string $titel, string $text, int $erneut): never
+{
+    http_response_code(503);
+    header('Retry-After: ' . $erneut);
+    header('Cache-Control: no-store');
+    if (str_starts_with((string) ($_SERVER['REQUEST_URI'] ?? ''), '/api/')) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'fehler' => $titel . ': ' . $text, 'update' => true], JSON_UNESCAPED_UNICODE);
+    } else {
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html lang="' . sprache() . '"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="' . $erneut . '"><title>' . htmlspecialchars($titel, ENT_QUOTES, 'UTF-8') . '</title>'
+            . '<style>body{font-family:system-ui,sans-serif;background:#16110d;color:#f3ece4;display:grid;place-items:center;min-height:100vh;margin:0;padding:20px}main{max-width:560px}h1{font-size:1.4rem}p{line-height:1.5;color:#cfc5ba}</style></head><body><main><h1>'
+            . htmlspecialchars($titel, ENT_QUOTES, 'UTF-8') . '</h1><p>' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</p></main></body></html>';
+    }
+    exit;
 }
 
 function starte_sichere_session(): void
