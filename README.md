@@ -87,7 +87,7 @@ and put `docker-compose.yml` and your `.env` into it (`MUSIK_PFAD=/volume1/music
 log of `amberwave_app` (Container → amberwave_app → Log). Update: Project → amberwave → **Action → Build** (pulls the new image).
 
 **Self-build instead of the image:** [`docker-compose.build.yml`](docker-compose.build.yml) (mounts the code as a folder;
-updates then come as a zip under Settings → Backup & update). Every `.env` option is documented (in German) in
+updates then come as a zip under Settings → Backup & update). Every `.env` option is documented in
 [`.env.reference`](.env.reference) – almost all of them can also be changed in the app.
 
 ## Safety defaults
@@ -116,7 +116,7 @@ updates then come as a zip under Settings → Backup & update). Every `.env` opt
 
 Download it from the [releases](../../releases). It is not code-signed yet, so Windows SmartScreen shows "Windows
 protected your PC" on first start: click **More info → Run anyway**. The client finds your server in the home network by
-itself. Details (German): [windows-client/README.md](windows-client/README.md).
+itself. Details: [windows-client/README.md](windows-client/README.md).
 
 VST3 plug-in support is **experimental** in the beta: each plug-in runs in its own process, so a crashing plug-in doesn't
 stop the music – but third-party plug-ins are the most likely source of trouble. Please report problems with the plug-in's

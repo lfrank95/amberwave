@@ -1,6 +1,6 @@
-# Baut das Docker-Image und legt es in die GitHub Container Registry (ghcr.io/<owner>/amberwave).
-# Auslöser: ein Tag wie v0.9.0-beta.1 (Release) – oder von Hand unter Actions → Docker image → Run workflow.
-# Tags: genaue Version, dazu "beta" für Vorabversionen bzw. "latest" für stabile.
+# Builds the Docker image and pushes it to the GitHub Container Registry (ghcr.io/<owner>/amberwave).
+# Trigger: a tag like v0.9.0-beta.1 (release) – or manually under Actions → Docker image → Run workflow.
+# Tags: exact version, plus "beta" for pre-releases or "latest" for stable ones.
 name: Docker image
 
 on:
@@ -40,7 +40,7 @@ jobs:
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=ref,event=branch
 
-      # Nur amd64: der Effekt-Rechner bin/aw-render liegt bisher nur als x86-64-Programm bei.
+      # Only amd64: the effects calculator bin/aw-render is so far only shipped as an x86-64 program.
       - uses: docker/build-push-action@v6
         with:
           context: .

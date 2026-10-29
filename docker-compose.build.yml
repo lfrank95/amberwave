@@ -1,16 +1,16 @@
-# Amberwave – lokal bauen mit eingebundenem Code (bisherige Installationsart, z. B. auf Unraid mit Update per Zip in der App).
-# Start: docker compose -f docker-compose.build.yml up -d --build    (braucht AMBERWAVE_ORDNER in der .env)
-# Für die meisten ist docker-compose.yml einfacher: fertiges Image, Update per „docker compose pull“.
+# Amberwave – build locally with mounted code (the previous way of installing, e.g. on Unraid with updates via zip in the app).
+# Start: docker compose -f docker-compose.build.yml up -d --build    (needs AMBERWAVE_ORDNER in the .env)
+# For most people docker-compose.yml is simpler: ready-made image, update via “docker compose pull”.
 services:
   db:
     image: mariadb:11
     container_name: amberwave_db
     restart: unless-stopped
     environment:
-      # Neu: nichts eintragen. Die Datenbank startet nur mit dem Root-Zugang (ohne Passwort, nur im internen Stack-Netz –
-      # der Port ist nicht veröffentlicht). Datenbank, Benutzer und Passwörter legt die Einrichtungsseite an
-      # (http://<Server>:9950/einrichtung.php) und gibt Root danach ein zufälliges Passwort.
-      # Alt/Selbstbau: Stehen DB_ROOT_PASSWORD / DB_NAME / DB_USER / DB_PASSWORD in der .env, gelten sie wie bisher.
+      # Not set up yet: enter nothing. The database starts with root access only (no password, only in the internal stack network –
+      # the port is not published). The setup page creates the database, user and passwords
+      # (http://<server>:9950/einrichtung.php) and then gives root a random password.
+      # Old/self-built: if DB_ROOT_PASSWORD / DB_NAME / DB_USER / DB_PASSWORD are set in the .env, they apply as before.
       MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "1"
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-}
       MARIADB_DATABASE: ${DB_NAME:-}
@@ -18,60 +18,60 @@ services:
       MARIADB_PASSWORD: ${DB_PASSWORD:-}
     command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
     volumes:
-      # Datenbank auf der SSD: DB_DATA_PFAD, sonst <APPDATA_PFAD>/db (Unraid z. B. /mnt/cache/appdata/amberwave/db)
+      # Database on the SSD: DB_DATA_PFAD, otherwise <APPDATA_PFAD>/db (Unraid e.g. /mnt/cache/appdata/amberwave/db)
       - ${DB_DATA_PFAD:-${APPDATA_PFAD:-.}/db}:/var/lib/mysql
     networks:
       - amberwave_net
 
   app:
-    # Bei einem Stack über die Unraid-Oberfläche liegt diese Datei auf dem USB-Stick – deshalb zeigen Code und Build
-    # über AMBERWAVE_ORDNER (in der .env) auf den echten Ordner, z. B. /mnt/user/appdata/amberwave
+    # For a stack created through the Unraid UI this file lives on the USB stick – so code and build point
+    # to the real folder via AMBERWAVE_ORDNER (in the .env), e.g. /mnt/user/appdata/amberwave
     build: ${AMBERWAVE_ORDNER:-.}/docker
     container_name: amberwave_app
     restart: unless-stopped
-    # Startskript im Code-Ordner (kommt mit jedem Update): läuft als PUID/PGID (Unraid: 99/100 wie Lidarr),
-    # macht Cache/Backups beschreibbar und startet daneben jede Minute den Zeitplan.
+    # Startup script in the code folder (arrives with every update): runs as PUID/PGID (Unraid: 99/100 like Lidarr),
+    # makes cache/backups writable and also starts the scheduler every minute.
     command: ["sh", "/var/www/html/scripts/start.sh"]
     security_opt:
       - no-new-privileges:true
     pids_limit: ${APP_PIDS_LIMIT:-256}
     depends_on:
       - db
-    # Alle Einstellungen aus der .env (bei Unraid: „Edit Stack → ENV File“, liegt neben dieser Datei)
+    # All settings come from the .env (on Unraid: “Edit Stack → ENV File”, located next to this file)
     env_file:
       - .env
     environment:
       DB_HOST: db
-      # Die Ordner auf dem Server (Host), wie Compose sie aufgelöst hat – für die Anzeige „Was Amberwave festgelegt hat“
-      # und die Ordner-Prüfung (im Container sieht Amberwave nur /musik, /cache, /backups)
+      # The folders on the server (host) as Compose resolved them – for the display “What Amberwave set”
+      # and the folder check (inside the container Amberwave only sees /musik, /cache, /backups)
       HOST_MUSIK_PFAD: ${MUSIK_PFAD:-./musik}
       HOST_CACHE_PFAD: ${CACHE_PFAD:-${APPDATA_PFAD:-.}/cache}
       HOST_BACKUP_PFAD: ${BACKUP_PFAD:-${SICHERUNG_PFAD:-${APPDATA_PFAD:-.}/backups}}
       HOST_DB_DATA_PFAD: ${DB_DATA_PFAD:-${APPDATA_PFAD:-.}/db}
       HOST_DOWNLOAD_PFAD: ${DOWNLOAD_PFAD:-./downloads}
     volumes:
-      # Anwendungscode als Volume -> Updates ohne Neubau des Containers
+      # Application code as a volume -> updates without rebuilding the container
       - ${AMBERWAVE_ORDNER:-.}/app:/var/www/html
-      # Musiksammlung (Array). Standard: schreibbar (für „Dateien aufräumen“, nur nach deiner Freigabe). Sicherheitsschalter: MUSIK_MOUNT_MODUS=ro.
+      # Music collection (array). Default: writable (for “Tidy up files”, only after your approval). Safety switch: MUSIK_MOUNT_MODUS=ro.
       - ${MUSIK_PFAD:-./musik}:${PFAD_MUSIK:-/musik}:${MUSIK_MOUNT_MODUS:-rw}
-      # Fertige Downloads von SABnzbd (Ordner der Musik-Kategorie, z. B. /mnt/user/downloads/complete/music).
-      # Beschreibbar, damit Amberwave nach dem Import das Original löschen kann; DOWNLOAD_MOUNT_MODUS=ro = Quelle bleibt unangetastet.
+      # Finished downloads from SABnzbd (folder of the music category, e.g. /mnt/user/downloads/complete/music).
+      # Writable so that Amberwave can delete the original after the import; DOWNLOAD_MOUNT_MODUS=ro = source stays untouched.
       - ${DOWNLOAD_PFAD:-./downloads}:${PFAD_DOWNLOADS:-/downloads}:${DOWNLOAD_MOUNT_MODUS:-rw}
-      # Cover, Künstlerbilder, Vorschaubilder auf der SSD (Unraid z. B. /mnt/cache/appdata/amberwave/cache)
+      # Covers, artist images, thumbnails on the SSD (Unraid e.g. /mnt/cache/appdata/amberwave/cache)
       - ${CACHE_PFAD:-${APPDATA_PFAD:-.}/cache}:${PFAD_CACHE:-/cache}
-      # Backup vor jedem Update (immer nur das letzte): BACKUP_PFAD, sonst SICHERUNG_PFAD, sonst <APPDATA_PFAD>/backups
+      # Backup before every update (only ever the latest one): BACKUP_PFAD, otherwise SICHERUNG_PFAD, otherwise <APPDATA_PFAD>/backups
       - ${BACKUP_PFAD:-${SICHERUNG_PFAD:-${APPDATA_PFAD:-.}/backups}}:${PFAD_BACKUPS:-/backups}
     ports:
       - "${APP_BIND:-0.0.0.0}:${APP_PORT:-9950}:80"
-      # Direktzugang im Heimnetz (HTTPS mit eigenem Let's-Encrypt-Zertifikat) – nur im LAN, keine Router-Freigabe nötig
+      # Direct access on the home network (HTTPS with your own Let's Encrypt certificate) – LAN only, no router port forwarding needed
       - "${APP_BIND:-0.0.0.0}:${LOKAL_HTTPS_PORT:-8443}:8443"
     networks:
       - amberwave_net
 
-  # Von unterwegs: Cloudflare Tunnel (cloudflared, Apache-2.0). Amberwave legt den Tunnel unter Einstellungen › Zugang & Netz
-  # an und schreibt das Token nach <CACHE_PFAD>/tunnel/token – bis dahin startet dieser Container immer wieder neu (harmlos).
-  # Kein offener Port im Router nötig. TUNNEL_IM_STACK=0 in der .env = kein eigener Container (ein schon vorhandenes
-  # cloudflared wird mitbenutzt). Nutzungsbedingungen von Cloudflare: https://www.cloudflare.com/terms/
+  # On the go: Cloudflare Tunnel (cloudflared, Apache-2.0). Amberwave creates the tunnel under Settings › Access & network
+  # and writes the token to <CACHE_PFAD>/tunnel/token – until then this container keeps restarting (harmless).
+  # No open port on the router needed. TUNNEL_IM_STACK=0 in the .env = no container of its own (an existing
+  # cloudflared is reused). Cloudflare terms of use: https://www.cloudflare.com/terms/
   tunnel:
     image: cloudflare/cloudflared:${TUNNEL_IMAGE_TAG:-latest}
     container_name: amberwave_tunnel

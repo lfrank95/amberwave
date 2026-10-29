@@ -1,14 +1,14 @@
-# Amberwave – fertiges Image (GitHub Container Registry). Enthält den Code; Updates per `docker compose pull`.
-# Die Laufzeit-Schritte sind dieselben wie in docker/Dockerfile (lokaler Bau mit eingebundenem Code) – Änderungen in beiden machen.
+# Amberwave – ready-made image (GitHub Container Registry). Contains the code; updates via `docker compose pull`.
+# The runtime steps are the same as in docker/Dockerfile (local build with mounted code) – make changes in both.
 FROM php:8.3-apache
 
 LABEL org.opencontainers.image.title="Amberwave" \
       org.opencontainers.image.description="Self-hosted music server with bit-perfect Windows client, remote streaming and remote control" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 
-# ffmpeg: Live-Umwandlung (Opus/AAC) und Lesen von Tags/Covern bei Nicht-FLAC-Dateien
-# python3 + numpy: Klanganalyse (eingebautes Verfahren); python3-venv: optionales erweitertes Modell, das der Admin
-# per Knopf selbst vom Hersteller lädt (wird nicht mitgeliefert)
+# ffmpeg: live conversion (Opus/AAC) and reading tags/covers for non-FLAC files
+# python3 + numpy: sound analysis (built-in method); python3-venv: optional advanced model that the admin
+# downloads from the vendor themselves via a button (not shipped)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
@@ -33,7 +33,7 @@ RUN { \
     echo 'zlib.output_compression = Off'; \
     } > /usr/local/etc/php/conf.d/amberwave.ini
 
-# Härtung: keine Versions-Banner, PHP-Fehler nicht ausgeben, strikte Sessions
+# Hardening: no version banners, do not output PHP errors, strict sessions
 RUN { \
     echo 'expose_php = Off'; \
     echo 'display_errors = Off'; \
@@ -48,9 +48,9 @@ RUN printf '<Directory /var/www/html>\n    AllowOverride All\n</Directory>\n' > 
     && printf 'ServerTokens Prod\nServerSignature Off\nTraceEnable Off\n' > /etc/apache2/conf-available/haertung.conf \
     && a2enconf haertung
 
-# Cover und Bilder liegen außerhalb des Webroots (/cache) und werden über PHP ausgeliefert.
+# Covers and images live outside the web root (/cache) and are served through PHP.
 
-# Code ins Image (lokale Installationen binden ihn stattdessen als Ordner ein)
+# Code into the image (local installations mount it as a folder instead)
 COPY app /var/www/html
 ENV AMBERWAVE_IMAGE=1
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \

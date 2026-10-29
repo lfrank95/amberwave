@@ -1,4 +1,4 @@
-# Laufzeit und Geheimnisse
+# Runtime and secrets
 .env
 *.log
 cache/
@@ -9,10 +9,10 @@ __pycache__/
 *.pyc
 node_modules/
 
-# Windows-Client: Build-Ergebnisse (die fertige exe kommt als Release-Datei)
+# Windows client: build outputs (the finished exe ships as a release file)
 windows-client/build/
 windows-client/dist/
 windows-client/log/
 
-# Quelltext-Karten des Bündels
+# Source maps of the bundle
 app/js/_b/*.map

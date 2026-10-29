@@ -1,8 +1,8 @@
 FROM php:8.3-apache
 
-# ffmpeg: Live-Umwandlung (Opus/AAC) und Lesen von Tags/Covern bei Nicht-FLAC-Dateien
-# python3 + numpy: Klanganalyse (eingebautes Verfahren); python3-venv: optionales erweitertes Modell, das der Admin
-# per Knopf selbst vom Hersteller lädt (wird nicht mitgeliefert)
+# ffmpeg: live conversion (Opus/AAC) and reading tags/covers for non-FLAC files
+# python3 + numpy: sound analysis (built-in method); python3-venv: optional advanced model that the admin
+# downloads from the vendor themselves via a button (not shipped)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
@@ -27,7 +27,7 @@ RUN { \
     echo 'zlib.output_compression = Off'; \
     } > /usr/local/etc/php/conf.d/amberwave.ini
 
-# Härtung: keine Versions-Banner, PHP-Fehler nicht ausgeben, strikte Sessions
+# Hardening: no version banners, do not output PHP errors, strict sessions
 RUN { \
     echo 'expose_php = Off'; \
     echo 'display_errors = Off'; \
@@ -42,4 +42,4 @@ RUN printf '<Directory /var/www/html>\n    AllowOverride All\n</Directory>\n' > 
     && printf 'ServerTokens Prod\nServerSignature Off\nTraceEnable Off\n' > /etc/apache2/conf-available/haertung.conf \
     && a2enconf haertung
 
-# Cover und Bilder liegen außerhalb des Webroots (/cache) und werden über PHP ausgeliefert.
+# Covers and images live outside the web root (/cache) and are served through PHP.

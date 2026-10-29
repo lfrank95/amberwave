@@ -1,4 +1,4 @@
-# Schnelle Prüfung bei jedem Push und Pull Request: PHP-Syntax, JavaScript-Syntax, Übersetzungen.
+# Quick check on every push and pull request: PHP syntax, JavaScript syntax, translations.
 name: Checks
 
 on:

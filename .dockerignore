@@ -1,4 +1,4 @@
-# Nur app/ gehört ins Image
+# Only app/ belongs in the image
 .git
 .github
 .env
