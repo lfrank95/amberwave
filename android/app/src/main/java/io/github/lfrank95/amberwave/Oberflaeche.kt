@@ -101,7 +101,7 @@ object Oberflaeche {
     /** Nach dem Laden einer App-Seite: die Hülle für den Start ohne Netz merken (höchstens alle 10 Minuten) */
     fun huelleMerken(url: String) {
         val jetzt = System.currentTimeMillis()
-        if (jetzt - huelleZeit < 10 * 60_000 && Speicher.huelleDatei.exists()) return
+        if (!Netz.verbunden() || (jetzt - huelleZeit < 10 * 60_000 && Speicher.huelleDatei.exists())) return
         huelleZeit = jetzt
         arbeiter.execute {
             runCatching {

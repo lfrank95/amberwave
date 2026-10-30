@@ -236,8 +236,8 @@ def main():
 
     # 4. Abspielen: Benachrichtigung und Sperrbildschirm
     s.js(f"history.pushState({{}}, '', '/alben/{aid}'); dispatchEvent(new PopStateEvent('popstate')); true")
-    s.bis("!!document.querySelector('[data-aktion=\"track-play\"]')", 20)
-    s.tippen('[data-aktion="track-play"]')
+    s.bis("!!document.querySelector('.track-titel[data-aktion=\"track-play\"]')", 20)
+    s.tippen('.track-titel[data-aktion="track-play"]')
     sitzung = ''
     for _ in range(20):
         time.sleep(1.5)
