@@ -70,11 +70,13 @@ if [ "$PUID" != "0" ] && [ -f /etc/apache2/envvars ]; then
     echo "Apache-Gruppe: $RUN_GRUPPE"
 fi
 
-mkdir -p /cache/cover /cache/bilder /cache/tmp /cache/musicbrainz
+BACKUP_DIR="${PFAD_BACKUPS:-/backups}"
+mkdir -p "$CACHE_DIR/cover" "$CACHE_DIR/bilder" "$CACHE_DIR/tmp" "$CACHE_DIR/musicbrainz"
 # Merkdateien „Datenbank geprüft“ verwerfen – nach einem Neustart prüft der erste Aufruf die Migrationen einmal
-rm -f /cache/tmp/schema-*.ok "${CACHE_DIR}/tmp/"schema-*.ok 2>/dev/null
+rm -f "${CACHE_DIR}/tmp/"schema-*.ok 2>/dev/null
 # Eigene Ordner (Cache, Backups, Code für Updates) gehören dem Webserver-Benutzer – nur ändern, was nicht passt
-for d in /cache /backups /var/www/html; do
+[ "${AMBERWAVE_AIO:-0}" = "1" ] && mkdir -p "$BACKUP_DIR"
+for d in "$CACHE_DIR" "$BACKUP_DIR" /var/www/html; do
     [ -d "$d" ] && find "$d" \( ! -user www-data -o ! -group "$(id -gn www-data)" \) -exec chown www-data:"$(id -gn www-data)" {} + 2>/dev/null
 done
 
@@ -114,6 +116,17 @@ KONF
     done) &
 fi
 
+# All-in-One-Image: eingebaute MariaDB (und cloudflared) starten, Datenbank und Zugang anlegen – nur im AIO-Image
+if [ "${AMBERWAVE_AIO:-0}" = "1" ]; then
+    . /var/www/html/scripts/aio.sh
+    if aio_datenbank_starten; then
+        # erstes Admin-Konto aus der Vorlage (ADMIN_BENUTZER / ADMIN_PASSWORT), nur solange es noch kein Konto gibt
+        runuser -u www-data -- php /var/www/html/scripts/aio_admin.php
+    else
+        echo "AIO: Die eingebaute Datenbank startet nicht – Details stehen oben im Log."
+    fi
+fi
+
 # Einrichtung: wartet im Hintergrund auf die Datenbank. Eingerichtet → nichts weiter; sonst öffnet es das Einrichtungsfenster
 # und schreibt den Link samt Code ins Log (docker logs amberwave_app).
 (runuser -u www-data -- php /var/www/html/scripts/einrichtung_start.php 2>&1 &)
@@ -125,4 +138,14 @@ runuser -u www-data -- php /var/www/html/scripts/migrate.php --start || true
 # Zeitplan (Mails, Ablauf-Erinnerungen, geplanter Scan, fanart.tv) jede Minute
 (while true; do [ "$(stat -c %s /tmp/zeitplan.log 2>/dev/null || echo 0)" -gt 5000000 ] && : > /tmp/zeitplan.log; runuser -u www-data -- php /var/www/html/scripts/zeitplan.php >> /tmp/zeitplan.log 2>&1; sleep 60; done) &
 
+if [ "${AMBERWAVE_AIO:-0}" = "1" ]; then
+    aio_waechter &
+    AIO_WACHE=$!
+    # Webserver nicht per exec: beim Stoppen des Containers erst den Webserver, dann die Datenbank sauber beenden
+    apache2-foreground &
+    AIO_WEB=$!
+    trap 'aio_beenden' TERM INT
+    wait "$AIO_WEB"
+    aio_beenden
+fi
 exec apache2-foreground

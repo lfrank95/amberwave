@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<CommunityApplications>
+  <Profile>Amberwave – a self-hosted music server with a bit-perfect Windows client, streaming from anywhere and built-in effects. Support: the Amberwave support thread on the Unraid forum, GitHub issues, or r/Amberwave.</Profile>
+  <Icon>https://raw.githubusercontent.com/lfrank95/amberwave/main/templates/amberwave.png</Icon>
+  <WebPage>https://github.com/lfrank95/amberwave</WebPage>
+  <Reddit>https://www.reddit.com/r/Amberwave</Reddit>
+</CommunityApplications>

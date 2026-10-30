@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Amberwave</Name>
+  <Repository>ghcr.io/lfrank95/amberwave-aio:beta</Repository>
+  <Registry>https://github.com/lfrank95/amberwave/pkgs/container/amberwave-aio</Registry>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/lfrank95/amberwave/issues</Support>
+  <Project>https://github.com/lfrank95/amberwave</Project>
+  <ReadMe>https://github.com/lfrank95/amberwave#readme</ReadMe>
+  <Overview>Amberwave is a self-hosted music server for people who care about their collection and how it sounds – without subscription and without cloud.[br][br]
+- Library based on MusicBrainz: multiple artists per album, editions, credits, artist pages[br]
+- Web app / PWA for phone and desktop, streaming from anywhere via Cloudflare Tunnel (no open ports), live transcoding to Opus/AAC[br]
+- Remote control between devices[br]
+- Windows client with bit-perfect output (WASAPI exclusive, ASIO), output routing and VST3 effects[br]
+- Built-in tube, transformer and tape saturation and room sound[br]
+- Family accounts; the music folder stays read-only until you allow writing in the app[br][br]
+All-in-one: MariaDB 11.4 LTS is included, no second container needed. Set your music folder and an admin user name and password below, start, open the WebUI and log in. Public beta.</Overview>
+  <Category>MediaServer:Music MediaApp:Music</Category>
+  <WebUI>http://[IP]:[PORT:80]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/lfrank95/amberwave/main/templates/amberwave.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/lfrank95/amberwave/main/templates/amberwave.png</Icon>
+  <ExtraParams>--stop-timeout=60 --security-opt no-new-privileges:true</ExtraParams>
+  <PostArgs/>
+  <Requires>The image is amd64 (x86-64) only.</Requires>
+  <Config Name="Web UI port" Target="80" Default="9950" Mode="tcp" Description="Port for the web app, the Windows client and the phones." Type="Port" Display="always" Required="true" Mask="false">9950</Config>
+  <Config Name="Music" Target="/musik" Default="/mnt/user/music" Mode="rw" Description="Your music collection. Amberwave only reads it until you allow writing under Settings › Library (for renaming and tagging). Set the access mode to read-only for hard protection." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/music</Config>
+  <Config Name="Appdata" Target="/appdata" Default="/mnt/user/appdata/amberwave" Mode="rw" Description="Database, covers, artist images and backups. Keep it on the cache SSD." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/amberwave</Config>
+  <Config Name="Admin user name" Target="ADMIN_BENUTZER" Default="" Mode="" Description="First admin account, created on the first start only (3–50 characters: letters, digits, . _ -). Leave empty to create it on the setup page in the browser instead." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Admin password" Target="ADMIN_PASSWORT" Default="" Mode="" Description="Password for the first admin account (at least 8 characters). Only used on the first start – change it later in Amberwave under Profile." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Admin e-mail" Target="ADMIN_EMAIL" Default="" Mode="" Description="Optional e-mail address of the admin (password reset, notices)." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Downloads" Target="/downloads" Default="" Mode="rw" Description="Optional: folder with finished music downloads from SABnzbd or Tidarr (e.g. /mnt/user/downloads/complete/music) for automatic import." Type="Path" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="HTTPS port (home network)" Target="8443" Default="8443" Mode="tcp" Description="Direct HTTPS access in your home network with your own certificate (Settings › Access &amp; network). No port forwarding needed." Type="Port" Display="advanced" Required="false" Mask="false">8443</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID Amberwave and its database run as (Unraid: 99 = nobody)." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID (Unraid: 100 = users)." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Database memory" Target="DB_PUFFER" Default="512M" Mode="" Description="Memory MariaDB keeps for data and indexes. 1G or more for libraries with 100,000+ tracks." Type="Variable" Display="advanced" Required="false" Mask="false">512M</Config>
+</Container>

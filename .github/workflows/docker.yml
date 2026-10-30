@@ -1,5 +1,8 @@
-# Builds the Docker image and pushes it to the GitHub Container Registry (ghcr.io/<owner>/amberwave).
+# Builds the Docker images and pushes them to the GitHub Container Registry:
+#   ghcr.io/<owner>/amberwave      – the app (for Docker Compose with its own MariaDB container)
+#   ghcr.io/<owner>/amberwave-aio  – all-in-one: the same app plus MariaDB 11.4 LTS and cloudflared (Unraid store)
 # Trigger: a tag like v0.9.0-beta.1 (release) – or manually under Actions → Docker image → Run workflow.
+# Monthly: the all-in-one image of the latest release is rebuilt (MariaDB updates within 11.4) – only if its test passes.
 # Tags: exact version, plus "beta" for pre-releases or "latest" for stable ones.
 name: Docker image
 
@@ -7,6 +10,8 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  schedule:
+    - cron: '23 4 7 * *'
 
 permissions:
   contents: read
@@ -17,6 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Monthly run: build from the latest release tag, not from main
+      - name: Latest release (monthly run)
+        if: github.event_name == 'schedule'
+        id: neueste
+        run: |
+          TAG="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          git checkout -q "$TAG"
 
       - name: Bundle the web app
         uses: oven-sh/setup-bun@v2
@@ -40,8 +56,20 @@ jobs:
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=ref,event=branch
 
+      - id: meta_aio
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/amberwave-aio
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{version}},value=${{ steps.neueste.outputs.tag }},enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=beta,enable=${{ contains(github.ref_name, '-') || contains(steps.neueste.outputs.tag, '-') }}
+            type=raw,value=latest,enable=${{ (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'schedule' && !contains(steps.neueste.outputs.tag, '-')) }}
+            type=ref,event=branch,enable=${{ github.event_name != 'schedule' }}
+
       # Only amd64: the effects calculator bin/aw-render is so far only shipped as an x86-64 program.
       - uses: docker/build-push-action@v6
+        if: github.event_name != 'schedule'
         with:
           context: .
           platforms: linux/amd64
@@ -50,3 +78,34 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # All-in-one: built on top of the app image of the same version, tested, and only then pushed
+      - name: Build all-in-one (for the test)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.aio
+          platforms: linux/amd64
+          load: true
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' }}
+          tags: amberwave-aio:test
+          build-args: |
+            BASIS=ghcr.io/${{ github.repository_owner }}/amberwave:${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}
+          cache-to: type=gha,mode=max,scope=aio
+
+      - name: Test all-in-one
+        run: bash tests/aio_test.sh amberwave-aio:test
+
+      - name: Push all-in-one
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.aio
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta_aio.outputs.tags }}
+          labels: ${{ steps.meta_aio.outputs.labels }}
+          build-args: |
+            BASIS=ghcr.io/${{ github.repository_owner }}/amberwave:${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}
+          cache-from: type=gha,scope=aio
