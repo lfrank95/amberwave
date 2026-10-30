@@ -627,7 +627,9 @@ async function aufNeueVersionPruefen() {
     for (const x of Array.isArray(liste) ? liste : []) {
       if (!x || x.draft || (x.prerelease && !vorab)) continue;
       const v = String(x.tag_name || '').replace(/^v/i, '');
-      if (/^\d+\.\d+\.\d+/.test(v) && (!best || versionVergleich(v, best.version) > 0)) best = { version: v, url: x.html_url || RELEASES_SEITE };
+      // Direkt der Installer aus dem Release (sonst die Release-Seite)
+      const exe = (Array.isArray(x.assets) ? x.assets : []).find((d) => /^Amberwave-Windows-Client-.*\.exe$/i.test(String(d?.name || '')));
+      if (/^\d+\.\d+\.\d+/.test(v) && (!best || versionVergleich(v, best.version) > 0)) best = { version: v, url: exe?.browser_download_url || x.html_url || RELEASES_SEITE };
     }
     if (best && versionVergleich(best.version, VERSION) > 0 && best.version !== neueVersion?.version) {
       neueVersion = best;

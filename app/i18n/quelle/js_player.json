@@ -416,5 +416,7 @@
  "ein Album einsortiert": "one album sorted in",
  "{n} Alben einsortiert": "{n} albums sorted in",
  "Vor einem Titel": "1 track ago",
- "Vor {n} Titeln": "{n} tracks ago"
+ "Vor {n} Titeln": "{n} tracks ago",
+ "Für den besten Klang am PC gibt es den Windows-Client (bitgenau, ASIO, VST) – Download im Profilmenü oben rechts.": "For the best sound on your PC there is the Windows client (bit-perfect, ASIO, VST) – download it from the profile menu at the top right.",
+ "Windows-Client herunterladen": "Download Windows client"
 }

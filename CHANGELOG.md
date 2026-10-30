@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1-beta.5 – in progress
+
+- **Windows client download in the web app:** on a Windows PC the profile menu offers "Download Windows client" – the
+  installer of exactly the server's version from the GitHub release. A one-time hint points to it.
+- Windows client: "New version – download" now downloads the installer directly instead of opening the release page.
+
 ## 0.9.1-beta.4 – all-in-one image
 
 - **All-in-one image** `ghcr.io/lfrank95/amberwave-aio`: Amberwave, MariaDB 11.8 LTS and cloudflared in one container –

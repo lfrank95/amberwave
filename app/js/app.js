@@ -21,6 +21,13 @@ import { scrollSetzen, gemerkt } from './merker.js';
 import { falzBeobachten } from './falz.js';
 import { zoomSperren } from './zoomsperre.js';
 import { nativ, ausgabeWeg } from './nativ.js';
+
+// Windows-Client passend zur Server-Version: Installer aus dem GitHub-Release derselben Version (Name wie vom Build-Skript)
+const istWindowsDesktop = () => !nativ && (navigator.userAgentData?.platform === 'Windows' || /Windows NT/.test(navigator.userAgent)) && !/Mobile|Android/i.test(navigator.userAgent);
+function clientDownload(version) {
+  const v = String(version || '');
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/.test(v) ? `https://github.com/lfrank95/amberwave/releases/download/v${v}/Amberwave-Windows-Client-${v}.exe` : '';
+}
 import { offlineEinrichten, offlineMarkieren, offlineAn, offlineSammlung } from './offline_ui.js';
 import { offline } from './offline.js';
 import { symbolSvg, symbolVon, ausgangName, treiberVon } from './ausgaenge.js';
@@ -113,6 +120,12 @@ class App {
     window.addEventListener('online', () => this.wiederOnline());
     if (this.offline) { setInterval(() => { if (!document.hidden) this.wiederOnline(); }, 30000); return; }
     window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); this.installHinweis = e; });
+    // Einmal je Browser: am Windows-PC auf den Windows-Client hinweisen (Download im Profilmenü)
+    if (istWindowsDesktop() && clientDownload(this.ich.app.version)) {
+      let gezeigt = false;
+      try { gezeigt = localStorage.getItem('aw-winclient-hinweis') === '1'; localStorage.setItem('aw-winclient-hinweis', '1'); } catch (e) { gezeigt = true; }
+      if (!gezeigt) setTimeout(() => toast(t('Für den besten Klang am PC gibt es den Windows-Client (bitgenau, ASIO, VST) – Download im Profilmenü oben rechts.'), 'info', 9000), 4000);
+    }
     // Geräte-Einstellungen vom Server übernehmen (z. B. nach Neuinstallation)
     // Die Qualität ist pro Gerät gemerkt: der Server-Stand gilt, sonst wird der Stand dieses Browsers hochgeladen
     api.get('/geraet/einstellungen').then((r) => {
@@ -279,6 +292,7 @@ class App {
       </div>` : ''}
       <div class="fly-gruppe">
         ${this.installHinweis ? punkt('installieren', 'installieren', t('App installieren')) : ''}
+        ${istWindowsDesktop() && clientDownload(this.ich.app.version) ? punkt('windows-client', 'download', t('Windows-Client herunterladen')) : ''}
         ${punkt('abmelden', 'abmelden', t('Abmelden'), '', 'rot')}
       </div>
       <div class="fly-fuss">${h(this.ich.app.name)} ${h(this.ich.app.version)}${nativ?.version ? ` · ${h(t('Client {version}', { version: nativ.version }))}` : ''}</div>`;
@@ -302,6 +316,7 @@ class App {
       this.flyoutSchliessen();
       if (ziel === 'abmelden') this.abmelden();
       else if (ziel === 'installieren') { this.installHinweis?.prompt(); this.installHinweis = null; }
+      else if (ziel === 'windows-client') { location.href = clientDownload(this.ich.app.version); }
       else this.navigieren(ziel);
     });
     m.querySelector('.fly-punkt')?.focus({ preventScroll: true });
