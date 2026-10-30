@@ -1,0 +1,43 @@
+# Machbarkeitsprüfung „Amberwave Windows Server“: der heutige Server mit PHP und MariaDB für Windows (ohne Docker).
+# Nur von Hand (Actions → Windows probe → Run workflow). Der Bericht landet als Hinweise am Lauf.
+name: Windows probe
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bash app/scripts/buendeln.sh
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, gd, zip, mbstring, openssl, curl, fileinfo, intl, sodium
+          ini-values: memory_limit=512M
+      - uses: ankane/setup-mariadb@v1
+        with:
+          mariadb-version: '11.8'
+      - name: Datenbank anlegen
+        run: |
+          mariadb -uroot -e "CREATE DATABASE amberwave CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER 'amberwave'@'localhost' IDENTIFIED BY 'Probe-Passwort-2026'; CREATE USER 'amberwave'@'127.0.0.1' IDENTIFIED BY 'Probe-Passwort-2026'; GRANT ALL ON amberwave.* TO 'amberwave'@'localhost'; GRANT ALL ON amberwave.* TO 'amberwave'@'127.0.0.1';"
+      - name: Werkzeuge
+        run: |
+          choco install ffmpeg flac -y --no-progress > /dev/null
+          python -m pip install --quiet numpy
+      - name: Probe
+        run: |
+          export PATH="/c/ProgramData/chocolatey/bin:$PATH"
+          bash tests/windows_probe.sh
+      - name: Bericht
+        if: always()
+        run: |
+          f=/c/aw/bericht.txt
+          [ -f "$f" ] || { echo "::warning::kein Bericht"; exit 0; }
+          split -b 3500 -d "$f" /c/aw/teil_
+          for t in /c/aw/teil_*; do echo "::warning::$(tr '\n' '|' < "$t" | sed 's/%/%25/g')"; done
