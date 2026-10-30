@@ -8,6 +8,9 @@
   down cleanly when the container stops. Optionally the admin account comes from the template (`ADMIN_BENUTZER`,
   `ADMIN_PASSWORT`), otherwise the setup page asks as before. The remote access tunnel starts by itself once set up in
   the app. Every release builds and tests both images; the all-in-one image is rebuilt monthly for security updates.
+- **Setup assistant after the first login** when the admin account came from the template: region, folder check (including
+  whether Amberwave may write to your music), server name and the first scan – skippable with "Later". It can be opened
+  again any time under Settings › Region.
 - Unraid template and Community Applications profile in the repository (`templates/`, `ca_profile.xml`).
 - The Compose variant is unchanged.
 

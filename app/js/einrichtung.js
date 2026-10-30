@@ -12,6 +12,8 @@ import { t, tn, locale } from './i18n.js';
   const csrf = wurzel.dataset.csrf;
   const codeNoetig = wurzel.dataset.code === '1';
   const zeigeDb = wurzel.dataset.db === '1';
+  // Nachholen: schon eingerichtet (Admin aus der Vorlage des All-in-One-Images) – Region, Ordner, Servername, Fertig
+  const nach = wurzel.dataset.nach === '1';
   const minLaenge = parseInt(wurzel.dataset.minlaenge || '8', 10);
   const appName = wurzel.dataset.app || 'Amberwave';
   const reduz = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -44,7 +46,7 @@ import { t, tn, locale } from './i18n.js';
   }
 
   // ---------- Seitenwechsel mit Übergang ----------
-  const REIHE = ['start', 'region', 'code', 'check', 'konto', 'lauf', 'fertig', 'scan', 'scanfertig'];
+  const REIHE = ['start', 'region', 'code', 'check', 'konto', 'server', 'lauf', 'fertig', 'scan', 'scanfertig'];
   const OHNE_KOPF = ['start', 'fertig', 'scan', 'scanfertig'];
   const KURZ = ['code', 'lauf'];
   const ICON = {
@@ -75,6 +77,10 @@ import { t, tn, locale } from './i18n.js';
       b.insertAdjacentHTML('beforeend', '<div class="kopf"><img src="' + esc(wurzel.dataset.logo) + '" alt="" width="30" height="30">' + esc(appName) + '</div>');
     }
     b.appendChild(document.getElementById('t-' + name).content.cloneNode(true));
+    if (nach) {
+      // Schrittleiste: „Konto“ gibt es schon – an seiner Stelle steht „Server“
+      b.querySelectorAll('.schritte>div').forEach((d) => { if (d.textContent === t('Konto')) d.textContent = t('Server'); });
+    }
     const f = fussText(name);
     if (f) b.insertAdjacentHTML('beforeend', '<p class="fuss">' + esc(f) + '</p>');
     const k = b.querySelector('.karte');
@@ -115,7 +121,7 @@ import { t, tn, locale } from './i18n.js';
 
   wurzel.removeAttribute('hidden');
 
-  function ersterSchritt() { return codeNoetig && !code ? 'code' : 'check'; }
+  function ersterSchritt() { return !nach && codeNoetig && !code ? 'code' : 'check'; }
 
   // ---------- Region (Land, Sprache, Zeitzone, Formate, Währung) ----------
   const RD = (() => { try { return JSON.parse(wurzel.dataset.region || '{}'); } catch (e) { return {}; } })();
@@ -134,8 +140,17 @@ import { t, tn, locale } from './i18n.js';
   // ---------- Seiten ----------
   const SETUP = {};
 
-  SETUP.start = () => {
+  SETUP.start = (k) => {
     $('los').onclick = () => seite('region');
+    if (nach) {
+      k.querySelector('.text').textContent = t('Dein Konto steht schon. Jetzt noch kurz Region und Ordner prüfen und deinem Server einen Namen geben – dann liest {app} deine Musik ein.', { app: appName });
+      const w = k.querySelectorAll('.weg li');
+      [t('Region'), t('Ordner prüfen'), t('Loshören')].forEach((x, i) => { if (w[i]) w[i].lastChild.textContent = x; });
+      const sp = document.createElement('button');
+      sp.className = 'btn gross zweit'; sp.type = 'button'; sp.style.marginTop = '10px'; sp.textContent = t('Später – zur Bibliothek');
+      sp.onclick = async () => { await senden('spaeter'); location.href = '/'; };
+      $('los').insertAdjacentElement('afterend', sp);
+    }
   };
 
   SETUP.region = (k) => {
@@ -318,7 +333,7 @@ import { t, tn, locale } from './i18n.js';
       };
     });
     $('ck-schreiben').onchange = (e) => { musikSchreiben = e.target.checked; };
-    if ($('ck-weiter')) $('ck-weiter').onclick = () => seite('konto');
+    if ($('ck-weiter')) $('ck-weiter').onclick = () => seite(nach ? 'server' : 'konto');
     $('ck-nochmal').onclick = () => pruefen();
   }
 
@@ -426,6 +441,28 @@ import { t, tn, locale } from './i18n.js';
     seite('lauf');
   }
 
+  // --- Nachholen: Servername speichern, dann Fertig (ohne Datenbank- und Kontoschritte) ---
+  SETUP.server = (k) => {
+    const feld = k.querySelector('[name="servername"]');
+    feld.value = daten.servername != null ? daten.servername : (wurzel.dataset.servername || '');
+    const fertig = async () => {
+      const meldung = $('s-meldung'); meldung.hidden = true; feldFehler(k, {});
+      daten = { servername: feld.value, musik_schreiben: musikSchreiben ? '1' : '0', sprache: region.sprache || seitenSprache, land: region.land || '', zeitzone: region.zeitzone || '', zeitformat: region.zeitformat || 'auto', einheiten: region.einheiten || 'auto', datumsformat: region.datumsformat || 'auto', waehrung: region.waehrung || '' };
+      $('s-fertig').disabled = true;
+      const d = await senden('nachholen', daten);
+      $('s-fertig').disabled = false;
+      if (!d.ok) {
+        feldFehler(k, d.felder);
+        meldung.hidden = false; meldung.innerHTML = '<span>⚠️</span><span>' + esc(d.fehler || t('Das hat nicht geklappt.')) + '</span>';
+        return;
+      }
+      fertigDaten = d;
+      seite('fertig');
+    };
+    k.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); fertig(); } });
+    $('s-fertig').onclick = fertig;
+  };
+
   // --- Einrichten (Serverschritte) ---
   const SCHRITTE = [['db', t('Datenbank und Benutzer anlegen')], ['tabellen', t('Tabellen erstellen')], ['admin', t('Administrator-Konto anlegen, Zeitzone und Servername speichern')], ['abschluss', t('Zugänge absichern und anmelden')]];
   let laufStart = 0;
@@ -471,6 +508,7 @@ import { t, tn, locale } from './i18n.js';
     $('f-db').textContent = t('MariaDB, Benutzer „{user}“', { user: d.db_user || 'amberwave' });
     $('f-konto').innerHTML = t('Konto „{name}“', { name: esc(d.benutzername || daten.benutzername || '') }) + '<small>' + t('Administrator') + '</small>';
     $('f-root').textContent = d.root_abgesichert ? t('Root-Zugang gesperrt') : t('Zugangsdaten aus der .env');
+    if (d.nachgeholt) $('f-db').textContent = 'MariaDB';
     const musik = sys && sys.ordner.find((o) => o.schluessel === 'musik');
     const dateien = musik ? musik.dateien || 0 : 0;
     const scan = $('f-scan'), spaeter = $('f-spaeter');
@@ -505,7 +543,7 @@ import { t, tn, locale } from './i18n.js';
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'amberwave-schluessel.txt'; document.body.appendChild(a); a.click(); a.remove();
         $('f-datei').textContent = t('Gespeichert ✓');
       };
-    } else {
+    } else if (!d.nachgeholt) {
       $('f-envschluessel').hidden = false;
     }
     konfetti(k, 2700, 950);

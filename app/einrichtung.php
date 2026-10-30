@@ -1,5 +1,7 @@
 <?php
 // Einrichtungs-Assistent: Admin-Konto + Datenbank beim allerersten Start. Siehe includes/einrichtung.php.
+// Nachholen: Ist schon eingerichtet (All-in-One-Image mit Admin aus der Vorlage) und ein Admin angemeldet, führt dieselbe Seite
+// durch Region, Ordner und Servername – ohne Datenbank, Konto und Einrichtungscode.
 declare(strict_types=1);
 require_once __DIR__ . '/includes/i18n.php';
 require_once __DIR__ . '/includes/region.php';
@@ -10,6 +12,23 @@ require_once __DIR__ . '/includes/sicherheit.php';
 $GLOBALS['aw_standard_sprache'] = 'en';   // die Einrichtung beginnt immer auf Englisch; die Sprache wählt man auf der Region-Seite
 sicherheits_header_senden();
 header('Cache-Control: no-store');
+
+// Angemeldeter Admin (nur bei fertiger Installation) – aus der normalen Sitzung, danach die eigene Sitzung der Einrichtung
+$nachAdmin = null;
+if (einrichtung_zustand(true)['art'] === 'fertig') {
+    require_once __DIR__ . '/includes/auth.php';
+    try {
+        $u = eingeloggter_user_roh();   // ohne Sprachumschaltung: die Region-Seite wechselt die Sprache selbst
+        if ($u && account_ist_gueltig($u) && ist_admin($u) && empty($u['muss_passwort_aendern'])) {
+            $nachAdmin = $u;
+        }
+    } catch (Throwable $e) {
+        $nachAdmin = null;
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+}
 session_name('amberwave_einr');
 session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => ist_https(), 'httponly' => true, 'samesite' => 'Strict']);
 session_start();
@@ -54,6 +73,43 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             einr_json(['ok' => true] + ($schritt === 'scan_status' ? einrichtung_scan_status() : einrichtung_scan_zusammenfassung()));
         } catch (Throwable $e) {
             error_log('Einrichtung (' . $schritt . '): ' . $e->getMessage());
+            einr_json(['ok' => false, 'fehler' => $e->getMessage()], 500);
+        }
+    }
+
+    // Nachholen (schon eingerichtet, Admin angemeldet): Ordner prüfen, Region/Server speichern, „später“
+    if ($nachAdmin !== null && $z['art'] === 'fertig' && in_array($schritt, ['system', 'nachholen', 'spaeter'], true)) {
+        try {
+            if ($schritt === 'system') {
+                einr_json(['ok' => true] + einrichtung_systempruefung());
+            }
+            if ($schritt === 'spaeter') {
+                geheimnis_loeschen('assistent_offen');
+                einr_json(['ok' => true]);
+            }
+            $f = einrichtung_eingaben_pruefen($in, 'fertig', false);
+            [$reg, $regFehler] = region_pruefen($in);
+            $f += $regFehler;
+            if ($f) {
+                einr_json(['ok' => false, 'felder' => $f, 'fehler' => t('Bitte die markierten Angaben prüfen.')], 422);
+            }
+            einrichtung_server_speichern((string) ($in['zeitzone'] ?? ''), (string) ($in['servername'] ?? ''));
+            region_speichern($reg);
+            require_once __DIR__ . '/includes/einstellungen.php';
+            einstellung_setzen('musik_schreiben', (string) ($in['musik_schreiben'] ?? '0') === '1' ? '1' : '0');
+            db_tun('UPDATE users SET sprache = :s WHERE id = :id', ['s' => $reg['sprache'] ?: null, 'id' => $nachAdmin['id']]);
+            // Den Schlüssel nur beim ersten Mal zeigen (direkt nach dem Anlegen aus der Vorlage), nicht bei jedem erneuten Aufruf
+            $erstesMal = geheimnis_lesen('assistent_offen') !== '';
+            geheimnis_loeschen('assistent_offen');
+            $_SESSION['einr_nachlauf'] = time() + 7200;
+            $_SESSION['einr_admin'] = (int) $nachAdmin['id'];
+            $k = konfig();
+            einr_json(['ok' => true, 'name' => trim((string) ($nachAdmin['vorname'] ?? '')), 'benutzername' => (string) $nachAdmin['benutzername'],
+                'schluessel' => $erstesMal && !empty($k['app_secret_key_erzeugt']) ? $k['app_secret_key'] : null,
+                'schluessel_gesichert' => schluessel_sichern(), 'root_abgesichert' => true, 'angemeldet' => true, 'nachgeholt' => true,
+                'db_user' => (string) $k['db']['user']]);
+        } catch (Throwable $e) {
+            error_log('Einrichtung nachholen (' . $schritt . '): ' . $e->getMessage());
             einr_json(['ok' => false, 'fehler' => $e->getMessage()], 500);
         }
     }
@@ -173,7 +229,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 // Nach der Einrichtung führt die Anzeige im Programm (?einlesen=1 / ?zusammenfassung=1) die Sitzung, die eingerichtet hat, zurück zum Einlesen
 $nachlauf = !empty($_SESSION['einr_nachlauf']) && (int) $_SESSION['einr_nachlauf'] >= time();
 $startSeite = $nachlauf && isset($_GET['zusammenfassung']) ? 'scanfertig' : ($nachlauf && isset($_GET['einlesen']) ? 'scan' : '');
-if ($z['art'] === 'fertig' && $startSeite === '') {
+$nachholen = $z['art'] === 'fertig' && $startSeite === '' && $nachAdmin !== null;
+if ($z['art'] === 'fertig' && $startSeite === '' && !$nachholen) {
     header('Location: /login.php');
     exit;
 }
@@ -211,7 +268,7 @@ if ($z['art'] === 'wartet') {
     exit;
 }
 
-$rest = $startSeite !== '' ? PHP_INT_MAX : einrichtung_fenster_rest();
+$rest = $startSeite !== '' || $nachholen ? PHP_INT_MAX : einrichtung_fenster_rest();
 if ($rest <= 0) {
     einr_kopf(t('Einrichtung gesperrt'));
     einr_statisch('🔒', t('Einrichtungsfenster abgelaufen'), '<p class="sub">' . h(t('Aus Sicherheitsgründen ist die Einrichtung nur {n} Minuten nach dem Start offen. Niemand hat sie in dieser Zeit abgeschlossen.', ['n' => (int) konfig()['einrichtung']['fenster_minuten']])) . '</p>'
@@ -224,7 +281,7 @@ if ($rest <= 0) {
 
 $ausEnv = konfig()['db']['quelle'] === 'env';
 $zeigeDb = $z['art'] === 'db_fehlt' && !$ausEnv;
-$codeNoetig = einrichtung_code_noetig();
+$codeNoetig = !$nachholen && einrichtung_code_noetig();
 $herkunft = einrichtung_herkunft();
 $pw = einrichtung_zufallspasswort(20);
 $k = konfig();
@@ -235,7 +292,7 @@ einr_kopf(t('Einrichtung'));
 <div id="einr" hidden data-csrf="<?= h($_SESSION['csrf']) ?>" data-code="<?= $codeNoetig ? '1' : '0' ?>" data-db="<?= $zeigeDb ? '1' : '0' ?>"
      data-rest="<?= $rest === PHP_INT_MAX ? 0 : $rest ?>" data-minlaenge="<?= (int) $k['sicherheit']['passwort_min_laenge'] ?>"
      data-zone="<?= h($k['zeitzone']) ?>" data-servername="<?= h($k['server_name']) ?>" data-dbpw="<?= h($pw) ?>" data-app="<?= h(app_name()) ?>"
-     data-logo="<?= h(asset_url('/img/logo.svg')) ?>" data-region="<?= h(region_auswahl_json()) ?>" data-sprache="<?= h(sprache()) ?>" data-start="<?= h($startSeite) ?>"></div>
+     data-logo="<?= h(asset_url('/img/logo.svg')) ?>" data-region="<?= h(region_auswahl_json()) ?>" data-sprache="<?= h(sprache()) ?>" data-start="<?= h($startSeite) ?>" data-nach="<?= $nachholen ? '1' : '0' ?>"></div>
 
 <!-- Start -->
 <template id="t-start">
@@ -344,6 +401,20 @@ einr_kopf(t('Einrichtung'));
  </details>
  <p class="mini" id="k-dbnotiz" hidden></p>
  <button class="btn" id="einrichten" type="button"><?= h(t('Einrichten')) ?></button>
+</div>
+</template>
+
+<!-- Nachholen: Servername (statt Konto) -->
+<template id="t-server">
+<div class="karte">
+ <div class="schritte"><div class="ok"><?= h(t('Willkommen')) ?></div><div class="ok"><?= h(t('Region')) ?></div><div class="ok"><?= h(t('Ordner')) ?></div><div class="jetzt ok"><?= h(t('Server')) ?></div><div><?= h(t('Fertig')) ?></div></div>
+ <h1><?= h(t('Dein Server')) ?></h1>
+ <p class="sub"><?= h(t('Dein Konto ist schon angelegt. Fehlt nur noch ein Name für deinen Server.')) ?></p>
+ <div class="hinweis rot" id="s-meldung" role="alert" hidden></div>
+ <div class="zwei">
+  <div class="sp"><label for="s-servername"><?= h(t('Name deines Servers')) ?> <span class="leise">(<?= h(t('so erscheint er im Windows-Client')) ?>)</span></label><input id="s-servername" name="servername" type="text" placeholder="<?= h(app_name()) ?>" autocomplete="off"></div>
+ </div>
+ <button class="btn" id="s-fertig" type="button"><?= h(t('Fertigstellen')) ?></button>
 </div>
 </template>
 

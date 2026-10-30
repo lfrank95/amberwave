@@ -1,5 +1,5 @@
 {
- "quelle": "996ab42e2cd8dd1346f545ddcd9ba36610be2c34",
+ "quelle": "027e3f96291d985df6eab6f049a8899b92fe162a",
  "einstieg": "app.js",
  "start": [
   "app.js",
@@ -33,7 +33,7 @@
   "app-y5fb60zc.js",
   "app.js",
   "ausgaenge_fenster-xrw6qda7.js",
-  "einstellungen-nx35h51x.js",
+  "einstellungen-c12md3mb.js",
   "heimnetz-azbxcf68.js",
   "nerd-zqr2kkja.js",
   "rack-4xx38ksy.js",
@@ -58,7 +58,7 @@
   "app-y5fb60zc.js": 10772,
   "app.js": 223606,
   "ausgaenge_fenster-xrw6qda7.js": 190,
-  "einstellungen-nx35h51x.js": 91401,
+  "einstellungen-c12md3mb.js": 91645,
   "heimnetz-azbxcf68.js": 269,
   "nerd-zqr2kkja.js": 42033,
   "rack-4xx38ksy.js": 72918,

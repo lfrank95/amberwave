@@ -22,6 +22,11 @@ if (!empty($user['muss_passwort_aendern'])) {
     header('Location: /passwort-erzwingen.php');
     exit;
 }
+// All-in-One mit Admin aus der Vorlage: beim ersten Öffnen durch den Assistenten (Region, Ordner, Servername)
+if (ist_admin($user) && is_file(konfig()['pfade']['cache'] . '/geheimnisse/assistent_offen')) {
+    header('Location: /einrichtung.php');
+    exit;
+}
 header('Cache-Control: no-store');
 // Nutzerdaten (/ich) gleich mitliefern: die App spart beim Start eine volle Laufzeit zum Server
 $ich_json = '';

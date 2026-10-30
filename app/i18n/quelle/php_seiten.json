@@ -456,5 +456,8 @@
  "Deine Adresse {ip} gehört nicht zum Heimnetz.": "Your address {ip} is not on the home network.",
  "Deine Anfrage kommt über die Docker-Brücke ({ip}) – so kommen auch Zugriffe aus dem Internet über Dockers Portweiterleitung an.": "Your request arrives via the Docker bridge ({ip}) – internet access through Docker's port forwarding arrives the same way.",
  "Deine Anfrage kommt über einen Proxy oder Tunnel.": "Your request comes through a proxy or tunnel.",
- "So ist es in der .env eingestellt (EINRICHTUNG_CODE_IMMER=1).": "That's how it is set in the .env (EINRICHTUNG_CODE_IMMER=1)."
+ "So ist es in der .env eingestellt (EINRICHTUNG_CODE_IMMER=1).": "That's how it is set in the .env (EINRICHTUNG_CODE_IMMER=1).",
+ "Dein Konto ist schon angelegt. Fehlt nur noch ein Name für deinen Server.": "Your account is already set up. All that’s missing is a name for your server.",
+ "Fertigstellen": "Finish",
+ "Dein Konto steht schon. Jetzt noch kurz Region und Ordner prüfen und deinem Server einen Namen geben – dann liest {app} deine Musik ein.": "Your account is ready. Now quickly check region and folders and give your server a name – then {app} reads your music."
 }

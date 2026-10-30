@@ -46,5 +46,6 @@ if ($mail === '' || !filter_var($mail, FILTER_VALIDATE_EMAIL)) {
 if (einrichtung_admin_anlegen(['vorname' => $name, 'nachname' => '', 'benutzername' => $name, 'email' => $mail, 'passwort' => $pw, 'sprache' => ''])) {
     einrichtung_zustand(true);
     schluessel_sichern();
+    geheimnis_schreiben('assistent_offen', (string) time());   // nach der ersten Anmeldung: Region, Ordner, Servername
     echo "AIO: Admin-Konto „{$name}“ angelegt – Anmeldung unter http://<Server-IP>:" . konfig()['heimnetz']['app_port'] . "\n";
 }
