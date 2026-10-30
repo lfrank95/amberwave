@@ -36,16 +36,16 @@ $aufruf = static function (string $befehl, string $schritt) use (&$log, $stand):
 try {
     @mkdir(kl_ordner('modell'), 0775, true);
     $venv = kl_ordner('venv');
-    $py = escapeshellarg((string) $k['python']);
-    if (!is_file($venv . '/bin/python') && !$aufruf("{$py} -m venv " . escapeshellarg($venv), t('Python-Umgebung anlegen'))) {
+    $py = aw_arg((string) $k['python']);
+    if (!is_file($venv . '/bin/python') && !$aufruf("{$py} -m venv " . aw_arg($venv), t('Python-Umgebung anlegen'))) {
         throw new RuntimeException(t('Python-Umgebung konnte nicht angelegt werden (python3-venv im Image?).'));
     }
-    $pip = escapeshellarg($venv . '/bin/pip');
+    $pip = aw_arg($venv . '/bin/pip');
     // Ist das Paket schon da (z. B. nur der Stil-Kopf wird nachinstalliert), entfällt dieser Schritt
-    $schon = is_file($venv . '/bin/python') && trim((string) shell_exec(escapeshellarg($venv . '/bin/python') . ' -c "import essentia.standard; print(1)" 2>/dev/null')) === '1';
+    $schon = is_file($venv . '/bin/python') && trim((string) shell_exec(aw_arg($venv . '/bin/python') . ' -c "import essentia.standard; print(1)"' . aw_ohne_fehler())) === '1';
     if (!$schon) {
     $aufruf("{$pip} install --no-cache-dir --upgrade pip", t('pip aktualisieren'));
-    if (!$aufruf("{$pip} install --no-cache-dir " . escapeshellarg((string) $k['pip_paket']), t('Paket {paket} vom Hersteller laden (kann einige Minuten dauern)', ['paket' => $k['pip_paket']]))) {
+    if (!$aufruf("{$pip} install --no-cache-dir " . aw_arg((string) $k['pip_paket']), t('Paket {paket} vom Hersteller laden (kann einige Minuten dauern)', ['paket' => $k['pip_paket']]))) {
         throw new RuntimeException(t('Das Paket {paket} ließ sich nicht installieren (Internet? Prozessor mit AVX?).', ['paket' => $k['pip_paket']]));
     }
     }
@@ -66,9 +66,9 @@ try {
         file_put_contents(kl_ordner('modell/' . $x['datei']), $r['body']);
         $log .= strlen($r['body']) . " Bytes\n";
     }
-    $probe = escapeshellarg($venv . '/bin/python') . ' ' . escapeshellarg(kl_skript()) . ' pruefen --laden --modell ' . escapeshellarg(kl_ordner('modell'));
+    $probe = aw_arg($venv . '/bin/python') . ' ' . aw_arg(kl_skript()) . ' pruefen --laden --modell ' . aw_arg(kl_ordner('modell'));
     $stand('laeuft', t('Probelauf'));
-    $j = json_decode((string) shell_exec('TF_CPP_MIN_LOG_LEVEL=3 ' . $probe . ' 2>/dev/null'), true);
+    $j = json_decode((string) shell_exec(aw_mit_umgebung(['TF_CPP_MIN_LOG_LEVEL' => 3], $probe) . aw_ohne_fehler()), true);
     $log .= "\n$ Probelauf\n" . json_encode($j) . "\n";
     if (empty($j['essentia']) || empty($j['geladen'])) {
         throw new RuntimeException(t('Probelauf fehlgeschlagen: {fehler}', ['fehler' => $j['fehler'] ?? t('Modell ließ sich nicht laden')]));

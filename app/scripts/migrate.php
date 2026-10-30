@@ -171,7 +171,7 @@ function migration_vorher_sichern(int $schema): void
     }
 }
 
-if (PHP_SAPI === 'cli' && realpath($argv[0] ?? '') === realpath(__FILE__)) {
+if (PHP_SAPI === 'cli' && aw_realpath($argv[0] ?? '') === aw_realpath(__FILE__)) {
     // --start: beim Containerstart vor dem Webserver (wartet auf die Datenbank, bricht den Start nie ab)
     $beimStart = in_array('--start', $argv, true);
     if ($beimStart) {

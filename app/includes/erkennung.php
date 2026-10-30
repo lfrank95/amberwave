@@ -72,9 +72,9 @@ function erk_anstossen(): void
     if (!erk_aktiv() || erk_laeuft()) {
         return;
     }
-    $skript = realpath(__DIR__ . '/../scripts/erkennung.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' > /dev/null 2>&1 &');
+    $skript = aw_realpath(__DIR__ . '/../scripts/erkennung.php');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript));
 }
 
 // ---------- Fingerabdruck ----------
@@ -87,12 +87,11 @@ function erk_werkzeug(): ?string
         return $w;
     }
     $ff = konfig()['stream']['ffmpeg'];
-    $aus = (string) @shell_exec(escapeshellarg($ff) . ' -hide_banner -muxers 2>/dev/null');
+    $aus = (string) @shell_exec(aw_arg($ff) . ' -hide_banner -muxers' . aw_ohne_fehler());
     if (preg_match('/\bchromaprint\b/', $aus)) {
         return $w = 'ffmpeg';
     }
-    $fp = trim((string) @shell_exec('command -v fpcalc 2>/dev/null'));
-    return $w = ($fp !== '' ? 'fpcalc' : null);
+    return $w = (aw_programm('fpcalc') !== null ? 'fpcalc' : null);
 }
 
 function erk_befehl(string $pfad): array
@@ -139,7 +138,7 @@ function erk_fp_rechnen(array $auftraege, callable $fertig): void
                 $fertig($schluessel, null, t('Datei nicht lesbar'));
                 continue;
             }
-            $proc = proc_open(erk_befehl($pfad), [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            $proc = proc_open(erk_befehl($pfad), [0 => ['file', aw_null(), 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             if (!is_resource($proc)) {
                 $fertig($schluessel, null, t('Fingerabdruck konnte nicht gestartet werden'));
                 continue;

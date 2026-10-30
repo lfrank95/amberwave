@@ -80,9 +80,9 @@ function auftrag_anstossen(string $typ): bool
     if (function_exists('scan_laufend') && scan_laufend()) {
         return false; // während des Einlesens ändern sich die Editionen noch – danach geht es von selbst weiter
     }
-    $skript = realpath(__DIR__ . '/../scripts/auftrag.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' ' . escapeshellarg($typ) . ' > /dev/null 2>&1 &');
+    $skript = aw_realpath(__DIR__ . '/../scripts/auftrag.php');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript) . ' ' . aw_arg($typ));
     return true;
 }
 

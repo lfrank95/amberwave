@@ -35,8 +35,8 @@ try {
     $stunde = (int) einstellung('sicherung_stunde');
     if ($stunde >= 0 && (int) date('G') >= $stunde && einstellung('zeitplan_sicherung_lauf') !== date('Y-m-d')) {
         einstellung_setzen('zeitplan_sicherung_lauf', date('Y-m-d'));
-        $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-        exec(escapeshellarg($php) . ' ' . escapeshellarg(__DIR__ . '/sicherung.php') . ' >> ' . escapeshellarg(konfig()['pfade']['cache'] . '/tmp/sicherung.log') . ' 2>&1 &');
+        $php = aw_php();
+        aw_hintergrund(aw_arg($php) . ' ' . aw_arg(__DIR__ . '/sicherung.php'), konfig()['pfade']['cache'] . '/tmp/sicherung.log', true);
     }
 } catch (Throwable $e) {
     echo date('c') . ' Datensicherung: ' . log_sauber($e->getMessage()) . "\n";

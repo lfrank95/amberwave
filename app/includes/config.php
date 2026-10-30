@@ -2,6 +2,7 @@
 // Zentrale Konfiguration – liest ausschließlich aus Umgebungsvariablen (.env).
 // Hier liegen NIE Zugangsdaten im Klartext; die Werte unten sind nur Standardwerte.
 declare(strict_types=1);
+require_once __DIR__ . '/plattform.php';
 
 /** Ersatz-Schlüssel (64 Hex) aus dem Cache-Ordner; wird einmal erzeugt und bleibt, solange der Cache bleibt */
 if (!function_exists('konfig_notschluessel')) {
@@ -108,11 +109,11 @@ if (!function_exists('konfig')) {
             'server_name' => trim($env('CLIENT_SERVERNAME', (string) ($serverAngaben['servername'] ?? ''))),
             'app_secret_key' => $env('APP_SECRET_KEY'),
             'pfade' => [
-                'musik' => rtrim($env('PFAD_MUSIK', '/musik'), '/'),
-                'cache' => rtrim($env('PFAD_CACHE', '/cache'), '/'),
-                'backups' => rtrim($env('PFAD_BACKUPS', '/backups'), '/'),
+                'musik' => rtrim(aw_pfad($env('PFAD_MUSIK', '/musik')), '/'),
+                'cache' => rtrim(aw_pfad($env('PFAD_CACHE', '/cache')), '/'),
+                'backups' => rtrim(aw_pfad($env('PFAD_BACKUPS', '/backups')), '/'),
                 // Fertige Downloads von SABnzbd (Kategorie-Ordner, im Container eingebunden – siehe DOWNLOAD_PFAD)
-                'downloads' => rtrim($env('PFAD_DOWNLOADS', '/downloads'), '/'),
+                'downloads' => rtrim(aw_pfad($env('PFAD_DOWNLOADS', '/downloads')), '/'),
             ],
             'scan' => [
                 'dateitypen' => array_map('strtolower', $liste('SCAN_DATEITYPEN', 'flac,mp3,m4a,m4b,mp4,aac,ogg,oga,opus,wav,aif,aiff,wv,ape,alac,dsf,dff,wma,mka,mpc')),
@@ -293,7 +294,7 @@ if (!function_exists('konfig')) {
             ],
             'klang' => [
                 // Klanganalyse (akustische Ähnlichkeit). Eingebaut: Python 3 + numpy aus dem Image.
-                'python' => $env('KLANG_PYTHON', 'python3'),
+                'python' => $env('KLANG_PYTHON', aw_windows() ? 'python' : 'python3'),
                 // Erweitertes Modell – wird NICHT mitgeliefert; der Admin installiert es per Knopf direkt beim Hersteller (MTG).
                 'pip_paket' => $env('KLANG_PIP_PAKET', 'essentia-tensorflow'),
                 'modell_url' => $env('KLANG_MODELL_URL', 'https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bs64-1.pb'),

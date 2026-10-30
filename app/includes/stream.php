@@ -43,7 +43,7 @@ function dateien_spalten_leicht(): string
 function stream_datei(int $trackId, bool $voll = false): array
 {
     $wurzel = konfig()['pfade']['musik'];
-    $wurzelEcht = realpath($wurzel) ?: $wurzel;
+    $wurzelEcht = aw_realpath($wurzel) ?: $wurzel;
     $echt = false;
     $d = null;
     // Wird die Datei gerade vom Aufräumen verschoben, liegt der neue Pfad erst Millisekunden später in der Datenbank:
@@ -53,7 +53,7 @@ function stream_datei(int $trackId, bool $voll = false): array
         if (!$d) {
             throw new ApiFehler(t('Für diesen Titel liegt keine Datei vor.'), 404);
         }
-        $echt = realpath($wurzel . '/' . $d['pfad']);
+        $echt = aw_realpath($wurzel . '/' . $d['pfad']);
         if ($echt === false) {
             // Im Aufräum-Protokoll dem Weg der Datei folgen (auch über mehrere Umzüge) und den Fund gleich in der
             // Datenbank nachtragen – dann stimmt der Ort wieder, ohne auf das nächste Einlesen zu warten
@@ -64,7 +64,7 @@ function stream_datei(int $trackId, bool $voll = false): array
                     break;
                 }
                 $pfad = $neu;
-                $kandidat = realpath($wurzel . '/' . $pfad);
+                $kandidat = aw_realpath($wurzel . '/' . $pfad);
                 if ($kandidat !== false && is_file($kandidat) && str_starts_with($kandidat, $wurzelEcht . '/')) {
                     $echt = $kandidat;
                     try {
@@ -231,15 +231,15 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
         throw new ApiFehler(t('Der Server wandelt gerade zu viele Titel gleichzeitig um. Bitte gleich noch einmal versuchen.'), 503);
     }
     $ffmpeg = konfig()['stream']['ffmpeg'];
-    $teile = [escapeshellarg($ffmpeg), '-v error -nostdin'];
+    $teile = [aw_arg($ffmpeg), '-v error -nostdin'];
     if ($start > 0) {
         $teile[] = '-ss ' . number_format($start, 3, '.', '');
     }
-    $teile[] = '-i ' . escapeshellarg($pfad);
+    $teile[] = '-i ' . aw_arg($pfad);
     $teile[] = '-map 0:a:0 -vn -sn -dn -map_metadata -1 -ac 2';
     if ($gain !== null) {
         // Lautheitsangleich (EBU R128) vor dem Kodieren – Opus/AAC rechnen intern mit Fließkomma, nichts wird abgeschnitten
-        $teile[] = '-af ' . escapeshellarg(lh_gain_filter($gain));
+        $teile[] = '-af ' . aw_arg(lh_gain_filter($gain));
     }
     if ($ziel['codec'] === 'opus') {
         $teile[] = '-ar 48000 -c:a libopus -b:a ' . (int) $ziel['kbit'] . 'k -vbr on -compression_level 5 -application audio -f ogg';
@@ -320,7 +320,7 @@ function stream_genaue_laenge(string $pfad, array $d): array
             // weiter mit ffprobe
         }
     }
-    $cmd = escapeshellarg(konfig()['stream']['ffprobe']) . ' -v error -select_streams a:0 -show_entries stream=sample_rate,duration_ts,time_base,duration -of json ' . escapeshellarg($pfad);
+    $cmd = aw_arg(konfig()['stream']['ffprobe']) . ' -v error -select_streams a:0 -show_entries stream=sample_rate,duration_ts,time_base,duration -of json ' . aw_arg($pfad);
     $j = json_decode((string) shell_exec($cmd), true);
     $s = $j['streams'][0] ?? [];
     $rate = (int) ($s['sample_rate'] ?? 0);
@@ -402,13 +402,13 @@ function flac_strom_senden(string $pfad, array $d, float $start): void
         datei_mit_range_senden($pfad, 'audio/flac');
         return;
     }
-    $ffmpeg = escapeshellarg(konfig()['stream']['ffmpeg']);
+    $ffmpeg = aw_arg(konfig()['stream']['ffmpeg']);
     $hohe_rate = in_array($d['format'], ['dsf', 'dff'], true);
     $teile = [$ffmpeg, '-v error -nostdin'];
     if ($start > 0) {
         $teile[] = '-ss ' . number_format($start, 3, '.', '');
     }
-    $teile[] = '-i ' . escapeshellarg($pfad);
+    $teile[] = '-i ' . aw_arg($pfad);
     $teile[] = '-map 0:a:0 -vn -sn -dn -map_metadata -1';
     $teile[] = ($hohe_rate ? '-ar 88200 ' : '') . '-c:a flac -compression_level 1' . ((int) $d['bittiefe'] > 16 || $hohe_rate ? ' -sample_fmt s32' : '');
     $teile[] = '-f flac pipe:1';
@@ -424,13 +424,13 @@ function flac_strom_senden(string $pfad, array $d, float $start): void
 function lueckenlos_titel_senden(string $pfad, array $d, float $start): void
 {
     $laenge = stream_genaue_laenge($pfad, $d);
-    $ffmpeg = escapeshellarg(konfig()['stream']['ffmpeg']);
+    $ffmpeg = aw_arg(konfig()['stream']['ffmpeg']);
     $kopieren = $d['format'] === 'flac' && $start <= 0;
     $teile = [$ffmpeg, '-v error -nostdin'];
     if ($start > 0) {
         $teile[] = '-ss ' . number_format($start, 3, '.', '');
     }
-    $teile[] = '-i ' . escapeshellarg($pfad);
+    $teile[] = '-i ' . aw_arg($pfad);
     $teile[] = '-map 0:a:0 -vn -sn -dn -map_metadata -1';
     if ($kopieren) {
         $teile[] = '-c:a copy';
@@ -476,7 +476,7 @@ function lueckenlos_kette_senden(array $user, string $ids_text, string $q, float
         [$pfad, $d] = stream_datei($id);
         $l = stream_genaue_laenge($pfad, $d);
         $dauern[] = number_format($l['samples'] / max(1, $l['rate']), 6, '.', '');
-        $eingaben[] = '-threads 1 ' . ($i === 0 && $start > 0 ? '-ss ' . number_format($start, 3, '.', '') . ' ' : '') . '-i ' . escapeshellarg($pfad);
+        $eingaben[] = '-threads 1 ' . ($i === 0 && $start > 0 ? '-ss ' . number_format($start, 3, '.', '') . ' ' : '') . '-i ' . aw_arg($pfad);
     }
     // Lautheitsangleich je Titel (dB, gleiche Reihenfolge wie ids) – wechselt sample-genau an der Titelgrenze
     $gains = $gains_text !== '' ? explode(',', $gains_text) : [];
@@ -487,8 +487,8 @@ function lueckenlos_kette_senden(array $user, string $ids_text, string $q, float
     }
     $filter .= implode('', array_map(static fn($i) => "[e{$i}]", array_keys($ids))) . 'concat=n=' . count($ids) . ':v=0:a=1[aus]';
     $kbit = (int) STREAM_QUALITAETEN[$q]['kbit'];
-    $cmd = escapeshellarg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -filter_complex_threads 1 ' . implode(' ', $eingaben)
-        . ' -filter_complex ' . escapeshellarg($filter) . ' -map [aus] -c:a libopus -b:a ' . $kbit . 'k -vbr on -compression_level 5 -application audio'
+    $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -filter_complex_threads 1 ' . implode(' ', $eingaben)
+        . ' -filter_complex ' . aw_arg($filter) . ' -map [aus] -c:a libopus -b:a ' . $kbit . 'k -vbr on -compression_level 5 -application audio'
         . ' -f webm -cluster_time_limit 2000 pipe:1';
     ffmpeg_durchreichen($cmd, 'audio/webm', ['X-Dauern' => implode(',', $dauern), 'Access-Control-Expose-Headers' => 'X-Dauern']);
 }

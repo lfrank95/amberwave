@@ -219,15 +219,15 @@ function af_anstossen(): void
         af_log('Anstoß übersprungen: Aufräumer läuft bereits (Sperre belegt)');
         return;
     }
-    $skript = realpath(__DIR__ . '/../scripts/aufraeumen.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
+    $skript = aw_realpath(__DIR__ . '/../scripts/aufraeumen.php');
+    $php = aw_php();
     $execAn = function_exists('exec') && !in_array('exec', array_map('trim', explode(',', (string) ini_get('disable_functions'))), true);
     af_log('Anstoß: starte Hintergrund-Aufräumer', ['exec_verfügbar' => $execAn, 'php' => $php, 'skript' => $skript]);
     if (!$execAn) {
         af_log('FEHLER: exec() ist deaktiviert – der Hintergrund-Aufräumer kann nicht gestartet werden');
         return;
     }
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' > ' . escapeshellarg(konfig()['pfade']['cache'] . '/tmp/aufraeumen-worker.log') . ' 2>&1 &');
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript), konfig()['pfade']['cache'] . '/tmp/aufraeumen-worker.log');
 }
 
 /** Ein Pfadbestandteil, der auf Linux, Windows (SMB) und macOS gültig ist */

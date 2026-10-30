@@ -100,9 +100,9 @@ function srt_anstossen(): void
     if (!in_array($p, ['analyse', 'ausfuehren', 'warten_scan', 'verknuepfen'], true) || srt_laeuft()) {
         return;
     }
-    $skript = realpath(__DIR__ . '/../scripts/sortieren.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' > /dev/null 2>&1 &');
+    $skript = aw_realpath(__DIR__ . '/../scripts/sortieren.php');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript));
 }
 
 /** Ein Lauf (vom Skript aufgerufen, höchstens $sekunden): die aktuelle Phase so weit wie möglich voranbringen */

@@ -36,7 +36,7 @@ function kl_ordner(string $teil = ''): string
 
 function kl_skript(): string
 {
-    return (string) realpath(__DIR__ . '/../klang/klang.py');
+    return (string) aw_realpath(__DIR__ . '/../klang/klang.py');
 }
 
 /** Ist das erweiterte Modell installiert und eingeschaltet? */
@@ -58,7 +58,7 @@ function kl_verfahren(): string
 
 function kl_python(string $verfahren): string
 {
-    return $verfahren === 'modell' ? kl_ordner('venv/bin/python') : (string) konfig()['klang']['python'];
+    return $verfahren === 'modell' ? kl_ordner(aw_windows() ? 'venv/Scripts/python.exe' : 'venv/bin/python') : (string) konfig()['klang']['python'];
 }
 
 /** Kann das eingebaute Verfahren laufen (Python + numpy)? Ergebnis 10 Minuten gemerkt. */
@@ -71,7 +71,7 @@ function kl_bereit(): bool
     $datei = konfig()['pfade']['cache'] . '/tmp/klang_pruefung.json';
     $j = is_file($datei) && filemtime($datei) > time() - 600 ? json_decode((string) file_get_contents($datei), true) : null;
     if (!is_array($j)) {
-        $aus = @shell_exec(escapeshellarg(kl_python('einfach2')) . ' ' . escapeshellarg(kl_skript()) . ' pruefen 2>/dev/null');
+        $aus = @shell_exec(aw_arg(kl_python('einfach2')) . ' ' . aw_arg(kl_skript()) . ' pruefen' . aw_ohne_fehler());
         $j = json_decode((string) $aus, true);
         $j = is_array($j) ? $j : ['numpy' => false];
         @file_put_contents($datei, json_encode($j));
@@ -138,8 +138,8 @@ function kl_anstossen(): bool
     if (!kl_etwas_offen() && !kl_index_veraltet()) {
         return false;
     }
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) realpath(__DIR__ . '/../scripts/klang.php')) . ' > /dev/null 2>&1 &');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) aw_realpath(__DIR__ . '/../scripts/klang.php')));
     return true;
 }
 
@@ -162,11 +162,10 @@ function kl_stapel(int $sekunden = 50): int
     }
     $datei = konfig()['pfade']['cache'] . '/tmp/klang_liste_' . getmypid() . '.json';
     file_put_contents($datei, json_encode($liste));
-    $befehl = escapeshellarg(kl_python($verfahren)) . ' ' . escapeshellarg(kl_skript()) . ' analyse --verfahren ' . $verfahren
-        . ' --liste ' . escapeshellarg($datei) . ' --budget ' . max(5, $sekunden)
-        . ($verfahren === 'modell' ? ' --modell ' . escapeshellarg(kl_ordner('modell')) : '');
-    $env = 'FFMPEG=' . escapeshellarg((string) konfig()['stream']['ffmpeg']) . ' OMP_NUM_THREADS=2 TF_CPP_MIN_LOG_LEVEL=3 ';
-    $aus = (string) @shell_exec($env . $befehl . ' 2>/dev/null');
+    $befehl = aw_arg(kl_python($verfahren)) . ' ' . aw_arg(kl_skript()) . ' analyse --verfahren ' . $verfahren
+        . ' --liste ' . aw_arg($datei) . ' --budget ' . max(5, $sekunden)
+        . ($verfahren === 'modell' ? ' --modell ' . aw_arg(kl_ordner('modell')) : '');
+    $aus = (string) @shell_exec(aw_mit_umgebung(['FFMPEG' => (string) konfig()['stream']['ffmpeg'], 'OMP_NUM_THREADS' => 2, 'TF_CPP_MIN_LOG_LEVEL' => 3], $befehl) . aw_ohne_fehler());
     @unlink($datei);
     $tracks = array_column($liste, 'track', 'id');
     $n = 0;
@@ -220,9 +219,9 @@ function kl_index_bauen(): int
     $f = fopen($basis . '.ein', 'wb');
     foreach ($zeilen as $z) fwrite($f, (string) $z['vektor']);
     fclose($f);
-    $befehl = escapeshellarg(kl_python($verfahren)) . ' ' . escapeshellarg(kl_skript()) . " index --verfahren {$verfahren} --ein " . escapeshellarg($basis . '.ein')
-        . " --anzahl {$n} --dim {$dim} --k " . KLANG_K . ' --aus ' . escapeshellarg($basis . '.aus');
-    $r = json_decode((string) @shell_exec('OMP_NUM_THREADS=2 ' . $befehl . ' 2>/dev/null'), true);
+    $befehl = aw_arg(kl_python($verfahren)) . ' ' . aw_arg(kl_skript()) . " index --verfahren {$verfahren} --ein " . aw_arg($basis . '.ein')
+        . " --anzahl {$n} --dim {$dim} --k " . KLANG_K . ' --aus ' . aw_arg($basis . '.aus');
+    $r = json_decode((string) @shell_exec(aw_mit_umgebung(['OMP_NUM_THREADS' => 2], $befehl) . aw_ohne_fehler()), true);
     @unlink($basis . '.ein');
     if (empty($r['ok']) || !is_file($basis . '.aus')) {
         @unlink($basis . '.aus');
@@ -375,8 +374,8 @@ function kl_installation_starten(array $admin): void
     @mkdir(kl_ordner(), 0775, true);
     einstellung_setzen('klang_lizenz', json_encode(['bestaetigt_am' => date('c'), 'von' => (int) $admin['id'], 'lizenz' => konfig()['klang']['lizenz_url']]));
     file_put_contents(kl_ordner('installation.json'), json_encode(['status' => 'laeuft', 'schritt' => t('startet …'), 'gestartet' => date('c'), 'log' => '']));
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) realpath(__DIR__ . '/../scripts/klang_installieren.php')) . ' > /dev/null 2>&1 &');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) aw_realpath(__DIR__ . '/../scripts/klang_installieren.php')));
 }
 
 function kl_modell_entfernen(): void
@@ -385,7 +384,8 @@ function kl_modell_entfernen(): void
         throw new ApiFehler(t('Bitte warten, bis die Installation fertig ist.'), 409);
     }
     einstellung_setzen('klang_modell', '0');
-    exec('rm -rf ' . escapeshellarg(kl_ordner('venv')) . ' ' . escapeshellarg(kl_ordner('modell')));
+    aw_ordner_loeschen(kl_ordner('venv'));
+    aw_ordner_loeschen(kl_ordner('modell'));
     @unlink(kl_ordner('installation.json'));
     einstellung_setzen('klang_meldung', '');
 }

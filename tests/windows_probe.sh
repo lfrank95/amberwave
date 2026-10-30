@@ -35,11 +35,16 @@ b "Einrichtungsseite: $([ -n "$CSRF" ] && echo ok || echo "FEHLER: $(printf '%s'
 b "Code nötig: $(printf '%s' "$SEITE" | sed -n 's/.*data-code="\([01]\)".*/\1/p' | head -n1)"
 schritt() { curl -s -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:8095/einrichtung.php?schritt=$1" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" \
   -d '{"vorname":"Probe","nachname":"Admin","benutzername":"probe","email":"probe@example.org","passwort":"Probe-Passwort-2026","passwort2":"Probe-Passwort-2026","servername":"Win","sprache":"de","land":"DE","zeitzone":"Europe/Berlin","waehrung":"EUR","zeitformat":"auto","datumsformat":"auto","einheiten":"auto","musik_schreiben":"1"}'; }
-A="$(schritt system)"; b "Systemprüfung: $(echo "$A" | head -c 1500)"
+A="$(schritt system)"; b "Werkzeuge laut Systemprüfung: $(echo "$A" | php -r '$d=json_decode(stream_get_contents(STDIN),true); foreach($d["werkzeuge"]??[] as $w) echo $w["name"],"=",$w["ok"]?"ok":"FEHLT","; ";')"
 for s in pruefen db tabellen admin abschluss; do A="$(schritt $s)"; echo "$A" | grep -q '"ok":true' && b "Schritt $s: ok" || b "FEHLER Schritt $s: $(echo "$A" | head -c 400)"; done
 
+b "== Scan (im Hintergrund gestartet, wie nach der Einrichtung)"
+A="$(schritt scan_start)"; b "scan_start: $(echo "$A" | head -c 200)"
+for i in $(seq 1 40); do A="$(schritt scan_status)"; echo "$A" | grep -q '"laeuft":false\|"status":"fertig"' && break; sleep 3; done
+b "scan_status: $(echo "$A" | head -c 400)"
+b "Scan-Fehler: $(php -r 'require "app/includes/db.php"; foreach (db_alle("SELECT * FROM scan_fehler ORDER BY id DESC LIMIT 5") as $z) echo json_encode($z, JSON_UNESCAPED_UNICODE), " | ";' 2>&1 | head -c 1200)"
 b "== Scan (CLI)"
-T0=$(date +%s); php -d error_log="$W\\php-cli.log" -d log_errors=1 app/scripts/scan.php neu > "$WU/scan.out" 2>&1; b "scan.php rc=$? in $(( $(date +%s) - T0 )) s: $(tail -c 600 "$WU/scan.out")"
+T0=$(date +%s); php -d error_log="$W\\php-cli.log" -d log_errors=1 app/scripts/scan.php voll > "$WU/scan.out" 2>&1; b "scan.php rc=$? in $(( $(date +%s) - T0 )) s: $(tail -c 600 "$WU/scan.out")"
 b "Titel in der DB: $(php -r 'require "app/includes/db.php"; echo db_wert("SELECT COUNT(*) FROM tracks");' 2>&1 | head -c 300)"
 b "Titelpfade: $(php -r 'require "app/includes/db.php"; foreach (db_alle("SELECT pfad FROM dateien LIMIT 5") as $z) echo $z["pfad"], " | ";' 2>&1 | head -c 800)"
 

@@ -25,7 +25,7 @@ function datei_lesen(string $pfad): array
 
 function ffprobe_lesen(string $pfad): array
 {
-    $cmd = escapeshellarg(konfig()['stream']['ffprobe']) . ' -v error -print_format json -show_format -show_streams ' . escapeshellarg($pfad) . ' 2>/dev/null';
+    $cmd = aw_arg(konfig()['stream']['ffprobe']) . ' -v error -print_format json -show_format -show_streams ' . aw_arg($pfad) . aw_ohne_fehler();
     $json = shell_exec($cmd);
     $d = is_string($json) ? json_decode($json, true) : null;
     if (!is_array($d) || empty($d['streams'])) {
@@ -117,7 +117,7 @@ function eingebettetes_bild(string $pfad): ?array
         } catch (Throwable $e) {
         }
     }
-    $cmd = escapeshellarg(konfig()['stream']['ffmpeg']) . ' -v error -i ' . escapeshellarg($pfad) . ' -an -map 0:v:0 -frames:v 1 -c:v copy -f image2pipe pipe:1 2>/dev/null';
+    $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -i ' . aw_arg($pfad) . ' -an -map 0:v:0 -frames:v 1 -c:v copy -f image2pipe pipe:1' . aw_ohne_fehler();
     $daten = shell_exec($cmd);
     if (!is_string($daten) || strlen($daten) < 100) {
         return null;

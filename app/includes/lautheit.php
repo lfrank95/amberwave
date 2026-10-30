@@ -210,9 +210,9 @@ function lh_kurve_entpacken(?string $s): ?array
 
 function lh_befehl(string $pfad): string
 {
-    $ffmpeg = escapeshellarg(konfig()['stream']['ffmpeg']);
+    $ffmpeg = aw_arg(konfig()['stream']['ffmpeg']);
     $nice = is_executable('/usr/bin/nice') ? '/usr/bin/nice -n 15 ' : '';
-    return $nice . $ffmpeg . ' -nostdin -hide_banner -nostats -threads 1 -i ' . escapeshellarg($pfad)
+    return $nice . $ffmpeg . ' -nostdin -hide_banner -nostats -threads 1 -i ' . aw_arg($pfad)
         . ' -map 0:a:0 -vn -sn -dn -af ebur128=framelog=info:peak=true+sample -f null - 2>&1';
 }
 
@@ -310,7 +310,7 @@ function lh_stapel(int $sekunden = 50): int
                 lh_speichern((int) $d['id'], ['zeilen' => 0], t('Datei nicht lesbar'));
                 continue;
             }
-            $proc = proc_open(lh_befehl($pfad), [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w']], $pipes);
+            $proc = proc_open(lh_befehl($pfad), [0 => ['file', aw_null(), 'r'], 1 => ['pipe', 'w']], $pipes);
             if (!is_resource($proc)) {
                 lh_speichern((int) $d['id'], ['zeilen' => 0], t('ffmpeg konnte nicht gestartet werden'));
                 continue;

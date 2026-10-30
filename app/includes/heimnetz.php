@@ -1013,7 +1013,7 @@ function hn_stream_token_pruefen(string $t): ?array
 
 function hn_render_pfad(): ?string
 {
-    $p = hn_konfig()['render'] ?: realpath(__DIR__ . '/../bin/aw-render');
+    $p = hn_konfig()['render'] ?: aw_realpath(__DIR__ . '/../bin/aw-render');
     if (!$p || !is_file($p)) {
         return null;
     }
@@ -1137,13 +1137,13 @@ function hn_render_senden(string $pfad, array $datei, array $d): void
     $fmt = $bits === 16 ? 's16le' : 's24le';
     if ($render && $kette && !$spaceFehlt) {
         $gain = (float) ($d['g'] ?? 0);
-        $cmd = escapeshellarg($ff) . " -v error -nostdin{$bezugSs} -i " . escapeshellarg($pfad) . " -map 0:a:0 -f f32le -ac {$kanEin} -ar {$rate} -af aresample=resampler=soxr - | "
-            . escapeshellarg($render) . " {$rate} {$kanEin} {$bits} " . escapeshellarg($kette) . ' ' . number_format($gain, 2, '.', '') . ' 2>/dev/null';
+        $cmd = aw_arg($ff) . " -v error -nostdin{$bezugSs} -i " . aw_arg($pfad) . " -map 0:a:0 -f f32le -ac {$kanEin} -ar {$rate} -af aresample=resampler=soxr - | "
+            . aw_arg($render) . " {$rate} {$kanEin} {$bits} " . aw_arg($kette) . ' ' . number_format($gain, 2, '.', '') . aw_ohne_fehler();
     } else {
         // nur Format (Rate/Bits/Kanäle) – z. B. Fernseher bis 48 kHz
         $pan = $kanAus > 2 ? ',pan=' . ($kanAus === 6 ? '5.1|FL=FL|FR=FR' : 'quad|FL=FL|FR=FR') : '';
         $filter = 'aresample=resampler=soxr' . ($bits === 16 ? ':dither_method=triangular' : '') . $pan;
-        $cmd = escapeshellarg($ff) . " -v error -nostdin{$bezugSs} -i " . escapeshellarg($pfad) . " -map 0:a:0 -f {$fmt} -ac {$kanAus} -ar {$rate} -af " . escapeshellarg($filter) . ' -';
+        $cmd = aw_arg($ff) . " -v error -nostdin{$bezugSs} -i " . aw_arg($pfad) . " -map 0:a:0 -f {$fmt} -ac {$kanAus} -ar {$rate} -af " . aw_arg($filter) . ' -';
     }
     $p = popen($cmd, 'r');
     if (!$p) {
@@ -1414,9 +1414,9 @@ function hn_agent_anstossen(): void
         return;
     }
     @mkdir(dirname(hn_agent_sperre()), 0775, true);
-    $skript = realpath(__DIR__ . '/../scripts/heimnetz_agent.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' > /dev/null 2>&1 &');
+    $skript = aw_realpath(__DIR__ . '/../scripts/heimnetz_agent.php');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript));
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */

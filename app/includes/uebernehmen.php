@@ -25,9 +25,9 @@ const UE_ZU_FLAC = ['wav', 'aif', 'aiff', 'wv', 'ape'];
  */
 function ue_zu_flac(string $von, string $ziel, bool $tagsMitnehmen = false): void
 {
-    $ff = escapeshellarg(konfig()['stream']['ffmpeg']);
+    $ff = aw_arg(konfig()['stream']['ffmpeg']);
     // Tags (RIFF-INFO, ID3 in WAV/AIFF) auf Wunsch als Vorbis-Kommentare mitnehmen, sonst leer (werden danach neu geschrieben)
-    $cmd = $ff . ' -nostdin -v error -y -i ' . escapeshellarg($von) . ' -map 0:a:0 -map_metadata ' . ($tagsMitnehmen ? '0' : '-1') . ' -c:a flac -compression_level 8 ' . escapeshellarg($ziel) . ' 2>&1';
+    $cmd = $ff . ' -nostdin -v error -y -i ' . aw_arg($von) . ' -map 0:a:0 -map_metadata ' . ($tagsMitnehmen ? '0' : '-1') . ' -c:a flac -compression_level 8 ' . aw_arg($ziel) . ' 2>&1';
     exec($cmd, $aus, $rc);
     if ($rc !== 0 || !is_file($ziel) || filesize($ziel) < 1000) {
         @unlink($ziel);
@@ -35,7 +35,7 @@ function ue_zu_flac(string $von, string $ziel, bool $tagsMitnehmen = false): voi
     }
     $md5 = static function (string $datei) use ($ff): string {
         $o = [];
-        exec($ff . ' -nostdin -v error -i ' . escapeshellarg($datei) . ' -map 0:a:0 -c:a pcm_s32le -f md5 - 2>/dev/null', $o);
+        exec($ff . ' -nostdin -v error -i ' . aw_arg($datei) . ' -map 0:a:0 -c:a pcm_s32le -f md5 -' . aw_ohne_fehler(), $o);
         return trim(implode('', $o));
     };
     $a = $md5($von);

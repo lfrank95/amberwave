@@ -27,12 +27,12 @@ function musik_pfad_drin(string $pfad): bool
     if ($wurzel === '') {
         return false;
     }
-    $w = realpath($wurzel) ?: $wurzel;
+    $w = aw_realpath($wurzel) ?: $wurzel;
     $p = $pfad;
     while ($p !== '' && $p !== '/' && $p !== '.' && !file_exists($p)) {
         $p = dirname($p);
     }
-    $echt = ($p !== '' && file_exists($p) ? realpath($p) : false) ?: $pfad;
+    $echt = ($p !== '' && file_exists($p) ? aw_realpath($p) : false) ?: $pfad;
     return $echt === $w || str_starts_with($echt . '/', $w . '/') || $pfad === $wurzel || str_starts_with($pfad, $wurzel . '/');
 }
 

@@ -1335,8 +1335,8 @@ function dl_quelle_finden(array $d): ?string
         return null;
     }
     $p = $wurzel . '/' . $name;
-    $echt = realpath($p);
-    $w = realpath($wurzel);
+    $echt = aw_realpath($p);
+    $w = aw_realpath($wurzel);
     if ($echt === false || $w === false || !str_starts_with($echt, $w . '/')) {
         return null;
     }
@@ -1461,8 +1461,8 @@ function dl_original_entfernen(string $abs, ?string $wurzel = null): string
     if (download_ordner_konflikt() !== null || dl_pfad_im_musikordner($wurzel ?? dl_konfig()['wurzel'])) {
         return 'fehler'; // Download- und Musikordner überschneiden sich: nie etwas löschen
     }
-    $w = realpath($wurzel ?? dl_konfig()['wurzel']);
-    $echt = realpath($abs);
+    $w = aw_realpath($wurzel ?? dl_konfig()['wurzel']);
+    $echt = aw_realpath($abs);
     if ($w === false || $echt === false || $echt === $w || !str_starts_with($echt, $w . '/')) {
         return 'fehler';
     }
@@ -1479,8 +1479,8 @@ function dl_original_entfernen(string $abs, ?string $wurzel = null): string
 /** Liegt dieser Ordner im Musikordner (oder ist er es)? Dann wird dort nie etwas gelöscht. */
 function dl_pfad_im_musikordner(string $pfad): bool
 {
-    $p = realpath($pfad);
-    $m = realpath((string) konfig()['pfade']['musik']);
+    $p = aw_realpath($pfad);
+    $m = aw_realpath((string) konfig()['pfade']['musik']);
     return $p !== false && $m !== false && ($p === $m || str_starts_with($p . '/', $m . '/'));
 }
 
@@ -1537,8 +1537,8 @@ function dl_originale_aufraeumen(int $max = 10): int
 /** Quelle nach erfolgreichem Kopieren löschen (nur innerhalb des Import-Ordners des Clients bzw. des Download-Ordners) */
 function dl_ordner_loeschen(string $abs, ?string $wurzel = null): void
 {
-    $w = realpath($wurzel ?? dl_konfig()['wurzel']);
-    $echt = realpath($abs);
+    $w = aw_realpath($wurzel ?? dl_konfig()['wurzel']);
+    $echt = aw_realpath($abs);
     if ($w === false || $echt === false || !str_starts_with($echt, $w . '/')) {
         return;
     }
@@ -1634,8 +1634,8 @@ function dl_import_anstossen(): void
     if (!db_wert("SELECT COUNT(*) FROM downloads WHERE status = 'fertig'")) {
         return;
     }
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) realpath(__DIR__ . '/../scripts/downloads.php')) . ' > /dev/null 2>&1 &');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) aw_realpath(__DIR__ . '/../scripts/downloads.php')));
 }
 
 /** Für die Oberfläche: Einrichtung, Ordner, Aufträge */

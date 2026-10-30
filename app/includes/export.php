@@ -86,9 +86,9 @@ function export_anstossen(): void
     if (export_laeuft()) {
         return;
     }
-    $skript = realpath(__DIR__ . '/../scripts/export.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' > /dev/null 2>&1 &');
+    $skript = aw_realpath(__DIR__ . '/../scripts/export.php');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript));
 }
 
 function export_sperre_pfad(): string
@@ -183,7 +183,7 @@ function export_abgebrochen(int $id): bool
 /** Stille am Anfang/Ende eines Titels messen: [Anfang in s, Ende in s] (Ende = Länge, wenn keine Stille am Schluss) */
 function export_stille(string $pfad, float $dauer): array
 {
-    $cmd = escapeshellarg(konfig()['stream']['ffmpeg']) . ' -nostdin -hide_banner -nostats -threads 1 -i ' . escapeshellarg($pfad)
+    $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -nostdin -hide_banner -nostats -threads 1 -i ' . aw_arg($pfad)
         . ' -map 0:a:0 -af silencedetect=n=' . EXPORT_STILLE_DB . 'dB:d=' . EXPORT_STILLE_MIN . ' -f null - 2>&1';
     $aus = (string) shell_exec($cmd);
     preg_match_all('/silence_start:\s*(-?[\d.]+)/', $aus, $starts);
@@ -256,7 +256,7 @@ function export_soxr(): bool
 {
     static $ok = null;
     if ($ok === null) {
-        exec(escapeshellarg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -f lavfi -i anullsrc=d=0.01 -af aresample=resampler=soxr -f null - 2>/dev/null', $x, $rc);
+        exec(aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -f lavfi -i anullsrc=d=0.01 -af aresample=resampler=soxr -f null -' . aw_ohne_fehler(), $x, $rc);
         $ok = $rc === 0;
     }
     return $ok;
@@ -480,10 +480,10 @@ function export_ffmpeg(int $id, array $eingaben, string $graph, string $ausgabe,
     $graphDatei = $ziel . '.filter';
     file_put_contents($graphDatei, $graph); // lange Filtergraphen nicht über die Kommandozeile
     $nice = is_executable('/usr/bin/nice') ? '/usr/bin/nice -n 10 ' : '';
-    $cmd = $nice . escapeshellarg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -y -filter_complex_threads 1 ' . implode(' ', $eingaben)
-        . ' -filter_complex_script ' . escapeshellarg($graphDatei) . ' -map [aus] ' . $ausgabe
-        . ' -map_metadata -1 -flags +bitexact -fflags +bitexact -f wav -progress pipe:1 -nostats ' . escapeshellarg($tmp);
-    $proc = proc_open($cmd, [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $cmd = $nice . aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -y -filter_complex_threads 1 ' . implode(' ', $eingaben)
+        . ' -filter_complex_script ' . aw_arg($graphDatei) . ' -map [aus] ' . $ausgabe
+        . ' -map_metadata -1 -flags +bitexact -fflags +bitexact -f wav -progress pipe:1 -nostats ' . aw_arg($tmp);
+    $proc = proc_open($cmd, [0 => ['file', aw_null(), 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     if (!is_resource($proc)) {
         @unlink($graphDatei);
         throw new RuntimeException(t('ffmpeg konnte nicht gestartet werden.'));
@@ -559,7 +559,7 @@ function export_teil_rendern(int $id, array $titel, array $idx, array $gains, ar
         }
         // je Eingang nur ein Decoder-Thread: sonst startet ffmpeg pro Datei so viele Threads wie CPU-Kerne,
         // und bei vielen Titeln stößt der Container an seine Thread-/Prozessgrenze („Resource temporarily unavailable“)
-        $abschnitte[] = ['eingabe' => '-threads 1 -i ' . escapeshellarg($t['pfad']), 'kette' => $kette, 'uebergang' => $uebergang, 'dauer' => $d];
+        $abschnitte[] = ['eingabe' => '-threads 1 -i ' . aw_arg($t['pfad']), 'kette' => $kette, 'uebergang' => $uebergang, 'dauer' => $d];
         $starts[] = ['i' => $i, 'zeit' => $zeit];
         $zeit += $d;
     }
@@ -594,7 +594,7 @@ function export_teil_rendern(int $id, array $titel, array $idx, array $gains, ar
             $erledigt += $laenge;
         }
         // 2. Stapel zusammensetzen – mit denselben Übergängen wie zwischen den Titeln
-        $abschn = array_map(static fn($z) => ['eingabe' => '-threads 1 -i ' . escapeshellarg($z['datei']), 'kette' => '', 'uebergang' => $z['uebergang']], $zwischen);
+        $abschn = array_map(static fn($z) => ['eingabe' => '-threads 1 -i ' . aw_arg($z['datei']), 'kette' => '', 'uebergang' => $z['uebergang']], $zwischen);
         [$eingaben, $graph] = export_graph($abschn, $o, $s16);
         try {
             $ok = export_ffmpeg($id, $eingaben, $graph, $ausgabe16, $ziel, static fn($sek) => $melden(0.85 + 0.15 * $sek / max(1, $zeit)));

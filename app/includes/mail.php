@@ -223,14 +223,14 @@ function mail_worker_starten(): bool
 {
     static $geplant = false;
     if ($geplant) return true;
-    $skript = realpath(__DIR__ . '/../scripts/mail-versand.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
+    $skript = aw_realpath(__DIR__ . '/../scripts/mail-versand.php');
+    $php = aw_php();
     $verfuegbar = $skript !== false && function_exists('exec')
         && !in_array('exec', array_map('trim', explode(',', (string) ini_get('disable_functions'))), true);
     if (!$verfuegbar) return false;
     $geplant = true;
     register_shutdown_function(static function () use ($php, $skript): void {
-        @exec(escapeshellarg($php) . ' ' . escapeshellarg($skript) . ' > /dev/null 2>&1 &');
+        aw_hintergrund(aw_arg($php) . ' ' . aw_arg($skript));
     });
     return true;
 }

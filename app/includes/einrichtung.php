@@ -634,7 +634,7 @@ function einr_ordner_info(string $schluessel, string $name, string $pfad, string
     if (!$o['ok']) {
         $ziel = $hostPfad !== '' ? $hostPfad : $pfad;
         $o['fehler'] = !$o['lesen'] ? t('Amberwave darf den Ordner nicht lesen.') : t('Amberwave darf in den Ordner nicht schreiben.');
-        $o['befehl'] = 'chown -R ' . $uid . ':' . $gid . ' ' . escapeshellarg($ziel);
+        $o['befehl'] = 'chown -R ' . $uid . ':' . $gid . ' ' . aw_arg($ziel);
         if ($o['besitzer'] && $o['besitzer']['uid'] > 0 && ($o['besitzer']['uid'] !== $uid || $o['besitzer']['gid'] !== $gid)) {
             $o['falscher_benutzer'] = ['name' => $o['besitzer']['name'], 'uid' => $o['besitzer']['uid'], 'gid' => $o['besitzer']['gid']];
         }
@@ -647,7 +647,7 @@ function einr_werkzeug(string $befehl): ?string
     if (!function_exists('shell_exec')) {
         return null;
     }
-    $a = @shell_exec($befehl . ' 2>/dev/null');
+    $a = @shell_exec($befehl . aw_ohne_fehler());
     return is_string($a) && trim($a) !== '' ? trim($a) : null;
 }
 
@@ -735,7 +735,7 @@ function einrichtung_systempruefung(): array
         } elseif ($m['probe'] > $m['probe_lesbar']) {
             $m['ok'] = false;
             $m['fehler'] = t('Einige Dateien lassen sich nicht lesen ({gut} von {alle} in der Stichprobe).', ['gut' => $m['probe_lesbar'], 'alle' => $m['probe']]);
-            $m['befehl'] = 'chown -R ' . $uid . ':' . $gid . ' ' . escapeshellarg($m['host'] !== '' ? $m['host'] : $k['pfade']['musik']);
+            $m['befehl'] = 'chown -R ' . $uid . ':' . $gid . ' ' . aw_arg($m['host'] !== '' ? $m['host'] : $k['pfade']['musik']);
         }
     }
     $m['schreibbar_hinweis'] = $m['schreiben'];
@@ -758,8 +758,10 @@ function einrichtung_systempruefung(): array
         $ordner[] = einr_ordner_info('downloads', t('Downloads'), $d, $host('DOWNLOAD_PFAD'), true, true);
     }
     $z = einrichtung_zustand(true);
-    $ff = einr_werkzeug('ffmpeg -version | head -n1');
-    $pyv = einr_werkzeug('python3 -c "import sys,numpy;print(\'%d.%d|%s\'%(sys.version_info[0],sys.version_info[1],numpy.__version__))"');
+    // dieselben Programme, die Amberwave später wirklich aufruft (Pfade aus der Konfiguration, unter Windows „python“)
+    $ff = einr_werkzeug(aw_arg((string) konfig()['stream']['ffmpeg']) . ' -version');
+    $ff = $ff !== null ? strtok($ff, "\n") : null;
+    $pyv = einr_werkzeug(aw_arg((string) konfig()['klang']['python']) . ' -c "import sys,numpy;print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1])+chr(124)+numpy.__version__)"');
     $py = $pyv !== null && str_contains($pyv, '|') ? t('Python {py} mit numpy {np}', ['py' => explode('|', $pyv)[0], 'np' => explode('|', $pyv)[1]]) : null;
     $werkzeuge = [
         ['name' => t('Datenbank'), 'ok' => in_array($z['art'], ['leer', 'fertig'], true) || $z['art'] === 'db_fehlt', 'text' => $z['art'] === 'wartet' ? t('Die Datenbank startet noch – gleich nochmal prüfen') : t('MariaDB erreicht – wird gleich eingerichtet')],

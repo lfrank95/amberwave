@@ -948,9 +948,9 @@ function scan_starten(bool $voll, ?int $userId): int
     }
     db_tun("UPDATE scan_laeufe SET status = 'fehler', meldung = :m, beendet_am = NOW() WHERE status IN ('wartet','laeuft')", ['m' => t('Abgebrochen (kein Lebenszeichen mehr)')]);
     $id = db_einfuegen('INSERT INTO scan_laeufe (art, status, gestartet_von) VALUES (:a, \'wartet\', :u)', ['a' => $voll ? 'voll' : 'neu', 'u' => $userId]);
-    $skript = realpath(__DIR__ . '/../scripts/scan.php');
-    $php = is_executable(PHP_BINDIR . '/php') ? PHP_BINDIR . '/php' : 'php';
-    exec(escapeshellarg($php) . ' ' . escapeshellarg((string) $skript) . ' ' . (int) $id . ' > /dev/null 2>&1 &');
+    $skript = aw_realpath(__DIR__ . '/../scripts/scan.php');
+    $php = aw_php();
+    aw_hintergrund(aw_arg($php) . ' ' . aw_arg((string) $skript) . ' ' . (int) $id);
     return $id;
 }
 
