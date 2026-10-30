@@ -1,4 +1,4 @@
-# Amberwave 0.9.1-beta.3
+# Amberwave 0.9.1-beta.4
 
 > **Eine App statt fünf:** Bibliothek, bitgenaue Ausgabe, Effekte, VST3, Routing pro Kanal und Fernsteuerung –
 > ohne virtuelle Kabel, ohne Treiber-Basteleien.

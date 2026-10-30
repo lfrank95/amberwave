@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.1-beta.4 – in progress
+## 0.9.1-beta.4 – all-in-one image
 
 - **All-in-one image** `ghcr.io/lfrank95/amberwave-aio`: Amberwave, MariaDB 11.8 LTS and cloudflared in one container –
   for the Unraid store and everybody who doesn't want a Compose stack. One `/appdata` folder for database, covers and
@@ -13,6 +13,9 @@
   again any time under Settings › Region.
 - Unraid template and Community Applications profile in the repository (`templates/`, `ca_profile.xml`).
 - The Compose variant is unchanged.
+- Setup: fixed a session mix-up between the setup page and the login that could make the last setup step fail with
+  "Security check failed" (found by the new automated test).
+- Windows client: only the version number changed (no update notice for a release without a new installer).
 
 ## 0.9.1-beta.3 – effects
 
