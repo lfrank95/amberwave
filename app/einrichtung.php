@@ -13,6 +13,22 @@ $GLOBALS['aw_standard_sprache'] = 'en';   // die Einrichtung beginnt immer auf E
 sicherheits_header_senden();
 header('Cache-Control: no-store');
 
+/**
+ * Zur Sitzung $name wechseln. PHP behält nach session_write_close() die alte Sitzungs-ID und würde sie für die nächste
+ * Sitzung weiterverwenden (beide teilten sich dann eine Datei) – daher die ID ausdrücklich aus dem passenden Cookie nehmen.
+ */
+function einr_sitzung(string $name, string $samesite): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    session_name($name);
+    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => ist_https(), 'httponly' => true, 'samesite' => $samesite]);
+    $c = (string) ($_COOKIE[$name] ?? '');
+    session_id(preg_match('/^[A-Za-z0-9,-]{22,256}$/', $c) ? $c : session_create_id());
+    session_start();
+}
+
 // Angemeldeter Admin (nur bei fertiger Installation) – aus der normalen Sitzung, danach die eigene Sitzung der Einrichtung
 $nachAdmin = null;
 if (einrichtung_zustand(true)['art'] === 'fertig') {
@@ -25,13 +41,8 @@ if (einrichtung_zustand(true)['art'] === 'fertig') {
     } catch (Throwable $e) {
         $nachAdmin = null;
     }
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_write_close();
-    }
 }
-session_name('amberwave_einr');
-session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => ist_https(), 'httponly' => true, 'samesite' => 'Strict']);
-session_start();
+einr_sitzung('amberwave_einr', 'Strict');
 if (empty($_SESSION['csrf'])) {
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
 }
@@ -198,21 +209,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // Die Sitzung, die eingerichtet hat, darf das erste Einlesen begleiten; außerdem sofort anmelden (kein zweiter Login nötig)
             $_SESSION['einr_nachlauf'] = time() + 7200;
             $_SESSION['einr_admin'] = (int) $admin['id'];
-            session_write_close();
             $angemeldet = false;
             try {
                 require_once __DIR__ . '/includes/auth.php';
-                session_name('amberwave');
-                session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => ist_https(), 'httponly' => true, 'samesite' => 'Lax']);
-                session_start();
+                einr_sitzung('amberwave', 'Lax');
                 anmelden($admin, false);
-                session_write_close();
                 $angemeldet = true;
             } catch (Throwable $e) {
                 error_log('Einrichtung: automatische Anmeldung fehlgeschlagen: ' . $e->getMessage());
             }
-            session_name('amberwave_einr');
-            session_start();
+            einr_sitzung('amberwave_einr', 'Strict');
             $k = konfig();
             einr_json(['ok' => true, 'name' => trim((string) ($admin['vorname'] ?? '')), 'benutzername' => (string) $admin['benutzername'],
                 'schluessel' => !empty($k['app_secret_key_erzeugt']) ? $k['app_secret_key'] : null,
