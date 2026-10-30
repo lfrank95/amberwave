@@ -9,6 +9,9 @@
   notification area (like Plex) starts the bundled MariaDB, PHP, nginx, ffmpeg and cloudflared. Choose your music folder
   on the first start, set up in the browser, done. Every build is tested on a Windows machine (setup, scan, streaming,
   clean shutdown, restart).
+- Windows server: installer in the Amberwave style (per user, no admin rights, entry under Settings › Apps; uninstall
+  keeps or deletes library data), effects for devices in the home network (`aw-render.exe`), and updates from the
+  notification area: once a day it looks for a newer server installer on GitHub and installs it on request.
 - Server code is now platform-neutral (starting programs, background jobs, paths) – Linux behaves exactly as before.
 
 ## 0.9.1-beta.4 – all-in-one image
