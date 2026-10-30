@@ -199,7 +199,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
             unset($_SESSION['einr_laeuft']);
             // All-in-One: root der eingebauten Datenbank kommt ohnehin nur über den Socket im Container hinein
-            $abgesichert = getenv('AMBERWAVE_AIO') === '1' ? true : einrichtung_root_absichern();
+            // All-in-One und Windows-Server: root der mitgelieferten Datenbank ist nur lokal erreichbar und hat schon ein zufälliges Passwort
+            $abgesichert = getenv('AMBERWAVE_AIO') === '1' || getenv('AMBERWAVE_WINDOWS') === '1' ? true : einrichtung_root_absichern();
             $gesichert = schluessel_sichern();
             geheimnis_schreiben('eingerichtet', (string) time());
             geheimnis_loeschen('einrichtungscode');

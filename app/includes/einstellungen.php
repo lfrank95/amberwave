@@ -132,7 +132,10 @@ function einstellung_db_wert(string $k): ?string
                 $cache[$z['schluessel']] = (string) $z['wert_verschluesselt'];
             }
         } catch (Throwable $e) {
-            error_log('Einstellungen nicht lesbar: ' . $e->getMessage());
+            // vor der Einrichtung gibt es die Tabelle noch nicht – das ist kein Fehler
+            if (!str_contains($e->getMessage(), '42S02')) {
+                error_log('Einstellungen nicht lesbar: ' . $e->getMessage());
+            }
         }
     }
     if (!isset($cache[$k]) || $cache[$k] === '') {
