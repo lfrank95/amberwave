@@ -1,9 +1,10 @@
 #!/bin/bash
 # Stellt den Amberwave Windows Server zusammen (läuft auf einem Windows-Rechner von GitHub, Git-Bash):
 # lädt PHP, nginx, MariaDB, ffmpeg, flac, fpcalc, cloudflared und Python, legt Amberwave (app/) und das
-# Programm für den Infobereich dazu. Aufruf: paket.sh <Zielordner> <Pfad zu „Amberwave Server.exe“>
+# Programm für den Infobereich dazu. Aufruf: paket.sh <Zielordner> <Ordner mit „Amberwave Server.exe“, aw-render.exe und
+# „Amberwave Server deinstallieren.exe“ (aus bauen.sh/installer.sh)>
 set -euo pipefail
-ZIEL="$1"; TRAY="$2"
+ZIEL="$1"; WERK="$2"
 HIER="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"
 mkdir -p "$ZIEL"
@@ -76,8 +77,9 @@ printf 'python312.zip\r\n.\r\nLib\\site-packages\r\nimport site\r\n' > "$PTH"
 
 # Amberwave selbst + Programm für den Infobereich
 cp -r "$HIER/../app" "$ZIEL/app"
-rm -rf "$ZIEL/app/bin"   # Linux-Programme (Effekt-Rechner) – folgt als Windows-Fassung
-cp "$TRAY" "$ZIEL/Amberwave Server.exe"
+rm -rf "$ZIEL/app/bin" && mkdir -p "$ZIEL/app/bin"   # statt des Linux-Effekt-Rechners die Windows-Fassung
+cp "$WERK/aw-render.exe" "$ZIEL/app/bin/"
+cp "$WERK/Amberwave Server.exe" "$WERK/Amberwave Server deinstallieren.exe" "$ZIEL/"
 cp "$HIER/../LICENSE" "$ZIEL/LICENSE.txt"
 cp "$HIER/../COPYRIGHT" "$ZIEL/COPYRIGHT.txt"
 cp "$HIER/LIESMICH.txt" "$ZIEL/LIESMICH.txt"

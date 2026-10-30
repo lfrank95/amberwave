@@ -27,6 +27,8 @@
 #include <cstdio>
 #include <cwchar>
 #include <algorithm>
+#include <winhttp.h>
+#include <urlmon.h>
 
 using std::wstring;
 
@@ -451,7 +453,105 @@ static void autostartSetzen(bool an)
 
 // ---------- Infobereich ----------
 
-enum { M_OEFFNEN = 1, M_MUSIK, M_AUTOSTART, M_LOGS, M_NEUSTART, M_ENDE };
+// ---------- Updates ----------
+// Einmal am Tag (und kurz nach dem Start) bei GitHub nachsehen: gibt es ein neueres Release mit „Amberwave-Windows-Server-<v>.exe“?
+// Dann Hinweis im Infobereich und Menüpunkt „Update installieren“: Installer laden, Server sauber beenden, Installer starten.
+static std::mutex g_updSperre;
+static wstring g_updVersion, g_updUrl;
+
+static std::string httpHolen(const wchar_t *host, const wchar_t *pfad)
+{
+    std::string aus;
+    HINTERNET s = WinHttpOpen(L"AmberwaveServer/" AW_VERSION, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!s) return aus;
+    HINTERNET c = WinHttpConnect(s, host, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    HINTERNET r = c ? WinHttpOpenRequest(c, L"GET", pfad, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE) : nullptr;
+    if (r && WinHttpSendRequest(r, L"Accept: application/vnd.github+json\r\n", (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) && WinHttpReceiveResponse(r, nullptr)) {
+        DWORD n = 0;
+        while (WinHttpQueryDataAvailable(r, &n) && n > 0 && aus.size() < 4000000) {
+            std::string b(n, '\0'); DWORD gelesen = 0;
+            if (!WinHttpReadData(r, &b[0], n, &gelesen) || !gelesen) break;
+            aus.append(b.data(), gelesen);
+        }
+    }
+    if (r) WinHttpCloseHandle(r);
+    if (c) WinHttpCloseHandle(c);
+    WinHttpCloseHandle(s);
+    return aus;
+}
+/** 1.2.3-beta.4 vergleichen: >0 = a neuer; Vorabversion älter als die fertige */
+static int versionVergleich(const std::string &a, const std::string &b)
+{
+    auto teile = [](const std::string &v, std::vector<long> &z, std::string &vor) {
+        size_t m = v.find('-'); std::string kern = v.substr(0, m); vor = m == std::string::npos ? "" : v.substr(m + 1);
+        size_t p = 0; while (p <= kern.size()) { size_t q = kern.find('.', p); z.push_back(atol(kern.substr(p, q - p).c_str())); if (q == std::string::npos) break; p = q + 1; }
+    };
+    std::vector<long> za, zb; std::string va, vb; teile(a, za, va); teile(b, zb, vb);
+    for (size_t i = 0; i < std::max(za.size(), zb.size()); i++) { long x = i < za.size() ? za[i] : 0, y = i < zb.size() ? zb[i] : 0; if (x != y) return x > y ? 1 : -1; }
+    if (va == vb) return 0;
+    if (va.empty()) return 1;
+    if (vb.empty()) return -1;
+    // beta.10 > beta.9: Zahlen am Ende numerisch
+    size_t pa = va.find_last_not_of("0123456789"), pb = vb.find_last_not_of("0123456789");
+    if (va.substr(0, pa + 1) == vb.substr(0, pb + 1)) return atol(va.substr(pa + 1).c_str()) > atol(vb.substr(pb + 1).c_str()) ? 1 : -1;
+    return va > vb ? 1 : -1;
+}
+static void updatePruefen()
+{
+    if (ini(L"update_hinweis", L"1") == L"0") return;
+    std::string j = httpHolen(L"api.github.com", L"/repos/lfrank95/amberwave/releases?per_page=15");
+    std::string eigene = utf8(AW_VERSION), best, url;
+    bool vorab = eigene.find('-') != std::string::npos;
+    size_t p = 0;
+    // einfache Suche im JSON: je Release tag_name, prerelease, draft und die Download-Adressen der Anhänge
+    while ((p = j.find("\"tag_name\":\"", p)) != std::string::npos) {
+        p += 12; size_t e = j.find('"', p); std::string tag = j.substr(p, e - p);
+        size_t naechstes = j.find("\"tag_name\":\"", e); std::string block = j.substr(p, (naechstes == std::string::npos ? j.size() : naechstes) - p);
+        size_t rp = j.rfind("\"prerelease\":", e), rd = j.rfind("\"draft\":", e);
+        (void)rp; (void)rd;
+        bool istVorab = block.find("\"prerelease\":true") != std::string::npos, istEntwurf = block.find("\"draft\":true") != std::string::npos;
+        std::string v = tag; if (!v.empty() && (v[0] == 'v' || v[0] == 'V')) v = v.substr(1);
+        if (istEntwurf || (istVorab && !vorab) || v.empty() || !isdigit((unsigned char)v[0])) continue;
+        std::string name = "Amberwave-Windows-Server-" + v + ".exe";
+        size_t a = block.find("\"browser_download_url\":\"https://github.com/lfrank95/amberwave/releases/download/");
+        while (a != std::string::npos) {
+            size_t ua = a + 24, ue = block.find('"', ua); std::string u = block.substr(ua, ue - ua);
+            if (u.size() >= name.size() && u.compare(u.size() - name.size(), name.size(), name) == 0) {
+                if (versionVergleich(v, eigene) > 0 && (best.empty() || versionVergleich(v, best) > 0)) { best = v; url = u; }
+                break;
+            }
+            a = block.find("\"browser_download_url\":\"https://github.com/lfrank95/amberwave/releases/download/", ue);
+        }
+    }
+    if (best.empty()) return;
+    bool neu;
+    { std::lock_guard<std::mutex> l(g_updSperre); neu = g_updVersion != breit(best); g_updVersion = breit(best); g_updUrl = breit(url); }
+    if (neu) {
+        logz(L"Neue Version verfügbar: " + breit(best));
+        blase(APP, L"Version " + breit(best) + L" ist da – Rechtsklick aufs Symbol → Update installieren.");
+    }
+}
+static void updateInstallieren(HWND h)
+{
+    wstring v, url;
+    { std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; }
+    if (url.empty()) return;
+    wchar_t tmp[MAX_PATH]; GetTempPathW(MAX_PATH, tmp);
+    wstring ziel = wstring(tmp) + L"Amberwave-Windows-Server-" + v + L".exe";
+    statusSetzen(L"lädt Version " + v + L" …");
+    if (URLDownloadToFileW(nullptr, url.c_str(), ziel.c_str(), 0, nullptr) != S_OK) {
+        statusSetzen(L"läuft – " + adresse());
+        MessageBoxW(h, L"Das Update ließ sich nicht herunterladen. Später noch einmal versuchen – oder den Installer von GitHub laden.", APP, MB_OK | MB_ICONWARNING);
+        return;
+    }
+    if (MessageBoxW(h, (L"Version " + v + L" ist geladen.\n\nDer Server wird jetzt beendet und die Installation startet. Bibliothek, Konten und Einstellungen bleiben.").c_str(),
+                    APP, MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) return;
+    herunterfahren();
+    ShellExecuteW(nullptr, L"open", ziel.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    PostQuitMessage(0);
+}
+
+enum { M_OEFFNEN = 1, M_MUSIK, M_AUTOSTART, M_LOGS, M_NEUSTART, M_ENDE, M_UPDATE };
 
 static void menue(HWND h)
 {
@@ -463,6 +563,10 @@ static void menue(HWND h)
     AppendMenuW(m, MF_STRING | (autostartAn() ? MF_CHECKED : 0), M_AUTOSTART, L"Mit Windows starten");
     AppendMenuW(m, MF_STRING, M_LOGS, L"Logs öffnen");
     AppendMenuW(m, MF_STRING, M_NEUSTART, L"Server neu starten");
+    {
+        std::lock_guard<std::mutex> l(g_updSperre);
+        if (!g_updVersion.empty()) AppendMenuW(m, MF_STRING, M_UPDATE, (L"Update auf " + g_updVersion + L" installieren").c_str());
+    }
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(m, MF_STRING, M_ENDE, L"Beenden");
     POINT p; GetCursorPos(&p);
@@ -489,6 +593,7 @@ static void menue(HWND h)
         break;
     }
     case M_ENDE: herunterfahren(); PostQuitMessage(0); break;
+    case M_UPDATE: updateInstallieren(h); break;
     }
 }
 
@@ -579,6 +684,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int)
         bool ok = hochfahren();
         if (!ok) { blase(APP, g_status); return; }
         std::thread(wache).detach();
+        std::thread([] {   // nach einer Minute, dann täglich
+            for (int i = 0; i < 600 && !g_ende; i++) Sleep(100);
+            while (!g_ende) { updatePruefen(); for (int i = 0; i < 864000 && !g_ende; i++) Sleep(100); }
+        }).detach();
         if (!gibt(D(L"cache\\geheimnisse\\eingerichtet"))) {
             blase(APP, L"Fast fertig – richte Amberwave im Browser ein.");
             ShellExecuteW(nullptr, L"open", adresse(L"/einrichtung.php").c_str(), nullptr, nullptr, SW_SHOWNORMAL);

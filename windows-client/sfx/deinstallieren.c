@@ -16,8 +16,17 @@
 #include <shlobj.h>
 #include <wchar.h>
 
+#ifdef AW_SERVER   // Fassung für den Amberwave Windows Server
+#define TITEL L"Amberwave Server"
+#define UNINSTALL_SCHLUESSEL L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AmberwaveServer"
+#define PROGRAMM L"Amberwave Server.exe"
+#define LNK L"\\Amberwave Server.lnk"
+#else
 #define TITEL L"Amberwave Windows Client"
 #define UNINSTALL_SCHLUESSEL L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AmberwaveClient"
+#define PROGRAMM L"Amberwave Client.exe"
+#define LNK L"\\Amberwave.lnk"
+#endif
 
 static int englisch(void) { return (GetUserDefaultUILanguage() & 0x3ff) != LANG_GERMAN; }
 #define TX(de, en) (englisch() ? (en) : (de))
@@ -43,37 +52,59 @@ static int laeuft_noch(const wchar_t *ordner) {
 static void zweiter_schritt(const wchar_t *ordner) {
   // Sicherung: nur einen Ordner löschen, in dem wirklich Amberwave liegt
   wchar_t pruef[MAX_PATH * 2];
-  _snwprintf(pruef, MAX_PATH * 2, L"%ls\\Amberwave Client.exe", ordner);
+  _snwprintf(pruef, MAX_PATH * 2, L"%ls\\" PROGRAMM, ordner);
   if (GetFileAttributesW(pruef) == INVALID_FILE_ATTRIBUTES) {
     MessageBoxW(NULL, TX(L"In diesem Ordner ist kein Amberwave installiert – es wird nichts gelöscht.",
                          L"Amberwave is not installed in this folder – nothing is deleted."), TITEL, MB_OK | MB_ICONWARNING);
     return;
   }
   if (laeuft_noch(ordner)) {
-    MessageBoxW(NULL, TX(L"Amberwave läuft noch. Bitte Amberwave schließen und noch einmal deinstallieren.",
-                         L"Amberwave is still running. Please close Amberwave and uninstall again."), TITEL, MB_OK | MB_ICONWARNING);
+    MessageBoxW(NULL, TX(L"Amberwave läuft noch. Bitte Amberwave schließen (auch im Infobereich: Rechtsklick → Beenden) und noch einmal deinstallieren.",
+                         L"Amberwave is still running. Please quit Amberwave (also in the notification area: right-click → Quit) and uninstall again."), TITEL, MB_OK | MB_ICONWARNING);
     return;
   }
+#ifdef AW_SERVER
+  int r = MessageBoxW(NULL, TX(L"Amberwave Server deinstallieren?\n\nAuch Bibliothek, Konten, Cover und Sicherungen löschen? Deine Musik selbst bleibt immer unangetastet.\nJa = alles löschen · Nein = Daten behalten (für eine spätere Neuinstallation)",
+                               L"Uninstall Amberwave Server?\n\nAlso delete library, accounts, covers and backups? Your music itself is never touched.\nYes = delete everything · No = keep data (for a later reinstall)"),
+                      TITEL, MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2);
+#else
   int r = MessageBoxW(NULL, TX(L"Amberwave Windows Client deinstallieren?\n\nAuch deine Einstellungen (Server, Ausgabe, VST-Plug-ins) löschen?\nJa = alles löschen · Nein = Einstellungen behalten",
                                L"Uninstall Amberwave Windows Client?\n\nAlso delete your settings (server, output, VST plug-ins)?\nYes = delete everything · No = keep settings"),
                       TITEL, MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2);
+#endif
   if (r == IDCANCEL) return;
   baum_loeschen(ordner);
   wchar_t lnk[MAX_PATH * 2];
   int orte[] = {CSIDL_PROGRAMS, CSIDL_DESKTOPDIRECTORY};
   for (int i = 0; i < 2; i++) {
     if (SUCCEEDED(SHGetFolderPathW(NULL, orte[i], NULL, 0, lnk))) {
-      wcsncat(lnk, L"\\Amberwave.lnk", MAX_PATH * 2 - wcslen(lnk) - 1);
+      wcsncat(lnk, LNK, MAX_PATH * 2 - wcslen(lnk) - 1);
       DeleteFileW(lnk);
     }
   }
   RegDeleteKeyW(HKEY_CURRENT_USER, UNINSTALL_SCHLUESSEL);
+#ifdef AW_SERVER
+  {   // Autostart-Eintrag („Mit Windows starten“) entfernen
+    HKEY k;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &k) == ERROR_SUCCESS) {
+      RegDeleteValueW(k, L"Amberwave Server");
+      RegCloseKey(k);
+    }
+  }
+#endif
   if (r == IDYES) {
     wchar_t daten[MAX_PATH * 2];
+#ifdef AW_SERVER
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, daten))) {
+      wcsncat(daten, L"\\Amberwave Server", MAX_PATH * 2 - wcslen(daten) - 1);
+      baum_loeschen(daten);
+    }
+#else
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, daten))) {
       wcsncat(daten, L"\\amberwave-client", MAX_PATH * 2 - wcslen(daten) - 1);
       baum_loeschen(daten);
     }
+#endif
   }
   MessageBoxW(NULL, TX(L"Amberwave wurde deinstalliert.", L"Amberwave has been uninstalled."), TITEL, MB_OK | MB_ICONINFORMATION);
 }

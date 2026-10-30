@@ -2,11 +2,29 @@
 """Selbstentpackendes Paket bauen: packen.py stub.exe ordner ziel.exe
 Hängt an die stub.exe einen xz-Strom (LZMA2 9e mit x86-Filter) mit allen Dateien des Ordners und den Anhang an
 (u64 Beginn, u64 Länge, u64 entpackte Größe, "AWSFX002" – die Größe zeigt der Assistent als benötigten Platz)."""
-import os, struct, subprocess, sys
+import lzma, os, shutil, struct, subprocess, sys
 
 stub, ordner, ziel = sys.argv[1:4]
 tmp = ziel + '.xz.tmp'
-xz = subprocess.Popen(['xz', '--format=xz', '--check=crc32', '--x86', '--lzma2=preset=9e,dict=64MiB', '-T1', '-c'], stdin=subprocess.PIPE, stdout=open(tmp, 'wb'))
+# Stufe: AW_XZ_STUFE (Standard 9e); ohne xz-Programm (z. B. unter Windows) mit Pythons lzma – gleiches Format
+stufe = os.environ.get('AW_XZ_STUFE', '9e')
+if shutil.which('xz'):
+    xz = subprocess.Popen(['xz', '--format=xz', '--check=crc32', '--x86', f'--lzma2=preset={stufe},dict=64MiB', '-T1', '-c'], stdin=subprocess.PIPE, stdout=open(tmp, 'wb'))
+else:
+    class _Xz:
+        def __init__(self):
+            p = int(stufe.rstrip('e')) | (lzma.PRESET_EXTREME if stufe.endswith('e') else 0)
+            self.out = open(tmp, 'wb')
+            self.c = lzma.LZMACompressor(format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
+                                         filters=[{'id': lzma.FILTER_X86}, {'id': lzma.FILTER_LZMA2, 'preset': p, 'dict_size': 64 << 20}])
+            self.stdin = self
+        def write(self, b):
+            self.out.write(self.c.compress(b))
+        def close(self):
+            self.out.write(self.c.flush()); self.out.close()
+        def wait(self):
+            return 0
+    xz = _Xz()
 dateien = []
 for wurzel, _, namen in os.walk(ordner):
     for n in sorted(namen):

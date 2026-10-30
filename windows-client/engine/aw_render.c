@@ -19,6 +19,23 @@
 #include "befehl_lesen.h"
 
 #include <stdarg.h>
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+/* Windows kennt getline nicht – zeilenweise lesen mit wachsendem Puffer */
+static long long getline(char **z, size_t *cap, FILE *f) {
+  size_t n = 0; int c;
+  if (!*z || *cap < 256) { *cap = 256; *z = (char *)realloc(*z, *cap); if (!*z) return -1; }
+  while ((c = fgetc(f)) != EOF) {
+    if (n + 2 > *cap) { *cap *= 2; char *neu = (char *)realloc(*z, *cap); if (!neu) return -1; *z = neu; }
+    (*z)[n++] = (char)c;
+    if (c == '\n') break;
+  }
+  (*z)[n] = 0;
+  return n ? (long long)n : -1;
+}
+#define ssize_t long long
+#endif
 
 #define BLOCK 4096
 
@@ -44,6 +61,10 @@ static void befehl(Befehl *b) {
 
 int main(int argc, char **argv) {
   if (argc < 5) { fprintf(stderr, "aufruf: aw-render RATE KANAELE BITS(16|24) KETTE.jsonl [GAIN_DB]\n"); return 2; }
+#ifdef _WIN32
+  _setmode(_fileno(stdin), _O_BINARY);   /* PCM ist binär – sonst würde Windows Zeilenenden umschreiben */
+  _setmode(_fileno(stdout), _O_BINARY);
+#endif
   int rate = atoi(argv[1]), kan = atoi(argv[2]), bits = atoi(argv[3]);
   double gain_db = argc > 5 ? atof(argv[5]) : 0;
   if (rate < 8000 || rate > 768000 || kan < 1 || kan > 8 || (bits != 16 && bits != 24)) { fprintf(stderr, "ungültige Werte\n"); return 2; }

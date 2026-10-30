@@ -24,6 +24,11 @@ stoppen() {
 }
 log() { cat "$WU/daten/logs/server.log" 2>/dev/null; }
 
+echo "== 0. Effekt-Rechner (Geräte im Heimnetz)"
+echo '{"c":"kette"}' > "$WU/kette.jsonl"
+N="$("$FF" -v error -f lavfi -i "sine=f=440:d=1" -f f32le -ac 2 -ar 48000 - | "$PAKET/app/bin/aw-render.exe" 48000 2 24 "$W\\kette.jsonl" 0 2>/dev/null | wc -c)"
+[ "$N" = 288000 ] && ok "aw-render.exe rechnet (1 s 24 Bit Stereo = $N Bytes)" || fehler "aw-render.exe: $N Bytes statt 288000"
+
 echo "== 1. Erster Start"
 T0=$(date +%s); starten 1
 if warten; then ok "Server antwortet nach $(( $(date +%s) - T0 )) s"; else fehler "Server antwortet nicht"; melden "$WU/daten/logs/"*.log "$WU/konsole_1.txt" "$WU/daten/nginx/logs/error.log"; exit 1; fi

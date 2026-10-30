@@ -39,11 +39,25 @@
 
 using namespace Gdiplus;
 
+#ifdef AW_SERVER   // derselbe Assistent für den Amberwave Windows Server (windows-server/installer.sh)
+#define ORDNER L"Amberwave Server"
+#define PROGRAMM L"Amberwave Server.exe"
+#define DEINSTALLIEREN L"Amberwave Server deinstallieren.exe"
+#define TITEL L"Amberwave Server"
+#define UNINSTALL_SCHLUESSEL L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AmberwaveServer"
+#define APP_ID L"de.amberwave.server"
+#define LNK L"\\Amberwave Server.lnk"
+#define STANDARD_UNTERORDNER L"\\Programs\\Amberwave Server"
+#else
 #define ORDNER L"Amberwave Windows Client"
 #define PROGRAMM L"Amberwave Client.exe"
 #define DEINSTALLIEREN L"Amberwave deinstallieren.exe"
 #define TITEL L"Amberwave Windows Client"
 #define UNINSTALL_SCHLUESSEL L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AmberwaveClient"
+#define APP_ID L"de.amberwave.client"
+#define LNK L"\\Amberwave.lnk"
+#define STANDARD_UNTERORDNER L"\\Programs\\Amberwave"
+#endif
 #ifndef AW_VERSION
 #define AW_VERSION L"0"
 #endif
@@ -191,7 +205,7 @@ static void q_stand(void *, int p) { PostMessageW(fenster, WM_STAND, (WPARAM)p, 
 static void verknuepfung_anlegen(int csidl) {
   wchar_t lnk[MAX_PATH * 2], exe[MAX_PATH * 2];
   if (FAILED(SHGetFolderPathW(NULL, csidl, NULL, 0, lnk))) return;
-  wcsncat(lnk, L"\\Amberwave.lnk", MAX_PATH * 2 - wcslen(lnk) - 1);
+  wcsncat(lnk, LNK, MAX_PATH * 2 - wcslen(lnk) - 1);
   _snwprintf(exe, MAX_PATH * 2, L"%ls\\" PROGRAMM, ziel);
   IShellLinkW *sl = NULL;
   if (SUCCEEDED(CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, IID_IShellLinkW, (void **)&sl))) {
@@ -203,7 +217,7 @@ static void verknuepfung_anlegen(int csidl) {
     if (SUCCEEDED(sl->QueryInterface(IID_IPropertyStore, (void **)&ps))) {
       // PKEY_AppUserModel_ID – dieselbe Kennung setzt der Client (app.setAppUserModelId)
       PROPVARIANT pv; PropVariantInit(&pv);
-      pv.vt = VT_LPWSTR; pv.pwszVal = (LPWSTR)L"de.amberwave.client";
+      pv.vt = VT_LPWSTR; pv.pwszVal = (LPWSTR)APP_ID;
       ps->SetValue(PKEY_AppUserModel_ID, pv);
       ps->Commit();
       ps->Release();
@@ -263,7 +277,11 @@ static DWORD WINAPI installieren(LPVOID) {
   LARGE_INTEGER pos; pos.QuadPart = (LONGLONG)xz_beginn;
   SetFilePointerEx(quelle, pos, NULL, FILE_BEGIN);
   {
+#ifdef AW_SERVER
+    const wchar_t *laeuft_text = TX(L"Amberwave Server läuft noch. Bitte im Infobereich neben der Uhr: Rechtsklick auf das Amberwave-Symbol → „Beenden“, dann noch einmal „Installieren“ wählen.", L"Amberwave Server is still running. Please right-click the Amberwave icon in the notification area → “Quit”, then choose “Install” again.");
+#else
     const wchar_t *laeuft_text = TX(L"Amberwave läuft noch (oder eine Datei im Ordner ist geöffnet). Bitte Amberwave schließen – auch im Infobereich neben der Uhr – und dann noch einmal „Installieren“ wählen.", L"Amberwave is still running (or a file in the folder is open). Please quit Amberwave – also in the notification area next to the clock – and then choose “Install” again.");
+#endif
     if (!ordner_frei(ziel)) { wcscpy(fehler, laeuft_text); goto ende; }
     DWORD tick = GetTickCount();
     _snwprintf(auspack, MAX_PATH * 2, L"%ls.neu-%lu", ziel, tick);
@@ -570,17 +588,31 @@ static void haken_symbol(float x, float y, float s, Color c, float dicke) {
 static void seite_willkommen(float t) {
   float x = 56, b = 358;
   Font h1(fam_titel, 40, FontStyleRegular, UnitPixel), p(fam_text, 15, FontStyleRegular, UnitPixel), klein(fam_text, 13, FontStyleRegular, UnitPixel);
+#ifdef AW_SERVER
+  const wchar_t *titel1 = TX(L"Deine Musik.", L"Your music."), *titel2 = TX(L"Dein Server.", L"Your server.");
+  const wchar_t *txt = TX(L"Amberwave Server macht diesen PC zum Musikserver für die ganze Familie – Browser, Handy und Windows-Client, zu Hause und unterwegs. Läuft im Infobereich, wie Plex.",
+                          L"Amberwave Server turns this PC into a music server for the whole family – browser, phone and Windows client, at home and on the go. Runs in the notification area, like Plex.");
+#else
   const wchar_t *titel1 = TX(L"Deine Musik.", L"Your music."), *titel2 = TX(L"Bitgenau am PC.", L"Bit-perfect on your PC.");
   const wchar_t *txt = TX(L"Amberwave spielt die Sammlung deines Servers über WASAPI oder ASIO ab – lückenlos, in der Abtastrate der Datei, mit Effekten und deinen VST3-Plug-ins.",
                           L"Amberwave plays your server's collection via WASAPI or ASIO – gapless, at the file's own sample rate, with effects and your VST3 plug-ins.");
+#endif
   wchar_t upd[300] = L"";
   int update = vorhanden_version[0] && !portabel;
+#ifdef AW_SERVER
+  if (update) _snwprintf(upd, 300, TX(L"Version %ls ist installiert und wird aktualisiert. Bibliothek, Konten und Einstellungen bleiben.", L"Version %ls is installed and will be updated. Library, accounts and settings are kept."), vorhanden_version);
+#else
   if (update) _snwprintf(upd, 300, TX(L"Version %ls ist installiert und wird aktualisiert. Deine Einstellungen bleiben.", L"Version %ls is installed and will be updated. Your settings are kept."), vorhanden_version);
+#endif
   if (portabel) wcscpy(upd, TX(L"Portabel: Amberwave wird nur ausgepackt – ohne Verknüpfungen und ohne Eintrag unter „Apps“.", L"Portable: Amberwave is only unpacked – no shortcuts and no entry under “Apps”."));
   float h_txt = hoehe(txt, p, b) * 1.12f, h_upd = upd[0] ? hoehe(upd, klein, b - 54) + 20 : 0;
   float gesamt = 12 + 18 + 84 + 18 + h_txt + (upd[0] ? 18 + h_upd : 0) + 18 + 16;
   float y = LEISTE + (FUSS - LEISTE - gesamt) / 2;
+#ifdef AW_SERVER
+  etikett(TX(L"WINDOWS SERVER", L"WINDOWS SERVER"), AKZENT, x, y);
+#else
   etikett(TX(L"WINDOWS CLIENT", L"WINDOWS CLIENT"), AKZENT, x, y);
+#endif
   y += 12 + 18;
   text(titel1, h1, TEXTFARBE, x - 2, y, b);
   text(titel2, h1, TEXTFARBE, x - 2, y + 42, b);
@@ -900,6 +932,17 @@ static void seite_fertig(void) {
   Font h(fam_titel, 32, FontStyleRegular, UnitPixel), t(fam_text, 13.5f, FontStyleRegular, UnitPixel), nr(fam_titel, 11, FontStyleRegular, UnitPixel),
       kl(fam_text, 12.5f, FontStyleRegular, UnitPixel), fett(fam_fett, 13.5f, FontStyleRegular, UnitPixel);
   const wchar_t *s1, *s2, *s3;
+#ifdef AW_SERVER
+  if (portabel) {
+    s1 = TX(L"Ordner öffnen und „Amberwave Server.exe“ starten", L"Open the folder and start “Amberwave Server.exe”");
+    s2 = TX(L"Musikordner wählen – Amberwave liest ihn nur", L"Pick your music folder – Amberwave only reads it");
+    s3 = TX(L"Im Browser einrichten – die Seite öffnet sich von selbst", L"Finish setup in the browser – the page opens by itself");
+  } else {
+    s1 = TX(L"Amberwave Server starten – das Symbol erscheint unten rechts im Infobereich", L"Start Amberwave Server – its icon appears in the notification area");
+    s2 = TX(L"Musikordner wählen – Amberwave liest ihn nur", L"Pick your music folder – Amberwave only reads it");
+    s3 = TX(L"Im Browser einrichten; die Firewall-Frage für private Netzwerke erlauben", L"Finish setup in the browser; allow the firewall prompt for private networks");
+  }
+#else
   if (portabel) {
     s1 = TX(L"Ordner öffnen und „Amberwave Client.exe“ starten", L"Open the folder and start “Amberwave Client.exe”");
     s2 = TX(L"Der Server im Heimnetz wird automatisch gesucht", L"Your server is found automatically on your home network");
@@ -909,6 +952,7 @@ static void seite_fertig(void) {
     s2 = TX(L"Mit deinem Amberwave-Konto anmelden", L"Sign in with your Amberwave account");
     s3 = TX(L"Ausgabegerät wählen – WASAPI exklusiv für bitgenaue Wiedergabe", L"Pick an output device – WASAPI exclusive for bit-perfect playback");
   }
+#endif
   float hs = 0;
   const wchar_t *sch[3] = {s1, s2, s3};
   for (int i = 0; i < 3; i++) hs += hoehe(sch[i], t, b - 34) + 10;
@@ -1345,7 +1389,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int) {
     if (schnitt) *schnitt = 0;
     wcsncat(ziel, L"\\" ORDNER, MAX_PATH * 2 - wcslen(ziel) - 1);
   } else {
-    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, lokal))) _snwprintf(ziel, MAX_PATH * 2, L"%ls\\Programs\\Amberwave", lokal);
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, lokal))) _snwprintf(ziel, MAX_PATH * 2, L"%ls" STANDARD_UNTERORDNER, lokal);
     vorhandene_lesen(ziel, sizeof ziel);
   }
 

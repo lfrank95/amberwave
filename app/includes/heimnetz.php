@@ -1013,7 +1013,7 @@ function hn_stream_token_pruefen(string $t): ?array
 
 function hn_render_pfad(): ?string
 {
-    $p = hn_konfig()['render'] ?: aw_realpath(__DIR__ . '/../bin/aw-render');
+    $p = hn_konfig()['render'] ?: aw_realpath(__DIR__ . '/../bin/aw-render' . (aw_windows() ? '.exe' : ''));
     if (!$p || !is_file($p)) {
         return null;
     }

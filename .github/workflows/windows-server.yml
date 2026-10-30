@@ -17,11 +17,16 @@ jobs:
           URL="$(gh api repos/mstorsjo/llvm-mingw/releases/latest --jq '.assets[].browser_download_url' | grep -E 'ucrt-ubuntu-[0-9.]+-x86_64\.tar\.xz$' | head -1)"
           curl -fsSL "$URL" | tar -xJ -C "$RUNNER_TEMP"
           echo "LLVM_MINGW=$(ls -d "$RUNNER_TEMP"/llvm-mingw-*)" >> "$GITHUB_ENV"
-      - run: bash windows-server/bauen.sh "$RUNNER_TEMP/Amberwave Server.exe"
+      - name: Programm, Effekt-Rechner und Installationsassistent
+        run: |
+          pip install --quiet pillow fonttools brotli
+          bash windows-server/bauen.sh "$RUNNER_TEMP/aus/Amberwave Server.exe"
+          bash windows-server/installer.sh "$RUNNER_TEMP/aus"
+          ls -la "$RUNNER_TEMP/aus"
       - uses: actions/upload-artifact@v4
         with:
           name: tray
-          path: ${{ runner.temp }}/Amberwave Server.exe
+          path: ${{ runner.temp }}/aus
   paket:
     needs: tray
     runs-on: windows-latest
@@ -38,20 +43,20 @@ jobs:
           name: tray
           path: ${{ runner.temp }}/tray
       - name: Paket zusammenstellen
-        run: bash windows-server/paket.sh /c/AmberwaveServer "$RUNNER_TEMP/tray/Amberwave Server.exe"
+        run: bash windows-server/paket.sh /c/AmberwaveServer "$RUNNER_TEMP/tray"
       - name: Rauchtest
         timeout-minutes: 25
         run: bash windows-server/test.sh /c/AmberwaveServer
-      - name: Paket packen
+      - name: Installer bauen
         run: |
           V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
           echo "V=$V" >> "$GITHUB_ENV"
-          cd /c && 7z a -tzip -mx=7 "Amberwave-Windows-Server-$V-test.zip" AmberwaveServer > /dev/null
-          ls -la "/c/Amberwave-Windows-Server-$V-test.zip"
+          rm -rf /c/AmberwaveServer/app/js/_b/*.map 2>/dev/null || true
+          AW_XZ_STUFE=7 python windows-client/sfx/packen.py "$RUNNER_TEMP/tray/sfx.exe" /c/AmberwaveServer "/c/Amberwave-Windows-Server-$V.exe"
       # Nur als Anhang am Lauf (Actions → Lauf → Artifacts), 14 Tage
       - uses: actions/upload-artifact@v4
         with:
-          name: Amberwave-Windows-Server-${{ env.V }}-test
-          path: C:/Amberwave-Windows-Server-${{ env.V }}-test.zip
+          name: Amberwave-Windows-Server-${{ env.V }}
+          path: C:/Amberwave-Windows-Server-${{ env.V }}.exe
           retention-days: 14
           compression-level: 0
