@@ -51,6 +51,11 @@ log | grep -q "AIO: MariaDB beendet" && ok "MariaDB sauber beendet ($((T1 - T0))
 docker start aw-aio >/dev/null
 if warten; then ok "zweiter Start"; else fehler "zweiter Start: Webserver antwortet nicht"; fi
 anmelden && ok "Anmeldung nach Neustart (Daten bleiben)" || fehler "Anmeldung nach Neustart schlägt fehl"
+# Umzugspaket für Teil 5
+TK="$(curl -fs -X POST http://127.0.0.1:19950/api/v1/auth/token -H 'Content-Type: application/json' -d '{"benutzername":"testadmin","passwort":"Test-Passwort-2026","geraet_name":"CI"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+UN="$(curl -s -X POST http://127.0.0.1:19950/api/v1/admin/umzug -H "Authorization: Bearer $TK" -H 'Content-Type: application/json' -d '{"passwort":"Test-Passwort-2026","paket_passwort":"Umzug-Passwort-1","bilder":true}' | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')"
+curl -s -H "Authorization: Bearer $TK" -o "$W/umzug.awumzug" "http://127.0.0.1:19950/api/v1/admin/umzug/datei?name=$UN"
+[ -s "$W/umzug.awumzug" ] && ok "Umzugspaket erstellt" || fehler "Umzugspaket fehlt"
 [ "$(log | grep -c "Admin-Konto „testadmin“ angelegt")" = "1" ] && ok "kein zweiter Admin" || fehler "Admin doppelt angelegt"
 sudo grep -qi "crash recovery\|was not shut down normally" "$W/appdata/db/mariadb-fehler.log" && fehler "MariaDB brauchte eine Wiederherstellung" || ok "keine Wiederherstellung nötig"
 docker rm -f aw-aio >/dev/null
@@ -81,6 +86,24 @@ for s in pruefen db tabellen admin abschluss; do
     [ "$s" = abschluss ] && { echo "$A" | grep -q '"root_abgesichert":true' && ok "Anzeige: Root-Zugang gesperrt" || fehler "Root-Anzeige falsch"; }
 done
 anmelden && ok "Anmeldung mit dem Konto aus der Einrichtungsseite" || fehler "Anmeldung nach Einrichtung schlägt fehl"
+
+docker rm -f aw-aio >/dev/null
+
+echo "== 5. Umzug in eine neue All-in-One-Installation (mit Code über die Docker-Brücke)"
+sudo rm -rf "$W/appdata"; mkdir -p "$W/appdata"
+docker run -d --name aw-aio --stop-timeout 60 -p 19950:80 -v "$W/appdata:/appdata" -v "$W/musik:/musik" "$IMG" >/dev/null
+if warten; then ok "neue Installation läuft"; else fehler "neue Installation startet nicht"; fi
+for i in $(seq 1 30); do log | grep -q "Setup code:" && break; sleep 2; done
+CODE="$(log | sed -n 's/.*Setup code: *//p' | tail -n1 | tr -d '\r ')"
+JAR="$W/jar5"; SEITE="$(curl -fs -c "$JAR" http://127.0.0.1:19950/einrichtung.php)"
+CSRF="$(printf '%s' "$SEITE" | sed -n 's/.*data-csrf="\([^"]*\)".*/\1/p' | head -n1)"
+A="$(curl -s -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:19950/einrichtung.php?schritt=umzug_teil" -H "X-CSRF-Token: $CSRF" -H 'X-Teil: 0' -H "X-Einrichtung-Code: $CODE" -H 'Content-Type: application/octet-stream' --data-binary @"$W/umzug.awumzug")"
+echo "$A" | grep -q '"ok":true' && ok "Paket hochgeladen" || fehler "Hochladen: $A"
+for s in db umzug abschluss; do
+    A="$(curl -s -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:19950/einrichtung.php?schritt=$s" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" -d '{"code":"'"$CODE"'","umzug":"1","paket_passwort":"Umzug-Passwort-1"}')"
+    echo "$A" | grep -q '"ok":true' && ok "Umzug-Schritt $s" || fehler "Umzug-Schritt $s: $(echo "$A" | head -c 300)"
+done
+anmelden && ok "Anmeldung mit dem übernommenen Konto" || fehler "Anmeldung nach Umzug schlägt fehl"
 
 [ "$FEHLER" = "0" ] || { echo "--- Container-Log ---"; log | tail -n 80; }
 docker rm -f aw-aio >/dev/null 2>&1
