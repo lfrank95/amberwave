@@ -93,6 +93,9 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
+          cores: 4
+          ram-size: 4096M
+          heap-size: 576M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
           disable-animations: true
           script: python3 tests/android_test.py "$(ls ${{ runner.temp }}/apk/*.apk | head -1)"

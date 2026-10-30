@@ -52,6 +52,10 @@ def fehler_zahl():
 def protokoll():
     """Absturz und Meldungen der App aus dem Logcat als Anmerkungen (nur Neues)"""
     try:
+        zustand = subprocess.run(['adb', 'get-state'], capture_output=True, text=True, timeout=15).stdout.strip()
+        if zustand != 'device':
+            print(f'::error title=logcat::Emulator antwortet nicht mehr (adb: {zustand or "keine Antwort"})', flush=True)
+            return
         r = subprocess.run(['adb', 'logcat', '-d', '-t', '4000', '-v', 'brief'], capture_output=True, text=True, timeout=90, errors='replace')
         log = r.stdout.splitlines()
     except Exception as e:  # noqa: BLE001
