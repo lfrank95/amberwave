@@ -61,6 +61,27 @@ if warten; then ok "Start mit PUID 1234"; else fehler "Start mit PUID 1234 schei
 anmelden && ok "Anmeldung mit neuem Benutzer" || fehler "Anmeldung mit PUID 1234 schlägt fehl"
 [ "$(sudo stat -c %u "$W/appdata/db/mysql")" = "1234" ] && ok "Datenordner angeglichen" || fehler "Datenordner gehört $(sudo stat -c %u "$W/appdata/db/mysql")"
 
+docker rm -f aw-aio >/dev/null
+
+echo "== 4. Ohne Admin in der Vorlage: Einrichtungsseite mit Code (Zugriff über die Docker-Brücke)"
+sudo rm -rf "$W/appdata"; mkdir -p "$W/appdata"
+docker run -d --name aw-aio --stop-timeout 60 -p 19950:80 -v "$W/appdata:/appdata" -v "$W/musik:/musik" "$IMG" >/dev/null
+if warten; then ok "Start ohne Admin"; else fehler "Start ohne Admin scheitert"; fi
+for i in $(seq 1 30); do log | grep -q "Setup code:" && break; sleep 2; done
+CODE="$(log | sed -n 's/.*Setup code: *//p' | tail -n1 | tr -d '\r ')"
+[ -n "$CODE" ] && ok "Einrichtungscode im Log" || fehler "kein Einrichtungscode im Log"
+JAR="$W/jar"; SEITE="$(curl -fs -c "$JAR" http://127.0.0.1:19950/einrichtung.php)"
+CSRF="$(printf '%s' "$SEITE" | sed -n 's/.*data-csrf="\([^"]*\)".*/\1/p' | head -n1)"
+[ -n "$CSRF" ] && ok "Einrichtungsseite erreichbar" || fehler "Einrichtungsseite liefert kein Formular"
+schritt() { curl -s -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:19950/einrichtung.php?schritt=$1" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" \
+    -d '{"code":"'"$CODE"'","vorname":"Test","nachname":"Admin","benutzername":"testadmin","email":"test@example.org","passwort":"Test-Passwort-2026","passwort2":"Test-Passwort-2026","servername":"CI","sprache":"de","land":"DE","zeitzone":"Europe/Berlin","waehrung":"EUR","zeitformat":"auto","datumsformat":"auto","einheiten":"auto","musik_schreiben":"0"}'; }
+for s in pruefen db tabellen admin abschluss; do
+    A="$(schritt $s)"
+    echo "$A" | grep -q '"ok":true' && ok "Schritt $s" || fehler "Schritt $s: $(echo "$A" | head -c 300)"
+    [ "$s" = abschluss ] && { echo "$A" | grep -q '"root_abgesichert":true' && ok "Anzeige: Root-Zugang gesperrt" || fehler "Root-Anzeige falsch"; }
+done
+anmelden && ok "Anmeldung mit dem Konto aus der Einrichtungsseite" || fehler "Anmeldung nach Einrichtung schlägt fehl"
+
 [ "$FEHLER" = "0" ] || { echo "--- Container-Log ---"; log | tail -n 80; }
 docker rm -f aw-aio >/dev/null 2>&1
 sudo rm -rf "$W" 2>/dev/null || rm -rf "$W"
