@@ -43,18 +43,18 @@ def fehler_zahl():
 def protokoll():
     """Absturz und Meldungen der App aus dem Logcat als Anmerkungen (nur Neues)"""
     try:
-        log = subprocess.run(['adb', 'logcat', '-d', '-v', 'brief'], capture_output=True, text=True, timeout=60).stdout.splitlines()
-    except Exception:  # noqa: BLE001
+        r = subprocess.run(['adb', 'logcat', '-d', '-t', '4000', '-v', 'brief'], capture_output=True, text=True, timeout=90, errors='replace')
+        log = r.stdout.splitlines()
+    except Exception as e:  # noqa: BLE001
+        print(f'::notice title=logcat::nicht lesbar: {e}', flush=True)
         return
-    wichtig = [z for z in log if re.search(r'FATAL|AndroidRuntime|E/|W/Aw|AwLaden|AwOberflaeche|lfrank95|chromium|Console|Exception|\tat ', z)]
-    neu = [z for z in wichtig if z not in _gezeigt][-60:]
-    for z in neu:
-        _gezeigt.add(z)
-    print(f'logcat: {len(log)} Zeilen, {len(wichtig)} wichtig', flush=True)
-    if neu:
-        # eine Anmerkung mit allen Zeilen (GitHub zeigt je Schritt nur wenige Anmerkungen)
-        print('::error title=logcat::' + ' ⏎ '.join(z.strip()[:300] for z in neu).replace('%', '%25'), flush=True)
-
+    wichtig = [z for z in log if re.search(r'FATAL|AndroidRuntime|W/Aw|E/Aw|AwLaden|AwOberflaeche|lfrank95|Exception|\tat |chromium.*(Uncaught|rror)', z)]
+    neu = [z.strip()[:240] for z in wichtig if z not in _gezeigt][-45:]
+    _gezeigt.update(wichtig)
+    print(f'::notice title=logcat::{len(log)} Zeilen, {len(wichtig)} passend', flush=True)
+    text = ' | '.join(neu).replace('%', '%25').replace('::', ': :')
+    for k in range(0, min(len(text), 9000), 3000):
+        print('::error title=logcat ' + str(k // 3000 + 1) + '::' + text[k:k + 3000], flush=True)
 
 def adb(*a, pruefen=False):
     r = subprocess.run(['adb', *a], capture_output=True, text=True, timeout=180)
