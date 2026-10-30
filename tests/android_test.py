@@ -27,6 +27,23 @@ def schlecht(t):
     global fehler
     fehler = 1
     print(f'::error title=Android-Test::{t}', flush=True)
+    protokoll()
+
+
+_gezeigt = set()
+
+
+def protokoll():
+    """Absturz und Meldungen der App aus dem Logcat als Anmerkungen (nur Neues)"""
+    try:
+        log = subprocess.run(['adb', 'logcat', '-d', '-v', 'brief'], capture_output=True, text=True, timeout=60).stdout.splitlines()
+    except Exception:  # noqa: BLE001
+        return
+    wichtig = [z for z in log if re.search(r'FATAL|AndroidRuntime|AwLaden|AwOberflaeche|AwUpdate|amberwave|chromium.*(Uncaught|Error)|Console', z)]
+    neu = [z for z in wichtig if z not in _gezeigt][-40:]
+    for z in neu:
+        _gezeigt.add(z)
+        print('::warning title=logcat::' + z.replace('%', '%25')[:400], flush=True)
 
 
 def adb(*a, pruefen=False):
@@ -241,4 +258,5 @@ if __name__ == '__main__':
         import traceback
         z = traceback.format_exc().strip().splitlines()
         print(f'::error title=Android-Test (Abbruch)::{type(e).__name__}: {e} | ' + ' | '.join(x.strip() for x in z[-6:]), flush=True)
+        protokoll()
         sys.exit(1)
