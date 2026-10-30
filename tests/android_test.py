@@ -138,10 +138,9 @@ def main():
         ok('Startseite mit Brücke')
     else:
         schlecht('Startseite fehlt')
-    s.js("document.getElementById('adresse').value = '127.0.0.1:8080'; document.querySelector('[data-form]').requestSubmit(); true")
-    # https geht hier nicht – die App versucht danach http
-    if s.bis("location.pathname.includes('login.php')", 60):
-        ok('Server gefunden (http), Anmeldeseite')
+    s.js("document.getElementById('adresse').value = 'http://127.0.0.1:8080'; document.querySelector('[data-form]').requestSubmit(); true")
+    if s.bis("location.pathname.includes('login.php')", 90):
+        ok('Server gefunden, Anmeldeseite')
     else:
         schlecht('Server nicht gefunden: ' + str(s.js("document.querySelector('[data-fehler]')?.textContent || location.href")))
         sys.exit(1)
