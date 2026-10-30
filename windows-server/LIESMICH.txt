@@ -1,0 +1,16 @@
+Amberwave Server für Windows – Testversion
+==========================================
+
+Start: „Amberwave Server.exe“ doppelklicken. Beim ersten Start fragt Amberwave nach deinem Musikordner,
+danach öffnet sich die Einrichtung im Browser. Das Symbol unten rechts im Infobereich (Rechtsklick):
+Amberwave öffnen, Musikordner ändern, Mit Windows starten, Logs öffnen, Server neu starten, Beenden.
+
+Adresse im Heimnetz: http://<Name oder IP dieses PCs>:9950 – beim ersten Start fragt die Windows-Firewall,
+ob nginx Verbindungen annehmen darf: für „Private Netzwerke“ erlauben, sonst erreichen Handy und andere PCs
+den Server nicht.
+
+Daten (Datenbank, Cover, Sicherungen, Logs, server.ini): %LOCALAPPDATA%\Amberwave Server
+Deinstallieren: Programm beenden, diesen Ordner löschen (und den Datenordner, wenn alles weg soll).
+
+Mitgeliefert (jeweils unter ihrer eigenen Lizenz): PHP, nginx, MariaDB, FFmpeg (gyan.dev), FLAC,
+Chromaprint fpcalc, cloudflared, Python mit numpy.

@@ -1,0 +1,57 @@
+# Baut den Amberwave Windows Server (Programm im Infobereich + PHP, nginx, MariaDB, ffmpeg …), testet ihn auf einem
+# Windows-Rechner und hängt das Paket als Testversion an den Lauf (kein Release, keine Ankündigung).
+# Nur von Hand: Actions → Windows server → Run workflow.
+name: Windows server
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  tray:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: llvm-mingw
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          URL="$(gh api repos/mstorsjo/llvm-mingw/releases/latest --jq '.assets[].browser_download_url' | grep -E 'ucrt-ubuntu-[0-9.]+-x86_64\.tar\.xz$' | head -1)"
+          curl -fsSL "$URL" | tar -xJ -C "$RUNNER_TEMP"
+          echo "LLVM_MINGW=$(ls -d "$RUNNER_TEMP"/llvm-mingw-*)" >> "$GITHUB_ENV"
+      - run: bash windows-server/bauen.sh "$RUNNER_TEMP/Amberwave Server.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tray
+          path: ${{ runner.temp }}/Amberwave Server.exe
+  paket:
+    needs: tray
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bash app/scripts/buendeln.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: tray
+          path: ${{ runner.temp }}/tray
+      - name: Paket zusammenstellen
+        run: bash windows-server/paket.sh /c/AmberwaveServer "$RUNNER_TEMP/tray/Amberwave Server.exe"
+      - name: Rauchtest
+        timeout-minutes: 25
+        run: bash windows-server/test.sh /c/AmberwaveServer
+      - name: Paket packen
+        run: |
+          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          echo "V=$V" >> "$GITHUB_ENV"
+          cd /c && 7z a -tzip -mx=7 "Amberwave-Windows-Server-$V-test.zip" AmberwaveServer > /dev/null
+          ls -la "/c/Amberwave-Windows-Server-$V-test.zip"
+      # Nur als Anhang am Lauf (Actions → Lauf → Artifacts), 14 Tage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Amberwave-Windows-Server-${{ env.V }}-test
+          path: C:/Amberwave-Windows-Server-${{ env.V }}-test.zip
+          retention-days: 14
+          compression-level: 0
