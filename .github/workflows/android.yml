@@ -95,7 +95,24 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           pip install --quiet websocket-client
+      # Der Emulator selbst bricht auf den GitHub-Rechnern ab und zu weg (adb meldet kein Gerät mehr) – dann ein zweiter
+      # Versuch mit frischem Emulator; die Anmerkungen des ersten bleiben sichtbar
       - name: Emulator und Test
+        id: versuch1
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          cores: 3
+          ram-size: 4096M
+          heap-size: 576M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
+          disable-animations: true
+          script: python3 tests/android_test.py "$(ls ${{ runner.temp }}/apk/*.apk | head -1)"
+      - name: Emulator und Test (zweiter Versuch)
+        if: steps.versuch1.outcome == 'failure'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
