@@ -36,6 +36,22 @@ no way in, no admin rights for normal users, no access to other users' data. Fix
 - **Own reverb files (impulse responses):** a normal user can no longer overwrite someone else's file with the same name
   (the new one gets "(2)"); admins can still replace. Uploads must be real WAV files (format and data sections).
 
+Downloads with Tidarr (and other SABnzbd look-alikes) – tested end to end against an emulated Tidarr, checked by two
+independent reviewers:
+
+- **Albums are no longer named after the Tidal ID:** a download folder called like the job ID gets the album title instead.
+- **Files still being written are not copied half-finished:** import waits until nothing changed for 30 seconds
+  (Tidarr writes ReplayGain tags after reporting "completed"); files with timestamps in the future don't block it.
+- **Imports are atomic:** files are copied into a hidden folder first and moved into place in one step – a restart in
+  the middle leaves no half album in the library (leftovers are cleaned up after 6 hours).
+- **Jobs waiting behind others are no longer cancelled** after 30 minutes as long as the queue moves (Tidarr reports no
+  speed) – at most 24 hours.
+- Lower-case status, missing storage path, "completed" still in the queue, and jobs that vanish after a Tidarr restart
+  while the files are there are all handled; a folder is never taken over by two jobs, and an old kept folder with the
+  same name is not imported again.
+- Search: the four quality variants of an album are all listed (hi-res first), AAC/M4A is recognised, `.lrc` lyrics are
+  copied along; "320k" is detected as 320 kbit/s and "Live '96" is no longer read as a bitrate.
+
 ## 0.9.1-beta.2 – large libraries
 
 Load test with a synthetic library (20,000 real files scanned, database multiplied to 100,000 tracks) on a real

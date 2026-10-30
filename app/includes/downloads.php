@@ -25,7 +25,7 @@ require_once __DIR__ . '/uebernehmen.php';
 
 require_once __DIR__ . '/i18n.php';
 
-const DL_AUDIO_BEILAGEN = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'cue', 'log'];
+const DL_AUDIO_BEILAGEN = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'cue', 'log', 'lrc'];
 
 /** Usenet-Downloads eingeschaltet? (Einstellungen → Downloads; neu eingerichtet aus) */
 function dl_aktiv(): bool
@@ -747,8 +747,8 @@ function dl_qualitaet(string $titel, array $kategorien = []): array
         $q['detail'] = 'Hi-Res';
     }
     // Bitrate verlustbehaftet: 320, 256, V0, V2, CBR/VBR
-    if (preg_match('/\b(320|256|224|192|160|128)\s*(?:k(?:bps)?|kbit)?\b/i', $t, $m) && in_array($q['format'], ['', 'MP3', 'AAC', 'OGG', 'Opus'], true)
-        && !preg_match('/\b' . $m[1] . '\s*k(hz)?\b/i', $t)) {
+    if (preg_match('/\b(320|256|224|192|160|128|(?<=mp3-|aac-|mp3 |aac )96)\s*(?:k(?:bps)?|kbit)?\b/i', $t, $m) && in_array($q['format'], ['', 'MP3', 'AAC', 'OGG', 'Opus'], true)
+        && !preg_match('/\b' . $m[1] . '\s*khz\b/i', $t)) {
         $q['detail'] = $q['detail'] ?: $m[1];
     }
     if (preg_match('/\b(V0|V1|V2)\b/', $t, $m)) {
@@ -955,7 +955,9 @@ function dl_suchen(string $begriff, string $kuenstler = '', string $album = ''):
     foreach ($treffer as $i => &$t) {
         $t += dl_relevanz($such, $t['titel'], $t['kategorien']);
         $t['auch'] = [];
-        $g = $t['guid'] !== '' ? $t['quelle_art'] . $t['quelle'] . '|' . $t['guid'] : '';
+        // gleiche GUID beim selben Anbieter = doppelt, aber nur bei gleichem Namen (manche Anbieter, z. B. Tidarr, geben allen
+        // Qualitätsvarianten eines Albums dieselbe GUID)
+        $g = $t['guid'] !== '' ? $t['quelle_art'] . $t['quelle'] . '|' . $t['guid'] . '|' . dl_norm($t['titel']) : '';
         if ($g !== '' && isset($nachGuid[$g])) {
             $t['doppelt'] = true;
             continue;
@@ -990,8 +992,9 @@ function dl_suchen(string $begriff, string $kuenstler = '', string $album = ''):
         unset($t['url'], $t['doppelt'], $t['guid']);
         $aus[] = $t + ['nr' => $i];
     }
-    // passende zuerst, dann nach Punkten, dann nach Grabs
-    usort($aus, static fn($a, $b) => [$b['passend'], $b['punkte'], $b['grabs'] ?? -1] <=> [$a['passend'], $a['punkte'], $a['grabs'] ?? -1]);
+    // passende zuerst, dann nach Punkten, dann nach Qualität (Hi-Res, verlustfrei, verlustbehaftet), dann nach Grabs
+    $rang = static fn($t) => ['hires' => 3, 'lossless' => 2, 'lossy' => 1][$t['qualitaet']['stufe'] ?? ''] ?? 0;
+    usort($aus, static fn($a, $b) => [$b['passend'], $b['punkte'], $rang($b), $b['grabs'] ?? -1] <=> [$a['passend'], $a['punkte'], $rang($a), $a['grabs'] ?? -1]);
     return ['suche' => $id, 'treffer' => $aus, 'roh' => count($treffer), 'fehler' => $fehler, 'anbieter' => count($indexer)];
 }
 
@@ -1123,8 +1126,12 @@ function dl_abgleichen_client(array $c, array $offen): void
         $hist[(string) ($s['nzo_id'] ?? '')] = $s;
     }
     // Bewegt sich in der Schlange überhaupt etwas? (Wer nur wartet, hängt nicht, solange vor ihm geladen wird)
-    $global_pause = !empty($schlange['paused']) && $schlange['paused'] !== 'False';
+    $global_pause = !empty($schlange['paused']) && strcasecmp((string) $schlange['paused'], 'false') !== 0;
+    // Lädt die Schlange? kbpersec – oder (Clients ohne Geschwindigkeitsangabe, z. B. Tidarr) irgendein Auftrag, der gerade läuft
     $schlange_laedt = (float) ($schlange['kbpersec'] ?? 0) > 0;
+    // Fingerabdruck der ganzen Schlange: Wer wartet, hängt nicht, solange sich bei irgendeinem Auftrag etwas bewegt – auch bei
+    // Clients ohne Geschwindigkeitsangabe (z. B. Tidarr, das Alben nacheinander lädt)
+    $schlange_fp = md5(json_encode(array_map(static fn($s) => [(string) ($s['nzo_id'] ?? ''), (string) ($s['status'] ?? ''), (string) ($s['percentage'] ?? ''), (string) ($s['mbleft'] ?? '')], $schlange['slots'] ?? [])));
     foreach ($offen as $d) {
         $n = (string) $d['nzo_id'];
         if (!isset($queue[$n]) && !isset($hist[$n])) {
@@ -1139,21 +1146,30 @@ function dl_abgleichen_client(array $c, array $offen): void
                 // dann gilt er als nicht gefunden
             }
         }
+        if (isset($queue[$n]) && !isset($hist[$n]) && strcasecmp((string) ($queue[$n]['status'] ?? ''), 'completed') === 0) {
+            // fertig, bleibt beim Client aber in der Schlange stehen: wie ein Verlaufseintrag behandeln
+            $hist[$n] = $queue[$n] + ['name' => (string) ($queue[$n]['filename'] ?? '')];
+            unset($queue[$n]);
+        }
         if (isset($queue[$n])) {
             $q = $queue[$n];
             $st = (string) ($q['status'] ?? '');
-            $prozent = (float) ($q['percentage'] ?? 0);
+            $prozent = max(0.0, min(100.0, (float) ($q['percentage'] ?? 0)));
             db_tun('UPDATE downloads SET status = :s, prozent = :p, meldung = :m WHERE id = :id', [
                 's' => 'laeuft', 'p' => $prozent, 'id' => $d['id'],
                 'm' => mb_substr(trim($st . ((string) ($q['timeleft'] ?? '') !== '' ? ' · ' . t('noch {zeit}', ['zeit' => $q['timeleft']]) : '')), 0, 1000),
             ]);
             // Pause (ganz SABnzbd oder dieser Auftrag) ist Absicht; wer nur wartet, während andere laden, hängt nicht
-            $ruht = $global_pause || $st === 'Paused' || ($st === 'Queued' && $schlange_laedt);
-            $fp = 'q|' . $st . '|' . $prozent . '|' . (string) ($q['mbleft'] ?? '');
+            $ruht = $global_pause || strcasecmp($st, 'paused') === 0 || (strcasecmp($st, 'queued') === 0 && $schlange_laedt);
+            // Wartende hängen nicht, solange sich in der Schlange etwas tut – aber höchstens 24 h lang (falls ein anderer Auftrag nur hin
+            // und her springt)
+            $jung = strtotime((string) ($d['angelegt_am'] ?? 'now')) > time() - 86400;
+            $fp = 'q|' . $st . '|' . $prozent . '|' . (string) ($q['mbleft'] ?? '') . (strcasecmp($st, 'queued') === 0 && $jung ? '|' . $schlange_fp : '');
             $haengt = dl_waechter($d, $fp, $ruht, 'haengt');
             if ($haengt !== null) {
-                if ($prozent >= 100 && dl_waechter_dateien_da((string) ($q['filename'] ?? ''), $c)) {
-                    dl_waechter_fertig($d, (string) ($q['filename'] ?? ''), $haengt);
+                $pfad = dl_pfad_suchen([(string) ($q['storage'] ?? ''), (string) ($q['filename'] ?? ''), $n], $c, $d);
+                if ($prozent >= 100 && $pfad !== null) {
+                    dl_waechter_fertig($d, $pfad, $haengt);
                 } else {
                     db_tun("UPDATE downloads SET status = 'fehler', meldung = :m WHERE id = :id", ['id' => $d['id'],
                         'm' => mb_substr(t('Keine Bewegung in {client} seit {min} min bei {prozent} % ({status}) – abgebrochen und aus der Warteschlange genommen.', ['client' => $c['name'], 'min' => $haengt, 'prozent' => dl_prozent($prozent), 'status' => $st ?: t('ohne Status')]), 0, 1000)]);
@@ -1167,10 +1183,23 @@ function dl_abgleichen_client(array $c, array $offen): void
         } elseif (isset($hist[$n])) {
             $h = $hist[$n];
             $st = (string) ($h['status'] ?? '');
-            if ($st === 'Completed') {
+            if (strcasecmp($st, 'completed') === 0) {
+                // Wo liegt es? storage (SABnzbd), sonst path, Name oder die Auftrags-ID als Ordnername (Tidarr: /downloads/{id})
+                $kandidaten = [(string) ($h['storage'] ?? ''), (string) ($h['path'] ?? ''), (string) ($h['name'] ?? ''), $n];
+                $pfad = dl_pfad_suchen($kandidaten, $c, $d) ?? (string) ($h['storage'] ?? '');
+                if ($pfad === '') {
+                    // fertig gemeldet, aber (noch) kein Ordner zu finden: warten wie bei der Nachbearbeitung, dann gescheitert
+                    db_tun('UPDATE downloads SET status = :s, prozent = 100, meldung = :m WHERE id = :id', ['s' => 'laeuft', 'm' => t('{client}: fertig, Ordner noch nicht gefunden', ['client' => $c['name']]), 'id' => $d['id']]);
+                    $haengt = dl_waechter($d, 'h|fertig-ohne-ordner', false, 'haengt');
+                    if ($haengt !== null) {
+                        db_tun("UPDATE downloads SET status = 'fehler', meldung = :m WHERE id = :id", ['id' => $d['id'],
+                            'm' => mb_substr(t('{client} meldet seit {min} min „fertig“, im Download-Ordner liegt aber nichts Passendes – gescheitert.', ['client' => $c['name'], 'min' => $haengt]), 0, 1000)]);
+                    }
+                    continue;
+                }
                 db_tun("UPDATE downloads SET status = 'fertig', prozent = 100, pfad_sab = :p, fertig_am = NOW(), meldung = :m WHERE id = :id",
-                    ['m' => t('Fertig geladen – wird kopiert und eingelesen'), 'p' => mb_substr((string) ($h['storage'] ?? ''), 0, 1000), 'id' => $d['id']]);
-            } elseif ($st === 'Failed') {
+                    ['m' => t('Fertig geladen – wird kopiert und eingelesen'), 'p' => mb_substr($pfad, 0, 1000), 'id' => $d['id']]);
+            } elseif (strcasecmp($st, 'failed') === 0) {
                 db_tun("UPDATE downloads SET status = 'fehler', meldung = :m WHERE id = :id", ['m' => mb_substr(t('{wer}: {fehler}', ['wer' => $c['name'], 'fehler' => (string) ($h['fail_message'] ?? t('fehlgeschlagen'))]), 0, 1000), 'id' => $d['id']]);
             } else {
                 // Nachbearbeitung (Prüfen, Reparieren, Entpacken, Verschieben, Skript)
@@ -1178,8 +1207,8 @@ function dl_abgleichen_client(array $c, array $offen): void
                 $fp = 'h|' . $st . '|' . (string) ($h['action_line'] ?? '');
                 $haengt = dl_waechter($d, $fp, false, 'haengt');
                 if ($haengt !== null) {
-                    $pfad = (string) ($h['storage'] ?? '') !== '' ? (string) $h['storage'] : (string) ($h['name'] ?? '');
-                    if (dl_waechter_dateien_da($pfad, $c)) {
+                    $pfad = dl_pfad_suchen([(string) ($h['storage'] ?? ''), (string) ($h['path'] ?? ''), (string) ($h['name'] ?? ''), $n], $c, $d) ?? '';
+                    if ($pfad !== '') {
                         dl_waechter_fertig($d, $pfad, $haengt);
                     } else {
                         db_tun("UPDATE downloads SET status = 'fehler', meldung = :m WHERE id = :id", ['id' => $d['id'],
@@ -1188,9 +1217,16 @@ function dl_abgleichen_client(array $c, array $offen): void
                 }
             }
         } else {
-            // weder in der Schlange noch im Verlauf: nach der Wartezeit gescheitert
+            // weder in der Schlange noch im Verlauf: nach der Wartezeit gescheitert – außer die Dateien liegen fertig im
+            // Download-Ordner (Client neu gestartet, Verlauf geleert)
             $weg = dl_waechter($d, 'weg', false, 'weg');
-            if ($weg !== null) {
+            $pfad = $weg !== null ? dl_pfad_suchen([$n, (string) $d['titel']], $c, $d, true) : null;
+            if ($pfad !== null) {
+                db_tun("UPDATE downloads SET status = 'fertig', prozent = 100, pfad_sab = :p, fertig_am = NOW(), meldung = :m WHERE id = :id", [
+                    'p' => mb_substr($pfad, 0, 1000), 'id' => $d['id'],
+                    'm' => t('{client} kennt den Auftrag nicht mehr (Neustart?), die Dateien sind aber da – wird kopiert und eingelesen', ['client' => $c['name']]),
+                ]);
+            } elseif ($weg !== null) {
                 db_tun("UPDATE downloads SET status = 'fehler', meldung = :m WHERE id = :id",
                     ['m' => t('In {client} seit {min} min nicht mehr zu finden (gelöscht?) – gescheitert.', ['client' => $c['name'], 'min' => $weg]), 'id' => $d['id']]);
             }
@@ -1217,6 +1253,38 @@ function dl_waechter(array $d, string $fp, bool $ruht, string $art): ?int
     $min = max(5, (int) einstellung($art === 'weg' ? 'download_weg_min' : 'download_haengt_min'));
     $seit = (int) db_wert('SELECT TIMESTAMPDIFF(SECOND, bewegt_am, NOW()) FROM downloads WHERE id = :id', ['id' => $d['id']]);
     return $seit >= $min * 60 ? (int) floor($seit / 60) : null;
+}
+
+/**
+ * Erster Kandidat (Pfad oder Ordnername), unter dem im Import-Ordner des Clients Audiodateien liegen; null = keiner.
+ * Ordner, die schon zu einem anderen Auftrag gehören, zählen nicht. $nurNeu: nur Ordner, die seit dem Auftrag entstanden sind
+ * (verschwundene Aufträge – sonst würde ein alter, behaltener Ordner mit gleichem Namen noch einmal eingelesen).
+ */
+function dl_pfad_suchen(array $kandidaten, ?array $client, ?array $d = null, bool $nurNeu = false): ?string
+{
+    foreach (array_unique(array_filter(array_map('trim', $kandidaten), 'strlen')) as $k) {
+        if (!dl_waechter_dateien_da($k, $client)) {
+            continue;
+        }
+        if ($d) {
+            $name = basename(str_replace('\\', '/', $k));
+            $anderer = db_wert("SELECT 1 FROM downloads WHERE id <> :id AND COALESCE(client_id, 0) = :c AND pfad_sab <> '' AND (pfad_sab = :n OR pfad_sab LIKE :e) LIMIT 1",
+                ['id' => $d['id'], 'c' => (int) ($d['client_id'] ?? 0), 'n' => $name, 'e' => '%/' . addcslashes($name, '%_\\')]);
+            if ($anderer) {
+                continue;
+            }
+            if ($nurNeu) {
+                $q = dl_quelle_finden(['pfad_sab' => $k, 'client_id' => $d['client_id'] ?? 0]);
+                $seit = strtotime((string) ($d['angelegt_am'] ?? 'now')) - 60;
+                // ctime statt mtime: wird beim Anlegen gesetzt und lässt sich durch Archiv-Zeitstempel nicht zurückdatieren
+                if ($q === null || max((int) @filemtime($q), (int) @filectime($q)) < $seit) {
+                    continue;
+                }
+            }
+        }
+        return $k;
+    }
+    return null;
 }
 
 /** Liegen unter diesem Namen (SABnzbd-Pfad oder Auftragsname) Audiodateien im Download-Ordner? */
@@ -1263,7 +1331,7 @@ function dl_quelle_finden(array $d): ?string
 {
     $wurzel = rtrim(dl_client_wurzel(dl_client_von($d)), '/');
     $name = basename(str_replace('\\', '/', (string) $d['pfad_sab']));
-    if ($name === '' || $name === '.' || $name === '..') {
+    if ($name === '' || $name === '.' || $name === '..' || str_contains($name, "\0")) {
         return null;
     }
     $p = $wurzel . '/' . $name;
@@ -1300,8 +1368,18 @@ function dl_importieren(array $d): array
         throw new RuntimeException(t('Nicht gefunden unter {pfad} – ist das der Ordner, in den {client} die Kategorie „{kategorie}“ ablegt?',
             ['pfad' => dl_client_wurzel($c) . '/' . basename((string) $d['pfad_sab']), 'client' => $c['name'] ?? 'SABnzbd', 'kategorie' => $c['kategorie'] ?? $k['sab_kat']]));
     }
+    // Noch in Arbeit? Clients schreiben nach „fertig“ teils weiter (Tags, ReplayGain) – erst kopieren, wenn alles 30 s ruht
+    $neueste = is_dir($quelle) ? dl_neueste_aenderung($quelle) : (int) @filemtime($quelle);
+    $langeFertig = strtotime((string) ($d['fertig_am'] ?? 'now')) < time() - 1800;
+    if ($neueste > time() - 30 && $neueste <= time() + 60 && !$langeFertig) {
+        throw new DlNochNichtRuhig(t('Wartet, bis der Downloadclient fertig geschrieben hat …'));
+    }
     $musik = af_wurzel();
     $basis = af_sicher(is_dir($quelle) ? basename($quelle) : pathinfo($quelle, PATHINFO_FILENAME));
+    // Ordner heißt nur wie eine Auftrags-ID (Tidarr: /downloads/{id}): dann lieber der Release-Name ohne [FLAC]-Anhängsel
+    if (($basis === (string) ($d['nzo_id'] ?? '') || preg_match('/^(\d{6,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i', $basis)) && trim((string) ($d['titel'] ?? '')) !== '') {
+        $basis = af_sicher(trim(preg_replace('/\s*\[[^\]]*\]/', '', (string) $d['titel'])) ?: $basis);
+    }
     $zielRel = af_sicher($k['ziel']) . '/' . $basis;
     for ($i = 2; file_exists($musik . '/' . $zielRel); $i++) {
         $zielRel = af_sicher($k['ziel']) . '/' . $basis . ' (' . $i . ')';
@@ -1328,32 +1406,43 @@ function dl_importieren(array $d): array
     }
     $zuFlac = einstellung('download_wav_flac') !== '0';
     $umgewandelt = 0;
-    foreach ($dateien as $rel) {
-        $von = $quelle . '/' . $rel;
-        $nach = $musik . '/' . $zielRel . '/' . $rel;
-        if (!af_ordner_anlegen(dirname($nach))) {
-            throw new RuntimeException(t('Ordner konnte nicht angelegt werden: {pfad}', ['pfad' => dirname($nach)]));
-        }
-        $ext = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
-        if ($zuFlac && in_array($ext, ['wav', 'aif', 'aiff'], true)) {
-            // verlustfrei nach FLAC (prüft die Samples per MD5); erst unter verstecktem Namen, dann umbenennen
-            $nach = preg_replace('/\.[^.\/]+$/', '.flac', $nach);
-            $tmp = dirname($nach) . '/.aw-import-' . bin2hex(random_bytes(4)) . '.flac';
-            try {
-                ue_zu_flac($von, $tmp, true);
-                if (!@rename($tmp, $nach)) {
-                    throw new RuntimeException(t('Umbenennen fehlgeschlagen'));
-                }
-            } catch (Throwable $e) {
-                @unlink($tmp);
-                throw new RuntimeException(t('Umwandeln nach FLAC fehlgeschlagen ({datei}): {grund}', ['datei' => $rel, 'grund' => $e->getMessage()]));
+    // Erst in einen versteckten Zwischenordner kopieren und am Ende umbenennen: ein Abbruch hinterlässt keine halben Alben
+    // in der Bibliothek (und ein neuer Versuch keine „(2)“-, „(3)“-Kopien)
+    $zwischenRel = dirname($zielRel) . '/.aw-import-' . bin2hex(random_bytes(4));
+    try {
+        foreach ($dateien as $rel) {
+            $von = $quelle . '/' . $rel;
+            $nach = $musik . '/' . $zwischenRel . '/' . $rel;
+            if (!af_ordner_anlegen(dirname($nach))) {
+                throw new RuntimeException(t('Ordner konnte nicht angelegt werden: {pfad}', ['pfad' => dirname($nach)]));
             }
-            $umgewandelt++;
-        } elseif (!@copy($von, $nach) || filesize($von) !== filesize($nach)) {
-            @unlink($nach);
-            throw new RuntimeException(t('Kopieren fehlgeschlagen: {datei}', ['datei' => $rel]));
+            $ext = strtolower(pathinfo($rel, PATHINFO_EXTENSION));
+            if ($zuFlac && in_array($ext, ['wav', 'aif', 'aiff'], true)) {
+                // verlustfrei nach FLAC (prüft die Samples per MD5); erst unter verstecktem Namen, dann umbenennen
+                $nach = preg_replace('/\.[^.\/]+$/', '.flac', $nach);
+                $tmp = dirname($nach) . '/.aw-import-' . bin2hex(random_bytes(4)) . '.flac';
+                try {
+                    ue_zu_flac($von, $tmp, true);
+                    if (!@rename($tmp, $nach)) {
+                        throw new RuntimeException(t('Umbenennen fehlgeschlagen'));
+                    }
+                } catch (Throwable $e) {
+                    @unlink($tmp);
+                    throw new RuntimeException(t('Umwandeln nach FLAC fehlgeschlagen ({datei}): {grund}', ['datei' => $rel, 'grund' => $e->getMessage()]));
+                }
+                $umgewandelt++;
+            } elseif (!@copy($von, $nach) || filesize($von) !== filesize($nach)) {
+                @unlink($nach);
+                throw new RuntimeException(t('Kopieren fehlgeschlagen: {datei}', ['datei' => $rel]));
+            }
+            af_datei_rechte($nach);
         }
-        af_datei_rechte($nach);
+        if (!@rename($musik . '/' . $zwischenRel, $musik . '/' . $zielRel)) {
+            throw new RuntimeException(t('Ordner konnte nicht angelegt werden: {pfad}', ['pfad' => $zielRel]));
+        }
+    } catch (Throwable $e) {
+        dl_ordner_weg($musik . '/' . $zwischenRel);
+        throw $e;
     }
     // Alles ist angekommen (jede Datei mit gleicher Größe geprüft) – jetzt erst das Original entfernen
     $original = 'behalten';
@@ -1460,6 +1549,40 @@ function dl_ordner_loeschen(string $abs, ?string $wurzel = null): void
     @rmdir($echt);
 }
 
+/** Der Downloadclient schreibt noch: Import später wiederholen (kein Fehler) */
+class DlNochNichtRuhig extends RuntimeException
+{
+}
+
+/** Jüngste Änderungszeit im Ordner (Dateien und Unterordner) */
+function dl_neueste_aenderung(string $ordner): int
+{
+    $max = (int) @filemtime($ordner);
+    try {
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ordner, FilesystemIterator::SKIP_DOTS)) as $f) {
+            $m = (int) $f->getMTime();
+            if ($m <= time() + 60) {   // Zeiten in der Zukunft (Archiv-Zeitstempel, falsche Uhr) zählen nicht
+                $max = max($max, $m);
+            }
+        }
+    } catch (Throwable $e) {
+    }
+    return $max;
+}
+
+/** Ordner samt Inhalt entfernen (Zwischenordner eines abgebrochenen Imports) */
+function dl_ordner_weg(string $ordner): void
+{
+    if (!is_dir($ordner)) {
+        return;
+    }
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ordner, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+    foreach ($it as $f) {
+        $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+    }
+    @rmdir($ordner);
+}
+
 /** Alles Fertige importieren und danach einlesen (Hintergrund / Zeitplan) */
 function dl_importe(): int
 {
@@ -1468,6 +1591,12 @@ function dl_importe(): int
         // Musikordner auf „nur lesen“: Fertiges bleibt im Download-Ordner liegen und wird übernommen, sobald Schreiben erlaubt ist
         db_tun("UPDATE downloads SET meldung = :m WHERE status = 'fertig'", ['m' => mb_substr(t('Wartet: Der Musikordner steht auf „nur lesen“ (Einstellungen → Bibliothek & Automatik).'), 0, 1000)]);
         return 0;
+    }
+    // Zwischenordner abgebrochener Importe (Container-Neustart mitten im Kopieren) nach 6 Stunden entfernen
+    foreach (glob(af_wurzel() . '/' . af_sicher(dl_konfig()['ziel']) . '/.aw-import-*', GLOB_ONLYDIR) ?: [] as $alt) {
+        if ((int) @filemtime($alt) < time() - 21600) {
+            dl_ordner_weg($alt);
+        }
     }
     $n = 0;
     foreach (db_alle("SELECT * FROM downloads WHERE status = 'fertig' ORDER BY id") as $d) {
@@ -1480,6 +1609,8 @@ function dl_importe(): int
             db_tun("UPDATE downloads SET status = 'importiert', pfad_ziel = :z, meldung = :m, original_weg = :o WHERE id = :id",
                 ['z' => $ziel, 'm' => t('Kopiert nach {ziel}', ['ziel' => $ziel]) . $zusatz, 'o' => $imp['original'] === 'weg' ? 1 : 0, 'id' => $d['id']]);
             $n++;
+        } catch (DlNochNichtRuhig $e) {
+            db_tun('UPDATE downloads SET meldung = :m WHERE id = :id', ['m' => mb_substr($e->getMessage(), 0, 1000), 'id' => $d['id']]);
         } catch (Throwable $e) {
             // SABnzbd verschiebt manchmal noch ein paar Sekunden: erst nach 10 Minuten als Fehler werten
             $alt = strtotime((string) ($d['fertig_am'] ?? 'now')) < time() - 600;
