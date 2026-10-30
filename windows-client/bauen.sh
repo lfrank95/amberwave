@@ -55,7 +55,7 @@ mkdir -p "$ZIEL/resources/app/engine"
 cp "$HIER/client/"{main.js,preload.js,suche.js,log.js,vst.js,i18n.js,i18n_en.json,einrichtung.html,package.json} "$ZIEL/resources/app/"
 cp -r "$HIER/client/bilder" "$ZIEL/resources/app/"
 cp "$HIER/build/amberwave-engine.exe" "$HIER/build/amberwave-vsthost.exe" "$ZIEL/resources/app/engine/"
-cp "$HIER/../LICENSE" "$ZIEL/LIZENZ-Amberwave.txt"
+cat "$HIER/../COPYRIGHT" - "$HIER/../LICENSE" > "$ZIEL/LIZENZ-Amberwave.txt" <<< ""
 cp "$HIER/../THIRD_PARTY_NOTICES.md" "$ZIEL/DRITTANBIETER.md"
 cat > "$ZIEL/LIESMICH.txt" <<TXT
 Amberwave Windows Client $VERSION

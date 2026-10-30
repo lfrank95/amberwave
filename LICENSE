@@ -1,31 +1,3 @@
-Amberwave
-Copyright (C) 2026  The Amberwave contributors
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published
-by the Free Software Foundation, version 3 of the License (AGPL-3.0-only).
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-The full license text: https://www.gnu.org/licenses/agpl-3.0.txt
-
------------------------------------------------------------------------------
-Scope
-
-This license covers the Amberwave core: the server (app/, docker/, dsp/) and
-the Windows client (windows-client/). Third-party components keep their own
-licenses, see THIRD_PARTY_NOTICES.md. Future "Pro" extensions that are not in
-this repository are not covered by this license.
-
-=============================================================================
-
-
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 

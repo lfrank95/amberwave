@@ -166,4 +166,4 @@ Ausgangs-Routing-Matrix mit EQ pro Kanal sind als Pro-Funktionen geplant – in 
 - Alle Einstellungen der .env: [.env.reference](.env.reference) – fast alles davon geht auch in der App.
 - Was sich geändert hat: [CHANGELOG.md](CHANGELOG.md)
 - Fehler melden: GitHub Issues · Fragen und Ideen: [r/Amberwave](https://www.reddit.com/r/Amberwave)
-- Lizenz: AGPL-3.0 ([LICENSE](LICENSE)), Fremdkomponenten: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+- Lizenz: AGPL-3.0 ([LICENSE](LICENSE), Hinweis und Geltungsbereich in [COPYRIGHT](COPYRIGHT)), Fremdkomponenten: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)

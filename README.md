@@ -196,5 +196,5 @@ for questions and ideas.
 
 ## License
 
-Amberwave is licensed under the **GNU Affero General Public License v3.0** – see [LICENSE](LICENSE).
+Amberwave is licensed under the **GNU Affero General Public License v3.0** – see [LICENSE](LICENSE); copyright notice and scope in [COPYRIGHT](COPYRIGHT).
 Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). History: [CHANGELOG.md](CHANGELOG.md).
