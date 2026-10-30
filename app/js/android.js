@@ -25,7 +25,14 @@ export function androidHoeren(f) { hoerer.add(f); return () => hoerer.delete(f);
 /** Version der App (z. B. „0.9.1-beta.5“) */
 export const androidVersion = () => (android ? String(androidRufen('version') || '') : '');
 
+/** Falz von Faltgeräten aus Android (die WebView kennt Viewport Segments und Device Posture nicht):
+ *  { zustand: 'flach'|'halb', richtung: 'senkrecht'|'waagerecht', segmente: [{x,y,width,height}] } oder null */
+let falz = null;
+export const androidFalz = () => falz;
+
 if (android) {
+  try { falz = JSON.parse(android.falz?.() || 'null'); } catch (e) { falz = null; }
+  window.awAndroidFalz = (f) => { falz = f || null; window.dispatchEvent(new CustomEvent('aw-android-falz')); };
   document.documentElement.classList.add('aw-android');
   window.awAndroidEreignis = (e) => {
     const d = typeof e === 'string' ? JSON.parse(e) : e;

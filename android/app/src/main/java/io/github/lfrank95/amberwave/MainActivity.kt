@@ -226,6 +226,16 @@ class MainActivity : ComponentActivity() {
         aktiv = this
     }
 
+    override fun onStart() {
+        super.onStart()
+        Falz.starten(this, web)
+    }
+
+    override fun onStop() {
+        Falz.stoppen()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         if (aktiv === this) aktiv = null
         rahmen.removeView(web)

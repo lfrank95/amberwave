@@ -25,6 +25,15 @@
   .band { background: rgba(255, 122, 92, .1); border: 1px solid rgba(255, 122, 92, .35); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .band b { color: var(--text); }
   [hidden] { display: none !important; }
+  .suche { background: var(--karte); border: 1px solid var(--rand); border-radius: 18px; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+  .suche h2 { margin: 0; font-size: 15px; }
+  .fund { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--rand); background: #120d0a; color: var(--text); text-align: left; font-weight: 400; }
+  .fund b { display: block; }
+  .fund small { color: var(--leise); word-break: break-all; }
+  .fund span { flex: 1; min-width: 0; }
+  .punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--akzent); flex: none; }
+  .laeuft::after { content: ""; display: inline-block; width: 12px; height: 12px; margin-left: 8px; border: 2px solid var(--akzent); border-right-color: transparent; border-radius: 50%; animation: dreh .8s linear infinite; vertical-align: -2px; }
+  @keyframes dreh { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -46,6 +55,12 @@
     <button type="button" data-nochmal data-t="nochmal">Erneut versuchen</button>
   </div>
 
+  <section class="suche" data-suche>
+    <h2 data-suche-titel class="laeuft" data-t="suche">Suche im Heimnetz …</h2>
+    <div data-funde style="display:flex;flex-direction:column;gap:8px"></div>
+    <p class="hinweis" data-suche-leer hidden data-t="suche_leer">Kein Amberwave im WLAN gefunden – Adresse unten eintragen.</p>
+  </section>
+
   <form data-form>
     <label for="adresse" data-t="label">Adresse deines Servers</label>
     <input id="adresse" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="musik.example.de" required>
@@ -63,8 +78,10 @@
     tipp: 'The address you use to open Amberwave in the browser – on the go via the tunnel, at home also e.g. 192.168.1.10:8095.',
     verbinden: 'Connect', pruefe: 'Checking …', adresse: 'Please enter a valid address.',
     nicht_erreichbar: 'No Amberwave server answers at this address.',
+    suche: 'Searching your home network …', suche_fertig: 'Found in your home network', suche_leer: 'No Amberwave found on this Wi-Fi – enter the address below.',
+    unterwegs: 'works on the go too', nur_zuhause: 'only at home (no public address set)',
   };
-  const D = { pruefe: 'Prüfe …', adresse: 'Bitte eine gültige Adresse eingeben.', nicht_erreichbar: 'Unter dieser Adresse antwortet kein Amberwave-Server.' };
+  const D = { suche_fertig: 'Im Heimnetz gefunden', unterwegs: 'klappt auch unterwegs', nur_zuhause: 'nur zuhause (keine öffentliche Adresse eingestellt)', pruefe: 'Prüfe …', adresse: 'Bitte eine gültige Adresse eingeben.', nicht_erreichbar: 'Unter dieser Adresse antwortet kein Amberwave-Server.' };
   const t = (k) => T[k] || D[k] || '';
   if (!de) { document.documentElement.lang = 'en'; document.querySelectorAll('[data-t]').forEach((e) => { if (T[e.dataset.t]) e.textContent = T[e.dataset.t]; }); }
 
@@ -80,6 +97,32 @@
     document.querySelector('[data-band-adresse]').textContent = p.get('fehler');
   }
   document.querySelector('[data-nochmal]').addEventListener('click', () => A && A.neuVersuchen());
+
+  // Server im Heimnetz: mit öffentlicher Adresse (APP_URL, z. B. Tunnel) wird die genommen – zuhause nimmt die App
+  // dann von selbst den schnellen Direktweg; ohne bleibt nur die Adresse im Heimnetz
+  const funde = document.querySelector('[data-funde]');
+  window.startFunde = (liste) => {
+    const titel = document.querySelector('[data-suche-titel]');
+    titel.classList.remove('laeuft');
+    titel.textContent = t('suche_fertig');
+    if (!liste || !liste.length) { titel.hidden = true; document.querySelector('[data-suche-leer]').hidden = false; return; }
+    funde.innerHTML = '';
+    for (const f of liste) {
+      const oeffentlich = /^https:\/\//.test(f.url || '');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fund';
+      b.innerHTML = '<i class="punkt"></i><span><b></b><small></small></span>';
+      b.querySelector('b').textContent = f.name || 'Amberwave';
+      b.querySelector('small').textContent = (oeffentlich ? f.url : f.lan) + ' · ' + (oeffentlich ? t('unterwegs') : t('nur_zuhause'));
+      b.addEventListener('click', () => {
+        feld.value = oeffentlich ? f.url : f.lan;
+        document.querySelector('[data-form]').requestSubmit();
+      });
+      funde.appendChild(b);
+    }
+  };
+  if (A && A.serverSuchen) A.serverSuchen(); else document.querySelector('[data-suche]').hidden = true;
 
   window.startErgebnis = (r) => {
     los.disabled = false;

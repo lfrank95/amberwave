@@ -52,6 +52,18 @@ class Bruecke(private val app: Context, private val aktivitaet: () -> MainActivi
         aktivitaet()?.runOnUiThread { aktivitaet()?.serverLaden() }
     }
 
+    /** Server im Heimnetz suchen; Ergebnis als window.startFunde([{name, lan, url, version}]) */
+    @JavascriptInterface fun serverSuchen() {
+        if (!vomStart()) return
+        Thread {
+            val f = runCatching { Netzsuche.suchen(app) }.getOrDefault(JSONArray())
+            WebHalter.js("window.startFunde && window.startFunde($f)")
+        }.start()
+    }
+
+    /** Falz von Faltgeräten (Lage, halb oder ganz aufgeklappt) – null ohne Falz */
+    @JavascriptInterface fun falz(): String = Falz.json
+
     @JavascriptInterface fun gespeicherterServer(): String = if (vomStart()) Einstellungen.server else ""
 
     /** Startseite nach einem Fehler: noch einmal versuchen */

@@ -8,6 +8,7 @@
 // Ergebnis als Klassen auf <html>: zwei-haelften (Layout), falz-buch / falz-tisch (Haltung, nur wenn gemeldet).
 
 import { t } from './i18n.js';
+import { android, androidFalz } from './android.js';
 
 const mq = (q) => { try { return matchMedia(q).matches; } catch { return false; } };
 
@@ -24,12 +25,16 @@ export function falzStatus() {
   const w = window.innerWidth;
   const hh = window.innerHeight;
   const v = w / Math.max(1, hh);
-  const segmenteApi = 'viewport' in window && window.viewport && 'segments' in window.viewport;
-  const segmente = segmenteApi ? (window.viewport.segments || []).map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), b: Math.round(s.width), h: Math.round(s.height) })) : null;
-  const buch = mq('(horizontal-viewport-segments: 2)');
-  const tisch = mq('(vertical-viewport-segments: 2)');
-  const mqBekannt = buch || tisch || mq('(horizontal-viewport-segments: 1)');
-  const haltung = navigator.devicePosture?.type || null;
+  // Android-App: Falz und Haltung meldet die App (wie der Browser: zwei Segmente nur halb aufgeklappt)
+  const af = android ? androidFalz() : null;
+  const halb = af?.zustand === 'halb';
+  const segmenteApi = !!af || ('viewport' in window && window.viewport && 'segments' in window.viewport);
+  const roh = af ? (halb ? af.segmente : [{ x: 0, y: 0, width: w, height: hh }]) : segmenteApi ? (window.viewport.segments || []) : null;
+  const segmente = roh ? roh.map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), b: Math.round(s.width), h: Math.round(s.height) })) : null;
+  const buch = af ? halb && af.richtung === 'senkrecht' : mq('(horizontal-viewport-segments: 2)');
+  const tisch = af ? halb && af.richtung === 'waagerecht' : mq('(vertical-viewport-segments: 2)');
+  const mqBekannt = !!af || buch || tisch || mq('(horizontal-viewport-segments: 1)');
+  const haltung = af ? (halb ? 'folded' : 'continuous') : navigator.devicePosture?.type || null;
   const touch = mq('(pointer: coarse)');
   const schaetzung = touch && w >= 600 && w <= 1023 && v >= 0.7 && v <= 1.45;
   const chrome = (navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1];
@@ -71,6 +76,7 @@ export function falzBeobachten() {
   try { navigator.devicePosture?.addEventListener('change', neu); } catch { /* egal */ }
   try { window.viewport?.addEventListener?.('segmentschange', neu); } catch { /* egal */ }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) neu(); });
+  window.addEventListener('aw-android-falz', neu);
 }
 
 /** Lesbare Zeilen für die Einstellungen */
@@ -78,7 +84,7 @@ export function falzBericht(s = falzStatus()) {
   const ja = (x) => (x ? t('ja') : t('nein'));
   const browser = s.samsung ? `Samsung Internet ${s.samsung}` : s.chrome ? `Chrome ${s.chrome}` : t('unbekannt');
   return [
-    [t('Browser'), `${browser}${s.pwa ? ` · ${t('als App installiert')}` : ` · ${t('im Browser-Tab')}`}`],
+    [t('Browser'), android ? `${t('Android-App')} · WebView ${s.chrome || '?'}` : `${browser}${s.pwa ? ` · ${t('als App installiert')}` : ` · ${t('im Browser-Tab')}`}`],
     [t('Fenster'), `${s.w} × ${s.hh} px${s.touch ? ` · ${t('Touch')}` : ''}`],
     [t('Falz-Schnittstelle'), s.segmenteApi || s.mqBekannt ? t('vorhanden') : t('fehlt in diesem Browser')],
     [t('Segmente'), s.segmente ? (s.segmente.length > 1 ? s.segmente.map((x) => `${x.b}×${x.h} @${x.x},${x.y}`).join('  |  ') : t('1 (flach oder nicht gemeldet)')) : '–'],
