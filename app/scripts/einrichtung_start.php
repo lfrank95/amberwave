@@ -39,5 +39,7 @@ echo "\n==================================================================\n"
     . " Amberwave ist noch nicht eingerichtet / is not set up yet.\n"
     . ' Öffne / Open:  ' . $basis . '/einrichtung.php?code=' . $code . "\n"
     . ' Einrichtungscode / Setup code: ' . $code . "\n"
-    . ($min > 0 ? " Das Fenster ist {$min} Minuten offen / Open for {$min} minutes. Danach / Afterwards: docker restart amberwave_app\n" : " Das Fenster bleibt offen (EINRICHTUNG_FENSTER_MINUTEN=0).\n")
+    . ($min > 0 ? " Das Fenster ist {$min} Minuten offen / Open for {$min} minutes. Danach / Afterwards: "
+        . (getenv('AMBERWAVE_WINDOWS') === '1' ? "Infobereich → Server neu starten / Tray → Restart server\n" : "docker restart amberwave_app\n")
+        : " Das Fenster bleibt offen (EINRICHTUNG_FENSTER_MINUTEN=0).\n")
     . "==================================================================\n\n";

@@ -285,7 +285,8 @@ static void nginxKonfig()
 }
 static wstring nginxBefehl(const wstring &zusatz)
 {
-    return q(P(L"nginx\\nginx.exe")) + L" -p " + q(D(L"nginx\\")) + L" -c conf/nginx.conf" + zusatz;
+    // Präfix mit / am Ende: ein \ vor dem schließenden Anführungszeichen würde es maskieren
+    return q(P(L"nginx\\nginx.exe")) + L" -p " + q(slash(D(L"nginx")) + L"/") + L" -c conf/nginx.conf" + zusatz;
 }
 
 static void dienstHinzu(const wstring &name, const wstring &befehl, const wstring &log)
@@ -329,7 +330,9 @@ static bool hochfahren()
     if (rc != 0) { statusSetzen(L"Datenbank-Zugang fehlgeschlagen – Logs ansehen"); return false; }
     statusSetzen(L"Datenbank-Update …");
     ausfuehren(phpSkript(L"migrate.php") + L" --start", D(L"logs\\server-php.log"), 1800000);
+    logz(L"Einrichtung prüfen …");
     ausfuehren(phpSkript(L"einrichtung_start.php"), D(L"logs\\server-php.log"), 300000);
+    logz(L"PHP und Webserver starten …");
     for (int i = 0; i < g_php; i++)
         dienstHinzu(L"php", q(P(L"php\\php-cgi.exe")) + L" -b 127.0.0.1:" + std::to_wstring(9100 + i), D(L"logs\\php-cgi.log"));
     nginxKonfig();
