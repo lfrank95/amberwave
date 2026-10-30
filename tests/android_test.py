@@ -19,8 +19,17 @@ SERVER = 'http://127.0.0.1:8080'
 fehler = 0
 
 
+ergebnisse = []
+
+
 def ok(t):
-    print(f'::notice title=Android-Test::{t}', flush=True)
+    # GitHub zeigt je Schritt nur 10 Hinweise – am Ende alle in einem
+    ergebnisse.append(t)
+    print(f'ok: {t}', flush=True)
+
+
+def zusammenfassung():
+    print('::notice title=Android-Test (' + str(len(ergebnisse)) + ' ok)::' + ' · '.join(ergebnisse), flush=True)
 
 
 def schlecht(t):
@@ -220,7 +229,8 @@ def main():
     if re.search(r'state=PlaybackState \{state=(3|PLAYING)', sitzung):
         ok('Wiedergabe läuft (Zustand „spielt“)')
     else:
-        print('::warning title=Android-Test::Zustand „spielt“ nicht erreicht (Emulator ohne Ton?)')
+        diag = s.js("JSON.stringify({ms: navigator.mediaSession.playbackState, toast: [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' / '), titel: document.title})")
+        print('::warning title=Android-Test::Zustand „spielt“ nicht erreicht (Emulator ohne Ton?) ' + str(diag))
     if PAKET in adb('shell', 'dumpsys', 'notification', '--noredact'):
         ok('Benachrichtigung da')
     # Taste „Pause“ wie vom Kopfhörer
@@ -255,6 +265,8 @@ def main():
         schlecht('Ton ohne Netz nicht lesbar')
     adb('shell', 'svc', 'wifi', 'enable')
     adb('shell', 'svc', 'data', 'enable')
+    if fehler:
+        protokoll()
     sys.exit(fehler)
 
 
@@ -262,10 +274,12 @@ if __name__ == '__main__':
     try:
         main()
     except SystemExit:
+        zusammenfassung()
         raise
     except BaseException as e:  # noqa: BLE001 – als Anmerkung sichtbar machen
         import traceback
         z = traceback.format_exc().strip().splitlines()
         print(f'::error title=Android-Test (Abbruch)::{type(e).__name__}: {e} | ' + ' | '.join(x.strip() for x in z[-6:]), flush=True)
+        zusammenfassung()
         protokoll()
         sys.exit(1)
