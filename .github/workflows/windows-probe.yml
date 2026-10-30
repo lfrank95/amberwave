@@ -39,5 +39,5 @@ jobs:
         run: |
           f=/c/aw/bericht.txt
           [ -f "$f" ] || { echo "::warning::kein Bericht"; exit 0; }
-          split -b 3500 -d "$f" /c/aw/teil_
-          for t in /c/aw/teil_*; do echo "::warning::$(tr '\n' '|' < "$t" | sed 's/%/%25/g')"; done
+          split -C 3000 -d "$f" /c/aw/teil_
+          for t in /c/aw/teil_*; do echo "::warning::$(tr -d '\r' < "$t" | tr '\n' '|' | sed 's/%/%25/g')"; done
