@@ -30,4 +30,6 @@ for i in $(seq 1 60); do
     sleep 2
 done
 curl -s http://127.0.0.1:8080/api/v1/alben -H "Authorization: Bearer $TK" | grep -q Unterwegs || { echo "::error title=Android-Test::Album nicht eingelesen"; docker logs aw-test | tail -30; exit 1; }
+# Einrichtungsassistent nach der ersten Anmeldung (Admin aus der Vorlage) überspringen – hier geht es um die App
+docker exec aw-test rm -f /appdata/cache/geheimnisse/assistent_offen
 echo "Testserver bereit"
