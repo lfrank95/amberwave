@@ -107,7 +107,7 @@ def main():
     starten(s)
 
     # 1. Startseite: Server eintragen
-    if s.bis("location.href.includes('start.html') && !!window.AwAndroid", 30):
+    if s.bis("location.href.includes('start.html') && !!window.AwAndroid && document.readyState === 'complete' && !!document.getElementById('adresse')", 30):
         ok('Startseite mit Brücke')
     else:
         schlecht('Startseite fehlt')
