@@ -5,6 +5,8 @@ set -u
 PAKET="$1"; W='C:\aw'; WU=/c/aw
 mkdir -p "$WU/musik"; FEHLER=0
 ok() { echo "ok: $*"; }
+# Logs als Hinweise am Lauf (die Ausgabe selbst ist nur im Browser lesbar)
+melden() { for f in "$@"; do [ -f "$f" ] || continue; echo "::warning title=$(basename "$f")::$(tail -c 2500 "$f" | tr -d '\r' | tr '\n' '|' | sed 's/%/%25/g')"; done; }
 fehler() { echo "::error title=Windows-Server::$*"; echo "FEHLER: $*"; FEHLER=1; }
 FF="$PAKET/ffmpeg/bin/ffmpeg.exe"
 mk() { mkdir -p "$WU/musik/$1"; "$FF" -v error -y -f lavfi -i "sine=f=$3:d=8" -ac 2 -ar 44100 -metadata title="$2" -metadata artist="Björk Ångström" -metadata album_artist="Björk Ångström" -metadata album="Über Grenzen" -metadata track="$4" -metadata date=2021 "$WU/musik/$1/$5"; }
@@ -23,7 +25,7 @@ log() { cat "$WU/daten/logs/server.log" 2>/dev/null; }
 
 echo "== 1. Erster Start"
 T0=$(date +%s); starten 1
-if warten; then ok "Server antwortet nach $(( $(date +%s) - T0 )) s"; else fehler "Server antwortet nicht"; log | tail -30; cat "$WU/daten/logs/"*.log 2>/dev/null | tail -60; exit 1; fi
+if warten; then ok "Server antwortet nach $(( $(date +%s) - T0 )) s"; else fehler "Server antwortet nicht"; melden "$WU/daten/logs/"*.log "$WU/konsole_1.txt" "$WU/daten/nginx/logs/error.log"; exit 1; fi
 log | grep -q "MariaDB läuft" && ok "MariaDB läuft" || fehler "MariaDB nicht im Log"
 JAR="$WU/jar"; SEITE="$(curl -s -c "$JAR" http://127.0.0.1:9950/einrichtung.php)"
 CSRF="$(printf '%s' "$SEITE" | sed -n 's/.*data-csrf="\([^"]*\)".*/\1/p' | head -n1)"
@@ -68,5 +70,5 @@ TOKEN="$(curl -s --max-time 30 -X POST http://127.0.0.1:9950/api/v1/auth/token -
 stoppen || fehler "zweites Beenden"
 echo "--- PHP-Fehler"; tail -c 3000 "$WU/daten/logs/php-fehler.log" 2>/dev/null
 echo "--- server.log"; log | tail -40
-[ "$FEHLER" = 0 ] || { for f in "$WU/daten/logs/"*.log; do echo "--- $f"; tail -c 1500 "$f"; done; }
+[ "$FEHLER" = 0 ] || melden "$WU/daten/logs/"*.log "$WU/daten/nginx/logs/error.log"
 exit $FEHLER
