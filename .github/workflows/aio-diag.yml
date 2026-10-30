@@ -14,6 +14,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: |
+          docker pull -q ghcr.io/${{ github.repository_owner }}/amberwave:main >/dev/null
           docker run --rm ghcr.io/${{ github.repository_owner }}/amberwave:main bash -c '
             . /etc/os-release; echo "OS: $PRETTY_NAME"
             apt-get update >/tmp/u 2>&1; echo "update rc=$?"
@@ -23,4 +24,4 @@ jobs:
             cat /etc/apt/sources.list.d/mariadb.list 2>/dev/null
             apt-get install -y --no-install-recommends mariadb-server mariadb-client >/tmp/m 2>&1; echo "mariadb rc=$?"; tail -n 8 /tmp/m
           ' 2>&1 | tee out.txt
-          while IFS= read -r z; do echo "::warning::$z"; done < out.txt
+          echo "::warning::$(tr '\n' '|' < out.txt | tail -c 3500)"
