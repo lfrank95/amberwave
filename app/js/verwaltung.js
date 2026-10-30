@@ -582,6 +582,10 @@ export const verwaltungsAnsichten = {
     if (!r.musikordner_ok) hinweise.push(`<div class="fehler">${t('Der Musikordner <code>{ordner}</code> ist im Container nicht vorhanden. Bitte <code>MUSIK_PFAD</code> in der .env prüfen.', { ordner: h(r.musikordner) })}</div>`);
     if (z.konten_wartend) hinweise.push(`<div class="hinweis-box">${tn(z.konten_wartend, '{n} Registrierung wartet auf Freigabe. <a href="/verwaltung/konten" data-link>Jetzt ansehen</a>', '{n} Registrierungen warten auf Freigabe. <a href="/verwaltung/konten" data-link>Jetzt ansehen</a>')}</div>`);
     if (r.update) hinweise.push(`<div class="hinweis-box">${t('<b>Neue Version {version} verfügbar.</b>', { version: h(r.update.version) })} ${r.update.url ? `<a href="${h(r.update.url)}" target="_blank" rel="noopener">${t('Was ist neu?')}</a> · ` : ''}${r.image ? t('Update auf dem Server: <code>docker compose pull &amp;&amp; docker compose up -d</code>') : `<a href="/einstellungen/sicherung" data-link>${t('Update einspielen')}</a>`}</div>`);
+    if (r.proxy) {
+      hinweise.push(`<div class="hinweis-box" data-proxy-box><b>${t('Reverse Proxy bestätigen')}</b><br>${t('Anfragen kommen über <code>{ip}</code> und bringen eine weitergeleitete Absenderadresse mit. Ist das dein Reverse Proxy (z. B. Nginx Proxy Manager, SWAG, Traefik, Caddy)? Nur dann darf Amberwave der mitgeschickten Adresse glauben – sonst könnte sich jemand eine falsche Adresse geben und die Login-Sperre umgehen.', { ip: h(r.proxy.ip) })}${r.proxy.gateway ? `<br><small>${t('{ip} ist die Docker-Brücke. Ein Reverse Proxy im Host-Netz kommt so an; Dockers eigene Portweiterleitung schickt diese Angabe nie mit. Hast du keinen Reverse Proxy, wähle „Nein“.', { ip: h(r.proxy.ip) })}</small>` : ''}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" data-proxy="vertrauen">${t('Ja, das ist mein Proxy')}</button><button type="button" class="btn btn-zweit" data-proxy="ablehnen">${t('Nein, nicht vertrauen')}</button></div></div>`);
+    }
     if (!r.mail_eingerichtet) hinweise.push(`<div class="hinweis-box">${t('Der E-Mail-Versand ist noch nicht eingerichtet. <a href="/einstellungen/mail" data-link>Einstellungen → E-Mail</a>')}</div>`);
     if (z.konten_bald_ablaufend) hinweise.push(`<div class="hinweis-box">${tn(z.konten_bald_ablaufend, '{n} Konto läuft in den nächsten 30 Tagen ab. <a href="/verwaltung/konten?filter=bald" data-link>Ansehen</a>', '{n} Konten laufen in den nächsten 30 Tagen ab. <a href="/verwaltung/konten?filter=bald" data-link>Ansehen</a>')}</div>`);
     const kachel = (wert, text) => `<div class="glass-panel kennzahl"><b>${wert}</b><span>${text}</span></div>`;
@@ -603,6 +607,15 @@ export const verwaltungsAnsichten = {
           ${r.formate.length ? `<div class="pillen">${r.formate.map((f) => `<span class="pille" style="cursor:default">${h(f.format)} <small style="opacity:.7">${zahl(f.n)}</small></span>`).join('')}</div>` : `<p class="hinweis">${t('Noch keine Dateien.')}</p>`}
         </div>
       </div>`;
+    ziel.querySelector('[data-proxy-box]')?.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-proxy]');
+      if (!b) return;
+      try {
+        await api.post('/admin/proxy', { aktion: b.dataset.proxy, ip: r.proxy.ip });
+        toast(b.dataset.proxy === 'vertrauen' ? t('Proxy {ip} eingetragen – nur ihm wird die weitergeleitete Adresse geglaubt', { ip: r.proxy.ip }) : t('Gespeichert – weitergeleitete Adressen von privaten Absendern werden ignoriert'));
+        ziel.querySelector('[data-proxy-box]')?.remove();
+      } catch (x) { toast(x.message, 'fehler'); }
+    }, { signal });
   },
 
   async konten({ app, ziel, query, signal }) {

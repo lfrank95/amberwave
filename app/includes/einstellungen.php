@@ -89,6 +89,8 @@ const EINSTELLUNGEN = [
     'tunnel_ziel'           => ['env' => '',                      'standard' => '',          'geheim' => false],
     'tunnel_fremd'          => ['env' => '',                      'standard' => '0',         'geheim' => false],
     'tunnel_proxy_ip'       => ['env' => '',                      'standard' => '',          'geheim' => false],
+    // Reverse Proxy: '' = noch nicht entschieden, 'nein' = privaten Absendern nie die weitergeleitete Adresse glauben
+    'proxy_entscheidung'    => ['env' => '',                      'standard' => '',          'geheim' => false],
     'heimnetz_gelernt'      => ['env' => '',                      'standard' => '',          'geheim' => false],
     'direkt_acme_konto'     => ['env' => '',                      'standard' => '',          'geheim' => true],
     'zeitplan_direkt_lauf'  => ['env' => '',                      'standard' => '',          'geheim' => false],

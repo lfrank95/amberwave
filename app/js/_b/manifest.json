@@ -1,5 +1,5 @@
 {
- "quelle": "d8451d70a35bc1fe2f95d3aadc10633d6428d200",
+ "quelle": "ab80fddd51fe374c30e3639706fa71763f8f849e",
  "einstieg": "app.js",
  "start": [
   "app.js",
@@ -17,11 +17,11 @@
  ],
  "dateien": [
   "app-0nz9eh3t.js",
-  "app-0x91h4r4.js",
   "app-1tfpjfv0.js",
   "app-4qqk56ne.js",
   "app-4zmn8trh.js",
   "app-8cy3n0ew.js",
+  "app-agf4g3qh.js",
   "app-ccp70vny.js",
   "app-d34r1hhd.js",
   "app-ef86dj5z.js",
@@ -33,20 +33,20 @@
   "app-y5fb60zc.js",
   "app.js",
   "ausgaenge_fenster-xrw6qda7.js",
-  "einstellungen-9jnr5qp8.js",
+  "einstellungen-nx35h51x.js",
   "heimnetz-azbxcf68.js",
   "nerd-zqr2kkja.js",
   "rack-4xx38ksy.js",
-  "verwaltung-7j92zct3.js",
+  "verwaltung-1e3hzb1z.js",
   "vstrack-jt8t3w6e.js"
  ],
  "groesse": {
   "app-0nz9eh3t.js": 3943,
-  "app-0x91h4r4.js": 211438,
   "app-1tfpjfv0.js": 65294,
   "app-4qqk56ne.js": 5280,
   "app-4zmn8trh.js": 67215,
   "app-8cy3n0ew.js": 62688,
+  "app-agf4g3qh.js": 212933,
   "app-ccp70vny.js": 24857,
   "app-d34r1hhd.js": 3348,
   "app-ef86dj5z.js": 23517,
@@ -58,11 +58,11 @@
   "app-y5fb60zc.js": 10772,
   "app.js": 223606,
   "ausgaenge_fenster-xrw6qda7.js": 190,
-  "einstellungen-9jnr5qp8.js": 91401,
+  "einstellungen-nx35h51x.js": 91401,
   "heimnetz-azbxcf68.js": 269,
   "nerd-zqr2kkja.js": 42033,
   "rack-4xx38ksy.js": 72918,
-  "verwaltung-7j92zct3.js": 685,
+  "verwaltung-1e3hzb1z.js": 685,
   "vstrack-jt8t3w6e.js": 169
  }
 }

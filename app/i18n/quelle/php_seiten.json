@@ -450,5 +450,6 @@
  "Update fehlgeschlagen": "Update failed",
  "Das Update der Datenbank läuft noch – bitte kurz warten.": "The database update is still running – please wait a moment.",
  "Eine Änderung an der Datenbank ist gescheitert (Details im Container-Log).": "A database change failed (details in the container log).",
- "Amberwave versucht es in zwei Minuten erneut. Eine Sicherung vom Stand vor dem Update liegt im Sicherungsordner (Einstellungen › Sicherung).": "Amberwave will try again in two minutes. A backup from before the update is in the backup folder (Settings › Backup)."
+ "Amberwave versucht es in zwei Minuten erneut. Eine Sicherung vom Stand vor dem Update liegt im Sicherungsordner (Einstellungen › Sicherung).": "Amberwave will try again in two minutes. A backup from before the update is in the backup folder (Settings › Backup).",
+ "Bitte eine private IP-Adresse angeben.": "Please enter a private IP address."
 }

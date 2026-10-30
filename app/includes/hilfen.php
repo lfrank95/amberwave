@@ -268,6 +268,14 @@ function client_ip(): string
     if (!$vertraut) {
         return $remote;
     }
+    // „auto“ ohne Liste: eine private Absenderadresse mit weitergeleiteter Adresse merken (der Admin bestätigt oder lehnt ab,
+    // siehe Übersicht) – abgelehnt heißt: nur der Absender selbst zählt
+    if ($modus === 'auto' && !$bekannt && (($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '') !== '' || ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '') !== '')) {
+        proxy_beobachten($remote);
+        if (proxy_entscheidung() === 'nein') {
+            return $remote;
+        }
+    }
     $nurOeffentlich = $modus === 'auto' && !$bekannt;
     $gueltig = static fn(string $k) => filter_var($k, FILTER_VALIDATE_IP, $nurOeffentlich ? FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE : 0) !== false;
     // Cloudflare: nur, wenn die Anfrage wirklich von einem bekannten Proxy kommt
@@ -288,6 +296,56 @@ function client_ip(): string
         }
     }
     return $remote;
+}
+
+/** Entscheidung des Admins zum Reverse Proxy ('' offen, 'nein' nicht vertrauen) – je Anfrage einmal gelesen */
+function proxy_entscheidung(): string
+{
+    static $e = null;
+    if ($e === null) {
+        try {
+            require_once __DIR__ . '/einstellungen.php';
+            $e = einstellung('proxy_entscheidung');
+        } catch (Throwable $x) {
+            $e = '';
+        }
+    }
+    return $e;
+}
+
+/** Datei mit der zuletzt gesehenen privaten Absenderadresse, die eine weitergeleitete Adresse mitschickt */
+function proxy_beobachtung_datei(): string
+{
+    return rtrim((string) konfig()['pfade']['cache'], '/') . '/tmp/proxy-beobachtung.json';
+}
+
+/** höchstens einmal pro Minute festhalten (eine Datei, kein Datenbankzugriff) */
+function proxy_beobachten(string $ip): void
+{
+    static $erledigt = false;
+    if ($erledigt) {
+        return;
+    }
+    $erledigt = true;
+    $d = proxy_beobachtung_datei();
+    $alt = is_file($d) ? (json_decode((string) @file_get_contents($d), true) ?: []) : [];
+    if (($alt['ip'] ?? '') === $ip && time() - (int) ($alt['zeit'] ?? 0) < 60) {
+        return;
+    }
+    @mkdir(dirname($d), 0775, true);
+    @file_put_contents($d, json_encode(['ip' => $ip, 'zeit' => time(), 'cf' => ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '') !== '']), LOCK_EX);
+}
+
+/** Standard-Gateway des Containers (die Docker-Brücke): über sie kommen Dockers eigene Portweiterleitung und Proxys im Host-Netz */
+function docker_gateway_ip(): string
+{
+    foreach (@file('/proc/net/route') ?: [] as $z) {
+        $f = preg_split('/\s+/', trim($z));
+        if (($f[1] ?? '') === '00000000' && isset($f[2]) && strlen($f[2]) === 8) {
+            return implode('.', array_reverse(array_map('hexdec', str_split($f[2], 2))));
+        }
+    }
+    return '';
 }
 
 /** IP des cloudflared-Containers im Docker-Netz (Dienst „tunnel“, TUNNEL_CONTAINER) – eine Minute gemerkt; '' = keiner */

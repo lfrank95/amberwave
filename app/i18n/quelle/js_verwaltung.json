@@ -1167,5 +1167,12 @@
  "Titel bearbeitet": "Track edited",
  "Titel übernommen": "Track applied",
  "Titelliste bearbeitet": "Track list edited",
- "Jede Anfrage trägt diese Kennung – nur Name, Version und Projektadresse, wie MusicBrainz und andere Dienste es verlangen. Keine Installations-Nummer, nichts über dich. Die Zählung unten bleibt auf deinem Server.": "Every request carries this identifier – just the name, version and project address, as MusicBrainz and other services require. No installation number, nothing about you. The count below stays on your server."
+ "Jede Anfrage trägt diese Kennung – nur Name, Version und Projektadresse, wie MusicBrainz und andere Dienste es verlangen. Keine Installations-Nummer, nichts über dich. Die Zählung unten bleibt auf deinem Server.": "Every request carries this identifier – just the name, version and project address, as MusicBrainz and other services require. No installation number, nothing about you. The count below stays on your server.",
+ "Anfragen kommen über <code>{ip}</code> und bringen eine weitergeleitete Absenderadresse mit. Ist das dein Reverse Proxy (z. B. Nginx Proxy Manager, SWAG, Traefik, Caddy)? Nur dann darf Amberwave der mitgeschickten Adresse glauben – sonst könnte sich jemand eine falsche Adresse geben und die Login-Sperre umgehen.": "Requests arrive via <code>{ip}</code> and carry a forwarded client address. Is this your reverse proxy (e.g. Nginx Proxy Manager, SWAG, Traefik, Caddy)? Only then may Amberwave believe the forwarded address – otherwise someone could fake their address and get around the login lockout.",
+ "Gespeichert – weitergeleitete Adressen von privaten Absendern werden ignoriert": "Saved – forwarded addresses from private senders are ignored",
+ "Ja, das ist mein Proxy": "Yes, that's my proxy",
+ "Nein, nicht vertrauen": "No, don't trust it",
+ "Proxy {ip} eingetragen – nur ihm wird die weitergeleitete Adresse geglaubt": "Proxy {ip} saved – only its forwarded addresses are trusted",
+ "Reverse Proxy bestätigen": "Confirm reverse proxy",
+ "{ip} ist die Docker-Brücke. Ein Reverse Proxy im Host-Netz kommt so an; Dockers eigene Portweiterleitung schickt diese Angabe nie mit. Hast du keinen Reverse Proxy, wähle „Nein“.": "{ip} is the Docker bridge. A reverse proxy on the host network arrives this way; Docker's own port forwarding never sends this information. If you don't run a reverse proxy, choose “No”."
 }

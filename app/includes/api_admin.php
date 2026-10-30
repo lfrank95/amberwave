@@ -34,6 +34,7 @@ function api_admin_uebersicht(): array
         'musikordner_ok' => is_dir(konfig()['pfade']['musik']),
         'secret_key' => empty(konfig()['app_secret_key_fluechtig']) && konfig()['app_secret_key'] !== '',
         'mail_eingerichtet' => mail_konfiguriert(),
+        'proxy' => api_admin_proxy_offen(),
     ];
 }
 
@@ -529,4 +530,46 @@ function api_admin_update(array $admin): array
     $r = update_einspielen((string) $_FILES['archiv']['tmp_name'], $log);
     log_sicherheitsereignis((int) $admin['id'], $r ? 'update_durchgefuehrt' : 'update_fehlgeschlagen', implode(' | ', $log));
     return ['ok' => $r, 'log' => $log];
+}
+
+
+/** Unbestätigter Reverse Proxy für die Übersicht (null = nichts zu entscheiden) */
+function api_admin_proxy_offen(): ?array
+{
+    if (konfig()['sicherheit']['proxy_vertrauen'] !== 'auto' || vertraute_proxys() || proxy_entscheidung() !== '') {
+        return null;
+    }
+    $b = json_decode((string) @file_get_contents(proxy_beobachtung_datei()), true);
+    if (!is_array($b) || empty($b['ip']) || time() - (int) ($b['zeit'] ?? 0) > 14 * 86400 || ist_bekannter_proxy((string) $b['ip'])) {
+        return null;
+    }
+    return ['ip' => (string) $b['ip'], 'gateway' => docker_gateway_ip() === $b['ip'], 'cf' => !empty($b['cf'])];
+}
+
+/** POST /admin/proxy {aktion: vertrauen|ablehnen|zuruecksetzen, ip} */
+function api_admin_proxy(): array
+{
+    require_once __DIR__ . '/einstellungen.php';
+    $aktion = (string) api_wert('aktion', '');
+    if ($aktion === 'vertrauen') {
+        $ip = trim((string) api_wert('ip', ''));
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_FLAG_IPV6) || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+            throw new ApiFehler(t('Bitte eine private IP-Adresse angeben.'));
+        }
+        $liste = array_values(array_filter(array_map('trim', explode(',', einstellung('tunnel_proxy_ip')))));
+        if (!in_array($ip, $liste, true)) {
+            $liste[] = $ip;
+        }
+        einstellung_setzen('tunnel_proxy_ip', implode(',', $liste));
+        einstellung_loeschen('proxy_entscheidung');
+    } elseif ($aktion === 'ablehnen') {
+        einstellung_setzen('proxy_entscheidung', 'nein');
+    } elseif ($aktion === 'zuruecksetzen') {
+        einstellung_loeschen('proxy_entscheidung');
+        einstellung_loeschen('tunnel_proxy_ip');
+        @unlink(proxy_beobachtung_datei());
+    } else {
+        throw new ApiFehler(t('Unbekannte Aktion.'));
+    }
+    return ['ok' => true];
 }

@@ -157,7 +157,7 @@ function raumklang_eigenschaften(string $id, string $pfad, ?array &$speicher = n
     $e = $speicher[$id] ?? null;
     if (!is_array($e) || ($e['mtime'] ?? 0) !== $mt) {
         $m = raumklang_messen($pfad);
-        $e = ['mtime' => $mt, 'rt60' => $m['rt60'] ?? null, 'dauer' => $m['dauer'] ?? null, 'art' => $e['art'] ?? null];
+        $e = ['mtime' => $mt, 'rt60' => $m['rt60'] ?? null, 'dauer' => $m['dauer'] ?? null, 'art' => $e['art'] ?? null, 'besitzer' => $e['besitzer'] ?? null];
         $speicher[$id] = $e;
         $speicher['_neu'] = true;
     }
@@ -194,7 +194,9 @@ function raumklang_liste(): array
 /** Ist das eine brauchbare WAV-Datei? */
 function raumklang_wav_pruefen(string $daten): bool
 {
-    return strlen($daten) > 44 && substr($daten, 0, 4) === 'RIFF' && substr($daten, 8, 4) === 'WAVE';
+    // RIFF/WAVE mit fmt- und data-Abschnitt (nicht nur die ersten 12 Bytes – sonst ginge beliebiger Inhalt durch)
+    return strlen($daten) > 44 && substr($daten, 0, 4) === 'RIFF' && substr($daten, 8, 4) === 'WAVE'
+        && str_contains(substr($daten, 12, 4096), 'fmt ') && str_contains(substr($daten, 12, 65536), 'data');
 }
 
 /** Voxengo-Paket herunterladen und die WAV-Dateien unverändert ablegen */
@@ -243,7 +245,11 @@ function raumklang_voxengo_laden(): array
     return ['ok' => true, 'anzahl' => $anzahl] + raumklang_liste();
 }
 
-function raumklang_hochladen(): array
+/**
+ * Eigene Impulsantwort speichern. $user: wer hochlädt – gibt es schon eine gleichnamige Datei eines anderen Benutzers,
+ * bekommt die neue einen freien Namen („Halle (2).wav“), statt sie zu überschreiben. Admins dürfen ersetzen.
+ */
+function raumklang_hochladen(?array $user = null): array
 {
     $f = $_FILES['ir'] ?? null;
     if (!$f || empty($f['tmp_name']) || ($f['error'] ?? 1) !== UPLOAD_ERR_OK) {
@@ -256,19 +262,28 @@ function raumklang_hochladen(): array
     if (!raumklang_wav_pruefen($daten)) {
         throw new ApiFehler(t('Bitte eine WAV-Datei hochladen.'));
     }
+    $meta_datei = raumklang_ordner() . '/eigenschaften.json';
+    $meta = is_file($meta_datei) ? (json_decode((string) file_get_contents($meta_datei), true) ?: []) : [];
+    $uid = $user ? (int) $user['id'] : 0;
+    $admin = $user && ($user['rolle'] ?? '') === 'admin';
     $name = raumklang_dateiname((string) ($f['name'] ?? 'impuls.wav'));
+    $stamm = preg_replace('/\.wav$/i', '', $name);
+    for ($i = 2; is_file(raumklang_ordner('eigene') . '/' . $name) && !$admin && (int) ($meta['eigene/' . $name]['besitzer'] ?? -1) !== $uid && $i < 100; $i++) {
+        $name = mb_substr($stamm, 0, 74) . " ({$i}).wav";
+    }
     file_put_contents(raumklang_ordner('eigene') . '/' . $name, $daten);
+    $id = 'eigene/' . $name;
+    $alt = $meta[$id] ?? [];
+    unset($meta[$id]);
+    raumklang_eigenschaften($id, raumklang_ordner('eigene') . '/' . $name, $meta);
+    $meta[$id]['besitzer'] = $uid ?: (int) ($alt['besitzer'] ?? 0);
     $art = (string) ($_POST['art'] ?? '');
     if (isset(RAUMKLANG_ARTEN[$art])) {
-        $meta_datei = raumklang_ordner() . '/eigenschaften.json';
-        $meta = is_file($meta_datei) ? (json_decode((string) file_get_contents($meta_datei), true) ?: []) : [];
-        unset($meta['eigene/' . $name]);
-        raumklang_eigenschaften('eigene/' . $name, raumklang_ordner('eigene') . '/' . $name, $meta);
-        $meta['eigene/' . $name]['art'] = $art;
-        unset($meta['_neu']);
-        @file_put_contents($meta_datei, json_encode($meta), LOCK_EX);
+        $meta[$id]['art'] = $art;
     }
-    return ['ok' => true, 'id' => 'eigene/' . $name] + raumklang_liste();
+    unset($meta['_neu']);
+    @file_put_contents($meta_datei, json_encode($meta), LOCK_EX);
+    return ['ok' => true, 'id' => $id] + raumklang_liste();
 }
 
 function raumklang_loeschen(string $id): array

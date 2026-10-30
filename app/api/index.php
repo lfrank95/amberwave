@@ -134,6 +134,10 @@ $routen = [
         require_once __DIR__ . '/../includes/tunnel.php';
         return api_tunnel_einrichten(api_user(true));
     }],
+    ['POST', '/admin/proxy', function () {
+        api_user(true);
+        return api_admin_proxy();
+    }],
     ['POST', '/admin/tunnel/entfernen', function () {
         require_once __DIR__ . '/../includes/tunnel.php';
         return api_tunnel_entfernen(api_user(true));
@@ -547,11 +551,10 @@ $routen = [
         if (!konfig()['raumklang']['upload_alle'] && !ist_admin($u)) {
             throw new ApiFehler(t('Eigene Impulsantworten darf nur ein Admin hochladen.'), 403);
         }
-        return raumklang_hochladen();
+        return raumklang_hochladen($u);
     }],
     ['POST', '/admin/raumklang/ir', function () {
-        api_user(true);
-        return raumklang_hochladen();
+        return raumklang_hochladen(api_user(true));
     }],
     ['DELETE', '/admin/raumklang/ir', function () {
         api_user(true);

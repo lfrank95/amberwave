@@ -27,6 +27,11 @@ no way in, no admin rights for normal users, no access to other users' data. Fix
 - The login no longer reveals through its response time whether a user name exists.
 - Internal folders (`bin`, `klang`, `i18n`) are no longer downloadable.
 - Device settings have a size limit per device.
+- **Reverse proxy confirmation:** if requests arrive from a private address with a forwarded client address, the admin
+  overview asks once whether that is your reverse proxy. "Yes" trusts only that proxy, "No" ignores forwarded addresses
+  from private senders – nobody can fake their address to get around the login lockout any more.
+- **Own reverb files (impulse responses):** a normal user can no longer overwrite someone else's file with the same name
+  (the new one gets "(2)"); admins can still replace. Uploads must be real WAV files (format and data sections).
 
 ## 0.9.1-beta.2 – large libraries
 
