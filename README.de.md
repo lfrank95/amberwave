@@ -36,6 +36,14 @@ WASAPI-Wiedergabe im Windows-Client – ist der kostenlose Kern.
 
 ## Installation mit dem fertigen Image (empfohlen)
 
+**All-in-One (ein Container, Datenbank inklusive):** `ghcr.io/lfrank95/amberwave-aio` enthält Amberwave, MariaDB 11.8 LTS
+und cloudflared. Ein Ordner für alles, was Updates überstehen muss (`/appdata`), die Musik unter `/musik`, Port 80 im
+Container. `ADMIN_BENUTZER` und `ADMIN_PASSWORT` legen beim ersten Start das Admin-Konto an (sonst fragt die
+Einrichtungsseite). Auf Unraid als Vorlage ([`templates/amberwave.xml`](templates/amberwave.xml)), bald in den Community
+Applications. Zum Stoppen etwas Zeit geben (`--stop-timeout 60`), damit die Datenbank sauber herunterfährt.
+
+**Mit Docker Compose (Datenbank als eigener Container):**
+
 1. Einen Ordner anlegen, z. B. `/opt/amberwave` (Unraid: `/mnt/user/appdata/amberwave`), und `docker-compose.yml` und
    `.env.example` hineinlegen.
 2. `.env.example` nach `.env` kopieren und die Pfade eintragen:

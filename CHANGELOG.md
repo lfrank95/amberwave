@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.1-beta.4 – in progress
+
+- **All-in-one image** `ghcr.io/lfrank95/amberwave-aio`: Amberwave, MariaDB 11.8 LTS and cloudflared in one container –
+  for the Unraid store and everybody who doesn't want a Compose stack. One `/appdata` folder for database, covers and
+  backups. The database runs as your PUID/PGID (files are not owned by root), listens only inside the container, and shuts
+  down cleanly when the container stops. Optionally the admin account comes from the template (`ADMIN_BENUTZER`,
+  `ADMIN_PASSWORT`), otherwise the setup page asks as before. The remote access tunnel starts by itself once set up in
+  the app. Every release builds and tests both images; the all-in-one image is rebuilt monthly for security updates.
+- Unraid template and Community Applications profile in the repository (`templates/`, `ca_profile.xml`).
+- The Compose variant is unchanged.
+
 ## 0.9.1-beta.3 – effects
 
 - **Saturation focus** for AmberGlow, AmberIron and AmberSilk: a small button next to HQ and Δ opens a curve with five

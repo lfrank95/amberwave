@@ -58,6 +58,21 @@ bit-perfect WASAPI playback in the Windows client – is the free core.
 
 ## Quick start (Docker)
 
+**All-in-one (one container, database included):** `ghcr.io/lfrank95/amberwave-aio` contains Amberwave, MariaDB 11.8 LTS
+and cloudflared. One folder for everything that must survive updates (`/appdata`), your music at `/musik`, port 80 in the
+container. Set `ADMIN_BENUTZER` and `ADMIN_PASSWORT` to create the admin account on the first start (otherwise the setup
+page asks). On Unraid it comes as a template ([`templates/amberwave.xml`](templates/amberwave.xml)), soon in Community
+Applications. Give it time to stop (`--stop-timeout 60`) so the database shuts down cleanly.
+
+```
+docker run -d --name amberwave --stop-timeout 60 -p 9950:80 \
+  -e ADMIN_BENUTZER=admin -e ADMIN_PASSWORT='choose-a-good-one' \
+  -v /path/to/appdata:/appdata -v /path/to/music:/musik \
+  ghcr.io/lfrank95/amberwave-aio:beta
+```
+
+**Docker Compose (separate database container):**
+
 You need Docker with Compose on a Linux host or NAS with an x86-64 CPU (Unraid, Synology, TrueNAS, a plain Linux box).
 ARM devices such as a Raspberry Pi are not supported yet.
 
