@@ -140,6 +140,13 @@ VST3 plug-in support is **experimental** in the beta: each plug-in runs in its o
 stop the music – but third-party plug-ins are the most likely source of trouble. Please report problems with the plug-in's
 name and version.
 
+## Android app
+
+A first test build is attached to the releases as `Amberwave-Android-<version>.apk` (Android 10 or newer). Allow your
+browser or file manager to "install unknown apps" once, install, enter your server's address, sign in. Music you save
+offline stays on the phone as files and plays without a network; playback continues in the background with lock-screen
+controls. The app looks for updates on GitHub and asks before installing. Not in the Play Store yet.
+
 ## Known limitations of the beta
 
 - **The interface still needs polish.** Finding the right balance between simple, good-looking and detailed is ongoing
@@ -156,7 +163,7 @@ name and version.
 No dates, just direction:
 
 - **Mid-term:** Amberwave server for Windows (no Docker needed).
-- **Long-term:** a standalone Windows version (server and player in one), an Android app.
+- **Long-term:** a standalone Windows version (server and player in one), the Android app in the Play Store.
 - **Further out, not ruled out:** versions for macOS, iPhone and Linux desktops.
 - Along the way: UI polish, arm64 image, more import and tidy-up tools – shaped by your feedback.
 

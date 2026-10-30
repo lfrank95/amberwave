@@ -17,6 +17,19 @@
   pictures and optionally covers into one file, encrypted with a password you choose. On the new server choose “Take over
   from another installation” during setup. Stored credentials (mail, API keys) are re-encrypted with the new server's key.
 - Server code is now platform-neutral (starting programs, background jobs, paths) – Linux behaves exactly as before.
+- **Android app (first test build):** the Amberwave interface as an app for Android 10 and newer. Saved music lives as
+  files in the app's own storage (Android doesn't clear it, unlike the browser's storage), downloads continue in the
+  background even with the app closed – optionally on Wi-Fi only – and without a network the app starts straight into
+  "On this device". Playback keeps running in the background with notification, lock screen, headphone/Bluetooth buttons,
+  and pauses for calls or when headphones are unplugged. Updates come from GitHub on request. "Download file" in the
+  track menu saves the actual file to Music/Amberwave (only where downloads are allowed). Every build is tested in an
+  Android emulator (connect, sign in, save offline, play, start without network).
+- **Offline quality per device:** the admin sets the highest quality devices may save (Settings › Offline on devices:
+  off, Opus 128/160/256 or original); each device picks its own quality up to that limit under Settings › Playback.
+  Original (lossless) is available in the Android app; tracks already saved can be re-downloaded in the new quality.
+- "Allow file downloads for all accounts" is now a switch in the same place (before only `DOWNLOADS_ERLAUBT` in `.env`,
+  which still works as the default).
+- In a browser on Android the profile menu offers the Android app matching the server's version.
 
 ## 0.9.1-beta.4 – all-in-one image
 

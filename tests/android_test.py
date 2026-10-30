@@ -20,7 +20,7 @@ fehler = 0
 
 
 def ok(t):
-    print(f'ok: {t}', flush=True)
+    print(f'::notice title=Android-Test::{t}', flush=True)
 
 
 def schlecht(t):
@@ -232,4 +232,12 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException as e:  # noqa: BLE001 – als Anmerkung sichtbar machen
+        import traceback
+        z = traceback.format_exc().strip().splitlines()
+        print(f'::error title=Android-Test (Abbruch)::{type(e).__name__}: {e} | ' + ' | '.join(x.strip() for x in z[-6:]), flush=True)
+        sys.exit(1)
