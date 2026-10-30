@@ -117,6 +117,38 @@ function aw_php(): string
     return aw_programm('php') ?? 'php';
 }
 
+/** Ziel für stderr bei proc_open: unter Windows eine Datei (Pipes lassen sich dort nicht nicht-blockierend lesen – ffmpeg
+ *  bliebe stehen, sobald eine der beiden Leitungen voll ist), sonst wie bisher eine Pipe. */
+function aw_stderr_ziel(?string &$datei): array
+{
+    if (!aw_windows()) {
+        $datei = null;
+        return ['pipe', 'w'];
+    }
+    $datei = (string) tempnam(sys_get_temp_dir(), 'awf');
+    return ['file', $datei, 'w'];
+}
+
+/** Bisherige Fehlerausgabe lesen (Windows: erst am Ende, aus der Datei) */
+function aw_stderr_lesen(array $pipes, ?string $datei, bool $ende = false): string
+{
+    if ($datei === null) {
+        return isset($pipes[2]) ? (string) stream_get_contents($pipes[2]) : '';
+    }
+    return $ende ? (string) @file_get_contents($datei) : '';
+}
+
+function aw_stderr_schliessen(array $pipes, ?string $datei): void
+{
+    if ($datei === null) {
+        if (isset($pipes[2]) && is_resource($pipes[2])) {
+            fclose($pipes[2]);
+        }
+        return;
+    }
+    @unlink($datei);
+}
+
 /** Pfad mit / als Trenner (Windows liefert \) – Vergleiche wie „liegt unter dem Musikordner?“ funktionieren dann überall */
 function aw_pfad(string $p): string
 {

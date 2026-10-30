@@ -483,16 +483,19 @@ function export_ffmpeg(int $id, array $eingaben, string $graph, string $ausgabe,
     $cmd = $nice . aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -nostdin -y -filter_complex_threads 1 ' . implode(' ', $eingaben)
         . ' -filter_complex_script ' . aw_arg($graphDatei) . ' -map [aus] ' . $ausgabe
         . ' -map_metadata -1 -flags +bitexact -fflags +bitexact -f wav -progress pipe:1 -nostats ' . aw_arg($tmp);
-    $proc = proc_open($cmd, [0 => ['file', aw_null(), 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $errDatei = null;
+    $proc = proc_open($cmd, [0 => ['file', aw_null(), 'r'], 1 => ['pipe', 'w'], 2 => aw_stderr_ziel($errDatei)], $pipes);
     if (!is_resource($proc)) {
         @unlink($graphDatei);
         throw new RuntimeException(t('ffmpeg konnte nicht gestartet werden.'));
     }
-    stream_set_blocking($pipes[2], false);
+    if (isset($pipes[2])) {
+        stream_set_blocking($pipes[2], false);
+    }
     $fehler = '';
     $letzte = 0.0;
     while (($zeile = fgets($pipes[1])) !== false) {
-        $fehler .= (string) stream_get_contents($pipes[2]);
+        $fehler .= aw_stderr_lesen($pipes, $errDatei);
         if (preg_match('/^out_time_us=(\d+)/', $zeile, $m) && microtime(true) - $letzte > 1) {
             $letzte = microtime(true);
             $fortschritt((int) $m[1] / 1e6);
@@ -502,9 +505,9 @@ function export_ffmpeg(int $id, array $eingaben, string $graph, string $ausgabe,
             }
         }
     }
-    $fehler .= (string) stream_get_contents($pipes[2]);
+    $fehler .= aw_stderr_lesen($pipes, $errDatei, true);
     fclose($pipes[1]);
-    fclose($pipes[2]);
+    aw_stderr_schliessen($pipes, $errDatei);
     $rc = proc_close($proc);
     @unlink($graphDatei);
     if (export_abgebrochen($id)) {

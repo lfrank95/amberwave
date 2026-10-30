@@ -256,12 +256,15 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
     while (ob_get_level() > 0) {
         ob_end_clean();
     }
-    $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $errDatei = null;
+    $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => aw_stderr_ziel($errDatei)], $pipes);
     if (!is_resource($proc)) {
         flock($platz, LOCK_UN);
         throw new ApiFehler(t('Umwandlung konnte nicht gestartet werden.'), 500);
     }
-    stream_set_blocking($pipes[2], false);
+    if (isset($pipes[2])) {
+        stream_set_blocking($pipes[2], false);
+    }
     header('Content-Type: ' . $mime);
     header('Cache-Control: no-store');
     header('X-Accel-Buffering: no');
@@ -279,7 +282,7 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
             $gesendet += strlen($stueck);
         }
         // Fehlerausgabe laufend leeren – läuft die Leitung voll, bliebe ffmpeg stehen
-        $fehler .= (string) stream_get_contents($pipes[2]);
+        $fehler .= aw_stderr_lesen($pipes, $errDatei);
         if (strlen($fehler) > 65536) {
             $fehler = substr($fehler, -8192);
         }
@@ -287,9 +290,9 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
             break;
         }
     }
-    $fehler .= (string) stream_get_contents($pipes[2]);
+    $fehler .= aw_stderr_lesen($pipes, $errDatei, true);
     fclose($pipes[1]);
-    fclose($pipes[2]);
+    aw_stderr_schliessen($pipes, $errDatei);
     $status = proc_get_status($proc);
     if ($status['running']) {
         proc_terminate($proc, 15);
@@ -350,12 +353,15 @@ function ffmpeg_durchreichen(string $cmd, string $mime, array $kopfzeilen = []):
     while (ob_get_level() > 0) {
         ob_end_clean();
     }
-    $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $errDatei = null;
+    $proc = proc_open($cmd, [1 => ['pipe', 'w'], 2 => aw_stderr_ziel($errDatei)], $pipes);
     if (!is_resource($proc)) {
         flock($platz, LOCK_UN);
         throw new ApiFehler(t('Wiedergabe konnte nicht gestartet werden.'), 500);
     }
-    stream_set_blocking($pipes[2], false);
+    if (isset($pipes[2])) {
+        stream_set_blocking($pipes[2], false);
+    }
     header('Content-Type: ' . $mime);
     header('Cache-Control: no-store');
     header('X-Accel-Buffering: no');
@@ -375,14 +381,14 @@ function ffmpeg_durchreichen(string $cmd, string $mime, array $kopfzeilen = []):
             flush();
             $gesendet += strlen($stueck);
         }
-        $fehler .= (string) stream_get_contents($pipes[2]);
+        $fehler .= aw_stderr_lesen($pipes, $errDatei);
         if (connection_aborted()) {
             break;
         }
     }
-    $fehler .= (string) stream_get_contents($pipes[2]);
+    $fehler .= aw_stderr_lesen($pipes, $errDatei, true);
     fclose($pipes[1]);
-    fclose($pipes[2]);
+    aw_stderr_schliessen($pipes, $errDatei);
     $status = proc_get_status($proc);
     if ($status['running']) {
         proc_terminate($proc, 15);
