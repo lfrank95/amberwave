@@ -895,15 +895,16 @@ export class Player extends EventTarget {
       try { await start; } catch (e) { this.motorFehler(e); return; }
     } else {
       this.motor.stop();
-      const blob = await offline.ton(trk.id);
+      const direkt = offline.tonUrl(trk.id);
+      const blob = direkt ? null : await offline.ton(trk.id);
       if (this.track !== trk) return;
-      if (!blob) { toast(t('Der gespeicherte Titel fehlt – bitte neu speichern.'), 'fehler'); return; }
+      if (!direkt && !blob) { toast(t('Der gespeicherte Titel fehlt – bitte neu speichern.'), 'fehler'); return; }
       if (this._blobUrl) URL.revokeObjectURL(this._blobUrl);
-      this._blobUrl = URL.createObjectURL(blob);
+      this._blobUrl = direkt ? null : URL.createObjectURL(blob);
       this.modus = { art: 'offline', qualitaet: q };
       this.offset = 0;
       this.letzteZeit = 0;
-      this.audio.src = this._blobUrl;
+      this.audio.src = direkt || this._blobUrl;
       if (ab > 0) {
         const setzen = () => { this.audio.currentTime = ab; this.audio.removeEventListener('loadedmetadata', setzen); };
         this.audio.addEventListener('loadedmetadata', setzen);

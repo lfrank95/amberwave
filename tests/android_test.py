@@ -111,6 +111,24 @@ class Seite:
                     raise RuntimeError(r['exceptionDetails'].get('exception', {}).get('description') or r['exceptionDetails'].get('text'))
                 return r.get('result', {}).get('value')
 
+    def befehl(self, methode, params):
+        self.n += 1
+        nr = self.n
+        self.ws.send(json.dumps({'id': nr, 'method': methode, 'params': params}))
+        while True:
+            m = json.loads(self.ws.recv())
+            if m.get('id') == nr:
+                return m.get('result')
+
+    def tippen(self, selektor):
+        """Echter Klick (zählt als Nutzergeste, wie ein Finger)"""
+        r = self.js(f"(() => {{ const e = document.querySelector({json.dumps(selektor)}); if (!e) return null; e.scrollIntoView({{block: 'center'}}); const b = e.getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }})()")
+        if not r:
+            return False
+        for art in ('mousePressed', 'mouseReleased'):
+            self.befehl('Input.dispatchMouseEvent', {'type': art, 'x': r[0], 'y': r[1], 'button': 'left', 'clickCount': 1})
+        return True
+
     def bis(self, ausdruck, zeit=60, schritt=1.0):
         ende = time.time() + zeit
         letzt = None
@@ -215,7 +233,7 @@ def main():
     # 4. Abspielen: Benachrichtigung und Sperrbildschirm
     s.js(f"history.pushState({{}}, '', '/alben/{aid}'); dispatchEvent(new PopStateEvent('popstate')); true")
     s.bis("!!document.querySelector('[data-aktion=\"track-play\"]')", 20)
-    s.js("document.querySelector('[data-aktion=\"track-play\"]').click(); true")
+    s.tippen('[data-aktion="track-play"]')
     sitzung = ''
     for _ in range(20):
         time.sleep(1.5)
@@ -229,7 +247,7 @@ def main():
     if re.search(r'state=PlaybackState \{state=(3|PLAYING)', sitzung):
         ok('Wiedergabe läuft (Zustand „spielt“)')
     else:
-        diag = s.js("JSON.stringify({ms: navigator.mediaSession.playbackState, toast: [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' / '), titel: document.title})")
+        diag = s.js("JSON.stringify({ms: navigator.mediaSession.playbackState, zeit: document.querySelector('[data-zeit]')?.textContent, dauer: document.querySelector('[data-dauer]')?.textContent, toast: [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' / '), titel: document.title})")
         print('::warning title=Android-Test::Zustand „spielt“ nicht erreicht (Emulator ohne Ton?) ' + str(diag))
     if PAKET in adb('shell', 'dumpsys', 'notification', '--noredact'):
         ok('Benachrichtigung da')

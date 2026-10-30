@@ -196,6 +196,18 @@ object Speicher {
         db.insertWithOnConflict("statisch", null, ContentValues().apply { put("schluessel", schluessel); put("pfad", pfad); put("datei", datei); put("typ", typ) }, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
+    /** Nur noch diese Dateien der Oberfläche behalten (alte Fassungen gebündelter Stücke heißen anders und blieben sonst liegen) */
+    @Synchronized
+    fun statischBehalten(schluessel: Set<String>) {
+        if (schluessel.size < 5) return   // unvollständige Liste: lieber nichts löschen
+        val weg = mutableListOf<Pair<String, String>>()
+        db.rawQuery("SELECT schluessel, datei FROM statisch", null).use { c -> while (c.moveToNext()) if (c.getString(0) !in schluessel) weg += c.getString(0) to c.getString(1) }
+        for ((k, d) in weg) {
+            File(oberflaecheOrdner, d).delete()
+            db.delete("statisch", "schluessel = ?", arrayOf(k))
+        }
+    }
+
     /** Anderer Server: Oberfläche und Hülle des alten weg (die Offline-Musik gehört zum Konto – die räumt die Oberfläche selbst) */
     @Synchronized
     fun oberflaecheLeeren() {

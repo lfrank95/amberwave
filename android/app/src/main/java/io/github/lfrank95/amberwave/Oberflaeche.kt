@@ -125,11 +125,13 @@ object Oberflaeche {
     fun vorladen(urls: JSONArray) {
         val server = Einstellungen.server
         arbeiter.execute {
+            val alle = mutableSetOf<String>()
             for (i in 0 until urls.length()) {
                 val rel = urls.optString(i)
                 if (!rel.startsWith("/")) continue
                 val u = Uri.parse(server + rel)
                 val k = schluessel(u)
+                alle += k
                 if (Speicher.statisch(k) != null) continue
                 runCatching { laden(server + rel) { daten, typ -> if (!typ.contains("text/html")) {
                     val name = Speicher.hash(k)
@@ -137,6 +139,7 @@ object Oberflaeche {
                     Speicher.statischEintragen(k, u.path ?: rel, name, typ)
                 } } }.onFailure { Log.w(TAG, "vorladen $rel", it) }
             }
+            Speicher.statischBehalten(alle)
         }
     }
 

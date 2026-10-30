@@ -214,6 +214,10 @@ class Offline extends EventTarget {
   /** Titel, die nicht in der jetzt gewählten Qualität gespeichert sind */
   andereQualitaet() { const q = offlineAktuell(); return [...this.da].filter((id) => this.qualitaet(id) !== q).length; }
 
+  /** Android-App: Adresse, unter der die App den gespeicherten Ton direkt liefert (mit Spulen) – große Originaldateien
+   *  müssen so nicht erst ganz in den Speicher der Oberfläche */
+  tonUrl(id) { return android && this.da.has(Number(id)) ? `/__aw/offline/${Number(id)}` : null; }
+
   async ton(id) {
     if (android) {
       const r = await fetch(`/__aw/offline/${Number(id)}`);
