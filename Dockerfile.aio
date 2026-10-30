@@ -1,18 +1,15 @@
-# Amberwave All-in-One (ghcr.io/lfrank95/amberwave-aio): das normale Amberwave-Image plus MariaDB 11.4 LTS und cloudflared
+# Amberwave All-in-One (ghcr.io/lfrank95/amberwave-aio): das normale Amberwave-Image plus MariaDB 11.8 LTS und cloudflared
 # in einem Container – für den Unraid-Store und alle, die keinen Compose-Stack wollen. Gebaut vom Workflow „Docker image“
-# aus dem gerade gebauten App-Image derselben Version (BASIS); monatlich neu, damit MariaDB-Updates innerhalb von 11.4 ankommen.
+# aus dem gerade gebauten App-Image derselben Version (BASIS); monatlich neu, damit MariaDB-Sicherheitsupdates ankommen.
 #
 # Ein Ordner für alles, was bleiben soll: /appdata (Unraid: /mnt/user/appdata/amberwave) mit db/, cache/, backups/.
 ARG BASIS=ghcr.io/lfrank95/amberwave:beta
 FROM cloudflare/cloudflared:latest AS cloudflared
 FROM ${BASIS}
 
-# MariaDB 11.4 LTS aus dem offiziellen Paketarchiv von MariaDB (Debian liefert eine andere Version)
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg procps \
-    && curl -fsSL https://r.mariadb.com/downloads/mariadb_repo_setup -o /tmp/mariadb_repo_setup \
-    && bash /tmp/mariadb_repo_setup --mariadb-server-version=mariadb-11.4 --skip-maxscale --skip-tools \
-    && apt-get install -y --no-install-recommends mariadb-server mariadb-client \
-    && rm -rf /var/lib/apt/lists/* /tmp/mariadb_repo_setup /var/lib/mysql/* \
+# MariaDB 11.8 LTS aus Debian 13 (Sicherheitsupdates über den monatlichen Neubau)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends mariadb-server mariadb-client procps \
+    && rm -rf /var/lib/apt/lists/* /var/lib/mysql/* \
     && mariadbd --version
 
 # cloudflared (Apache-2.0) für den Fernzugriff – startet erst, wenn in Amberwave ein Tunnel angelegt wurde
@@ -27,7 +24,7 @@ ENV AMBERWAVE_AIO=1 \
     TUNNEL_CONTAINER=localhost
 
 LABEL org.opencontainers.image.title="Amberwave (All-in-One)" \
-      org.opencontainers.image.description="Self-hosted music server – app, MariaDB 11.4 LTS and Cloudflare Tunnel in one container"
+      org.opencontainers.image.description="Self-hosted music server – app, MariaDB 11.8 LTS and Cloudflare Tunnel in one container"
 
 # Stoppen braucht etwas Zeit (Datenbank sauber herunterfahren): docker run --stop-timeout 60 bzw. in der Unraid-Vorlage gesetzt
 STOPSIGNAL SIGTERM

@@ -1,8 +1,8 @@
 # Builds the Docker images and pushes them to the GitHub Container Registry:
 #   ghcr.io/<owner>/amberwave      – the app (for Docker Compose with its own MariaDB container)
-#   ghcr.io/<owner>/amberwave-aio  – all-in-one: the same app plus MariaDB 11.4 LTS and cloudflared (Unraid store)
+#   ghcr.io/<owner>/amberwave-aio  – all-in-one: the same app plus MariaDB 11.8 LTS and cloudflared (Unraid store)
 # Trigger: a tag like v0.9.0-beta.1 (release) – or manually under Actions → Docker image → Run workflow.
-# Monthly: the all-in-one image of the latest release is rebuilt (MariaDB updates within 11.4) – only if its test passes.
+# Monthly: the all-in-one image of the latest release is rebuilt (MariaDB and Debian security updates) – only if its test passes.
 # Tags: exact version, plus "beta" for pre-releases or "latest" for stable ones.
 name: Docker image
 

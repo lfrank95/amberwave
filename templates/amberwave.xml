@@ -16,7 +16,7 @@
 - Windows client with bit-perfect output (WASAPI exclusive, ASIO), output routing and VST3 effects[br]
 - Built-in tube, transformer and tape saturation and room sound[br]
 - Family accounts; the music folder stays read-only until you allow writing in the app[br][br]
-All-in-one: MariaDB 11.4 LTS is included, no second container needed. Set your music folder and an admin user name and password below, start, open the WebUI and log in. Public beta.</Overview>
+All-in-one: MariaDB 11.8 LTS is included, no second container needed. Set your music folder and an admin user name and password below, start, open the WebUI and log in. Public beta.</Overview>
   <Category>MediaServer:Music MediaApp:Music</Category>
   <WebUI>http://[IP]:[PORT:80]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/lfrank95/amberwave/main/templates/amberwave.xml</TemplateURL>

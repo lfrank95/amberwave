@@ -31,7 +31,7 @@ log() { docker logs aw-aio 2>&1; }
 echo "== 1. Erster Start"
 starten
 if warten; then ok "Webserver antwortet"; else fehler "Webserver antwortet nicht"; fi
-log | grep -q "AIO: MariaDB 11.4" && ok "MariaDB 11.4 läuft" || fehler "MariaDB 11.4 nicht im Log"
+log | grep -q "AIO: MariaDB 11.8" && ok "MariaDB 11.8 läuft" || fehler "MariaDB 11.8 nicht im Log"
 log | grep -q "Admin-Konto „testadmin“ angelegt" && ok "Admin aus der Vorlage angelegt" || fehler "Admin nicht angelegt"
 log | grep -q "noch nicht eingerichtet" && fehler "Einrichtungshinweis erscheint trotz Admin aus der Vorlage" || ok "kein Einrichtungshinweis"
 anmelden && ok "Anmeldung über die API" || fehler "Anmeldung schlägt fehl"

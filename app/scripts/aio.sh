@@ -1,4 +1,4 @@
-# All-in-One-Image (ghcr.io/lfrank95/amberwave-aio): eingebaute MariaDB 11.4 LTS und cloudflared im App-Container.
+# All-in-One-Image (ghcr.io/lfrank95/amberwave-aio): eingebaute MariaDB 11.8 LTS und cloudflared im App-Container.
 # Wird von start.sh eingelesen (nicht direkt ausführen), nachdem PUID/PGID gesetzt sind.
 #
 #  - MariaDB läuft als derselbe Benutzer wie Amberwave (PUID/PGID) – die Dateien in appdata gehören also nicht root und
