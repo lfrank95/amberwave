@@ -125,6 +125,8 @@ if [ "${AMBERWAVE_AIO:-0}" = "1" ]; then
     else
         echo "AIO: Die eingebaute Datenbank startet nicht – Details stehen oben im Log."
     fi
+    # Das Passwort aus der Vorlage wird nur einmal gebraucht – Webserver und Hintergrundjobs sollen es nicht mehr sehen
+    unset ADMIN_PASSWORT
 fi
 
 # Einrichtung: wartet im Hintergrund auf die Datenbank. Eingerichtet → nichts weiter; sonst öffnet es das Einrichtungsfenster

@@ -43,6 +43,8 @@ if [ -z "$LAUSCH" ]; then fehler "MariaDB lauscht nicht auf 3306"
 elif echo "$LAUSCH" | grep -qv '^0100007F:'; then fehler "MariaDB lauscht nicht nur auf 127.0.0.1 ($LAUSCH)"
 else ok "MariaDB nur auf 127.0.0.1"; fi
 
+docker exec aw-aio sh -c 'for p in $(pgrep -u www-data apache2 | head -3); do tr "\0" "\n" < /proc/$p/environ; done' 2>/dev/null | grep -q '^ADMIN_PASSWORT=' && fehler "Webserver kennt ADMIN_PASSWORT noch" || ok "Passwort aus der Vorlage nicht mehr im Webserver"
+
 echo "== 2. Stoppen und neu starten"
 T0=$(date +%s); docker stop aw-aio >/dev/null; T1=$(date +%s)
 log | grep -q "AIO: MariaDB beendet" && ok "MariaDB sauber beendet ($((T1 - T0)) s)" || fehler "MariaDB nicht sauber beendet"
