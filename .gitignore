@@ -16,3 +16,9 @@ windows-client/log/
 
 # Source maps of the bundle
 app/js/_b/*.map
+
+# Android-Build
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

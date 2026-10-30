@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['android/**', '.github/workflows/android.yml']
+    paths: ['android/**', 'tests/android_*', 'app/js/android.js', 'app/js/offline*.js', '.github/workflows/android.yml']
 permissions:
   contents: read
 jobs:
@@ -65,3 +65,37 @@ jobs:
           name: Amberwave-Android-${{ env.V }}
           path: ${{ runner.temp }}/aus/Amberwave-Android-${{ env.V }}.apk
           retention-days: 14
+  # Rauchtest im Emulator: Server eintragen, anmelden, offline speichern, abspielen, ohne Netz starten
+  test:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bash app/scripts/buendeln.sh
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Amberwave-Android-*
+          path: ${{ runner.temp }}/apk
+          merge-multiple: true
+      - name: Testserver
+        run: bash tests/android_server.sh
+      - name: KVM für den Emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          pip install --quiet websocket-client
+      - name: Emulator und Test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
+          disable-animations: true
+          script: python3 tests/android_test.py "$(ls ${{ runner.temp }}/apk/*.apk | head -1)"
+      - name: Server-Protokoll bei Fehler
+        if: failure()
+        run: docker logs aw-test 2>&1 | tail -40 | while IFS= read -r z; do echo "::warning title=Server::${z//%/%25}"; done

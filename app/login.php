@@ -48,7 +48,7 @@ $tage = (int) konfig()['sicherheit']['remember_me_tage'];
     <input id="f-name" type="text" name="benutzername" value="<?= h($name_wert) ?>" required autofocus autocomplete="username" autocapitalize="none" spellcheck="false">
     <label for="f-pw"><?= h(t('Passwort')) ?></label>
     <input id="f-pw" type="password" name="passwort" required autocomplete="current-password">
-    <label class="checkbox-zeile"><input type="checkbox" name="geraet_merken" value="1"> <?= h(t('Dieses Gerät merken ({n} Tage)', ['n' => $tage])) ?></label>
+    <label class="checkbox-zeile"><input type="checkbox" name="geraet_merken" value="1"<?= str_contains((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 'AmberwaveAndroid/') ? ' checked' : '' ?>> <?= h(t('Dieses Gerät merken ({n} Tage)', ['n' => $tage])) ?></label>
     <button type="submit" class="btn btn-voll"><?= h(t('Anmelden')) ?></button>
 </form>
 <p class="seite-links">
