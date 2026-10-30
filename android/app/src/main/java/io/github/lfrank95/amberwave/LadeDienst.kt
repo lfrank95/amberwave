@@ -7,7 +7,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -55,7 +57,19 @@ class LadeDienst : Service() {
         if (!laeuft) {
             laeuft = true
             anhalten = false
-            Thread { try { schleife() } finally { laeuft = false; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() } }.start()
+            // Bildschirm aus: CPU und WLAN wach halten, solange geladen wird
+            val wach = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Amberwave:Laden").apply { setReferenceCounted(false); acquire(6 * 60 * 60 * 1000L) }
+            @Suppress("DEPRECATION")
+            val wlan = applicationContext.getSystemService(WifiManager::class.java).createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Amberwave:Laden").apply { setReferenceCounted(false); acquire() }
+            Thread {
+                try { schleife() } finally {
+                    laeuft = false
+                    if (wach.isHeld) wach.release()
+                    if (wlan.isHeld) wlan.release()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
+            }.start()
         }
         return START_NOT_STICKY
     }
@@ -152,6 +166,7 @@ class LadeDienst : Service() {
             val teil = File(Speicher.offlineOrdner, "${a.id}.teil")
             var n = 0L
             var zuletzt = 0L
+            var zuletztMeldung = 0L
             try {
                 c.inputStream.use { ein ->
                     teil.outputStream().use { aus ->
@@ -167,7 +182,7 @@ class LadeDienst : Service() {
                                 zuletzt = jetzt
                                 val anteil = (n.toDouble() / erwartet).coerceAtMost(0.99)
                                 WebHalter.ereignis(JSONObject().put("art", "fortschritt").put("id", a.id).put("anteil", anteil))
-                                zeigen(a.name, gesamt, anteil)
+                                if (jetzt - zuletztMeldung > 1500) { zuletztMeldung = jetzt; zeigen(a.name, gesamt, anteil) }
                             }
                         }
                     }
