@@ -33,7 +33,14 @@ struct AwFx {
   double dz;
   float *dz_puffer;
   int dz_kap;
+  /* Sättigungs-Schwerpunkt (schwerpunkt.c), NULL = nie gesetzt */
+  struct Schwerpunkt *sp;
+  int mit_sp;
 };
+#define SP_BAENDER 5
+void sp_setzen(AwFx *fx, const AwWert *w, int n);
+void sp_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n);
+void sp_frei(AwFx *fx);
 
 /** Färbungsmessung (wie FaerbMesser in den Worklets) */
 typedef struct Faerb {

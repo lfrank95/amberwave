@@ -401,5 +401,13 @@
  "„{name}“ hochgeladen und ausgewählt": "“{name}” uploaded and selected",
  "„{name}“ löschen?": "Delete “{name}”?",
  "„{name}“ wird auf allen deinen Geräten gelöscht.": "“{name}” will be deleted on all your devices.",
- "„{n}“ gibt es schon. Überschreiben?": "“{n}” already exists. Overwrite?"
+ "„{n}“ gibt es schon. Überschreiben?": "“{n}” already exists. Overwrite?",
+ "Alles auf 0": "All to 0",
+ "An": "On",
+ "De-Emphasis": "De-emphasis",
+ "Glocke {n}": "Bell {n}",
+ "Punkt hoch = dort mehr Sättigung. Ziehen: Frequenz und Stärke · Mausrad: Breite · Doppelklick: 0 dB. De-Emphasis 100 %: der Klang bleibt neutral, nur der Klirr wandert; weniger lässt einen Teil der Anhebung stehen.": "Point up = more saturation there. Drag: frequency and amount · Mouse wheel: width · Double-click: 0 dB. De-emphasis 100 %: the tone stays neutral, only the distortion moves; less keeps part of the boost.",
+ "Schwerpunkt": "Focus",
+ "Schwerpunkt: wo {name} sättigt (EQ davor, Gegenteil danach)": "Focus: where {name} saturates (EQ before, the opposite after)",
+ "{name} · Sättigungs-Schwerpunkt": "{name} · Saturation focus"
 }

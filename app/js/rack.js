@@ -17,6 +17,7 @@ import { text as feinText } from './raumklangfein.js';
 import { raumklangMenueOeffnen } from './raumklangmenue.js';
 import { titelFarbe } from './nativ.js';
 import { t, tn, zahl, sprache } from './i18n.js';
+import { spPopup, spPopupZu, spAktiv } from './schwerpunkt.js';
 
 // ---------- Kleinigkeiten ----------
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -60,7 +61,7 @@ function geraet(art) {
 
 const KNOEPFE = {
   glow: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 100, step: 1, fmt: PROZ },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: PROZ },
     { k: 'charakter', n: t('Charakter'), min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'ton', n: t('Höhen'), min: 0, max: 100, step: 1, fmt: (v) => (v < 1 ? t('neutral') : t('samtig {n} %', { n: Math.round(v) })) },
     { k: 'symm', n: t('Symmetrie'), min: 0, max: 100, step: 1, nurGegentakt: true, fmt: PROZ },
@@ -68,13 +69,13 @@ const KNOEPFE = {
     { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT },
   ],
   iron: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 100, step: 1, fmt: PROZ },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: PROZ },
     { k: 'glanz', n: t('Glanz'), min: 0, max: 100, step: 1, bip: true, fmt: (v) => `${vz((v - 50) / 50, 1)} dB` },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT },
   ],
   silk: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 100, step: 1, fmt: PROZ },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: PROZ },
     { k: 'bias', n: 'Bias', min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'gleichlauf', n: t('Gleichlauf'), min: 0, max: 100, step: 1, nurHq: true, fmt: (v) => `${dez(v * 0.0025, 3)} %` },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
@@ -455,7 +456,7 @@ export class RackAnsicht {
   leisteHtml(art, extra = '') {
     const g = geraet(art), o = geraetObj(this.p, art);
     return `<div class="fx-leiste"><button type="button" class="fx-feld fx-preset" data-fx="preset" aria-haspopup="dialog"><span data-preset-name></span>${icon('runter', 14)}</button>
-      ${g.hq ? `<button type="button" class="fx-hq" data-fx="hq" aria-pressed="${!!o.hq}" title="High Quality: ${g.hqText}">HQ</button>` : ''}${g.hq ? `<button type="button" class="fx-hq fx-delta" data-fx="delta" aria-pressed="${this.p.raumklang.deltaArt === art}" title="${t('Delta: nur hören, was {name} am Klang verändert (immer nur ein Gerät, wird nicht gemerkt)', { name: g.name })}">Δ</button>` : ''}${extra}
+      ${g.hq ? `<button type="button" class="fx-hq" data-fx="hq" aria-pressed="${!!o.hq}" title="High Quality: ${g.hqText}">HQ</button>` : ''}${g.hq ? `<button type="button" class="fx-hq fx-delta" data-fx="delta" aria-pressed="${this.p.raumklang.deltaArt === art}" title="${t('Delta: nur hören, was {name} am Klang verändert (immer nur ein Gerät, wird nicht gemerkt)', { name: g.name })}">Δ</button>` : ''}${g.hq ? `<button type="button" class="fx-hq fx-sp" data-fx="sp" aria-haspopup="dialog" aria-pressed="${spAktiv(o.sp)}" title="${t('Schwerpunkt: wo {name} sättigt (EQ davor, Gegenteil danach)', { name: g.name })}"><svg width="18" height="12" viewBox="0 0 18 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 9C4 9 5 2 8 2s3 7 5 7 3-3 4-3"/></svg></button>` : ''}${extra}
       <div class="fx-gab" role="group" aria-label="A/B ${g.name}" title="${t('A/B nur für {name}: B ist anfangs eine Kopie, dann ein anderes Preset wählen und umschalten', { name: g.name })}">${['A', 'B'].map((v) => `<button type="button" data-fx="gab" data-v="${v}" aria-pressed="${this.rack.abG(art).aktiv === v}" class="${this.rack.abG(art)[v] ? 'voll' : ''}">${v}</button>`).join('')}</div></div>`;
   }
 
@@ -636,6 +637,8 @@ export class RackAnsicht {
       sec.querySelectorAll('[data-fx="gab"]').forEach((b) => { const st = this.rack.abG(art); b.setAttribute('aria-pressed', String(st.aktiv === b.dataset.v)); b.classList.toggle('voll', !!st[b.dataset.v]); });
       const hq = sec.querySelector('[data-fx="hq"]');
       if (hq) hq.setAttribute('aria-pressed', String(!!geraetObj(p, art)?.hq));
+      const spk = sec.querySelector('[data-fx="sp"]');
+      if (spk) spk.setAttribute('aria-pressed', String(spAktiv(geraetObj(p, art)?.sp)));
       sec.querySelectorAll('[data-knopf]').forEach((k) => this.knopfZeigen(k));
     }
     this.el.querySelectorAll('.fx-mod').forEach((s, i) => { const nr = s.querySelector('.fx-nr'); if (nr) nr.textContent = String(i + 1).padStart(2, '0') + (this.breit ? ` · ${geraet(s.dataset.art).rolle}` : ''); });
@@ -950,11 +953,11 @@ export class RackAnsicht {
     window.addEventListener('pointermove', this.bewegen, { passive: true });
     window.addEventListener('pointerup', this.loslassen);
     window.addEventListener('pointercancel', this.loslassen);
-    this.esc = (e) => { if (e.key === 'Escape' && !document.querySelector('.fx-wahl, dialog[open], .rk-menue')) { e.preventDefault(); e.stopImmediatePropagation(); this.schliessen(); } };
+    this.esc = (e) => { if (e.key === 'Escape' && !document.querySelector('.fx-wahl, dialog[open], .rk-menue, .sp-popup')) { e.preventDefault(); e.stopImmediatePropagation(); this.schliessen(); } };
     document.addEventListener('keydown', this.esc, true);
     if (this.modus === 'flyout' || this.einzel) {
       this.aussen = (e) => {
-        if (this.el.contains(e.target) || this.anker?.contains(e.target) || e.target.closest('.fx-wahl, .fx-wahl-grund, dialog, .rk-menue')) return;
+        if (this.el.contains(e.target) || this.anker?.contains(e.target) || e.target.closest('.fx-wahl, .fx-wahl-grund, dialog, .rk-menue, .sp-popup')) return;
         this.schliessen();
       };
       document.addEventListener('pointerdown', this.aussen, true);
@@ -1019,6 +1022,18 @@ export class RackAnsicht {
     if (was === 'algo') { await spaceAlgoSetzen(p, a.dataset.k); this.karteNeu('space'); return; }
     if (was === 'staerke') { p.raumklangFeinSetzen(staerkeWerte(a.dataset.k)); this.karteNeu('space'); return; }
     if (was === 'irwahl') { this.irMenue(a); return; }
+    if (was === 'sp') {
+      if (document.querySelector('.sp-popup')) { spPopupZu(); return; }
+      const setzen = (sp) => {
+        const o = geraetObj(p, art);
+        if (art === 'glow') p.waermeSetzen({ ...o, sp }); else if (art === 'iron') p.trafoSetzen({ ...o, sp }); else p.bandSetzen({ ...o, sp });
+        a.setAttribute('aria-pressed', String(spAktiv(sp)));
+        this.nachKnopf(art);
+      };
+      spPopup({ anker: a, name: geraet(art).name, farbe: geraet(art).farbe, wert: geraetObj(p, art).sp, setzen,
+        spektrum: () => (p.raumklang.angeschlossen && !p.audio.paused ? p.raumklang.spektrum()?.m : null), sr: p.raumklang.ctx?.sampleRate || 48000 });
+      return;
+    }
     if (was === 'delta') {
       const neu = p.raumklang.deltaArt === art ? null : art;
       if (neu && !p.raumklang.stufeWirksam(art)) { toast(t('{name} ist aus – erst einschalten, dann gibt es ein Delta', { name: geraet(art).name })); return; }
@@ -1263,6 +1278,7 @@ export class RackAnsicht {
   }
 
   schliessen() {
+    spPopupZu();
     if (this.zu) return;
     this.zu = true;
     if (this.modus === 'breit' || this.modus === 'karten') titelFarbe(null, 'rack');

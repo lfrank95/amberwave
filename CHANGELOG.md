@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.1-beta.3 – effects
+
+- **Saturation focus** for AmberGlow, AmberIron and AmberSilk: a small button next to HQ and Δ opens a curve with five
+  points (low shelf, three bells, high shelf) over the live spectrum. Raise a point and the effect saturates more there –
+  an EQ in front of the effect, the exact opposite behind it, so the tone stays neutral and only the distortion moves.
+  "De-emphasis" 0–100 % sets how much of the boost is taken back (less = part of the boost stays, like an enhancer).
+- **Drive up to 150 %** on all three effects, to overdo it on purpose (automatic level compensation stays on).
+- **AmberSilk: no more aliasing at high frequencies.** The tape curve now always runs at 8× oversampling (4× from
+  88.2 kHz, 192 kHz included). Worst case (7.5 ips, high drive, loud treble) improved from −46 dB to −71 dB, typical
+  settings are below −90 dB; at 192 kHz the audible-band aliasing went from −48 dB to −101 dB. Frequency response
+  unchanged (±0.05 dB). Costs about 4 % more CPU of one core at 44.1 kHz.
+- AmberSilk: the slow-signal path of the tape curve uses the exact function (a tiny −70 dB step at heavy saturation is gone).
+- **Browser effects now run as WebAssembly** – the same C code as the Windows client instead of a separate JavaScript
+  copy (tested sample by sample: −170 dB difference). Silk 2× and Iron 1.6× faster in the browser. Browsers without
+  WebAssembly fall back to the old JavaScript version (without the new features).
+
 ## 0.9.1-beta.2 – large libraries
 
 Load test with a synthetic library (20,000 real files scanned, database multiplied to 100,000 tracks) on a real

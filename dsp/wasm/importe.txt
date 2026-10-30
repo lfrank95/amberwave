@@ -1,0 +1,14 @@
+sin
+cos
+tan
+exp
+log
+log10
+log1p
+expm1
+pow
+tanh
+cosh
+sinh
+atan
+atan2

@@ -13,7 +13,7 @@ crate for your queue, VU meters, tubes and tape machines in the effects rack. An
 several programs and sketchy driver routing – library, bit-perfect playback, effects, plug-ins, multi-channel routing
 and remote control – in one place.
 
-> **Public beta – 0.9.1-beta.2.** Please back up your music before you try it. Amberwave only **reads** your music
+> **Public beta – 0.9.1-beta.3.** Please back up your music before you try it. Amberwave only **reads** your music
 > by default; it writes nothing until you allow it. *Deutsche Anleitung: [README.de.md](README.de.md)*
 
 ![Home](docs/screenshots/home.png)
@@ -47,6 +47,8 @@ and remote control – in one place.
 These are planned as paid **Pro** features later. During the beta they are **free for everyone**:
 
 - **DSP effects:** AmberGlow (tube), AmberIron (transformer), AmberSilk (tape), AmberSpace (room reverb and 5.1 upmix), EQ
+- **Saturation focus:** per effect, a curve with draggable points decides where it saturates (EQ before, the exact
+  opposite after – the tone stays neutral and only the distortion moves; de-emphasis 0–100 %).
 - **VST3 plug-in support** in the Windows client
 - **ASIO output** in the Windows client
 - **Output routing matrix with per-channel EQ**

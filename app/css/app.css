@@ -1946,6 +1946,43 @@ body:has(.fx-karten, .fx-breit) .nerd { z-index: 239; }
 .fx-hq[aria-pressed="true"] { border-color: rgba(255,236,214,.35); background: rgba(255,244,230,.1); color: var(--text-primary) !important; }
 .fx-delta { padding: 0 12px; font-size: .95rem !important; }
 .fx-delta[aria-pressed="true"] { border-color: #8fb4ff; background: rgba(143,180,255,.16); color: #cfe0ff !important; box-shadow: 0 0 12px rgba(143,180,255,.35); }
+.fx-sp { padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; }
+.fx-sp[aria-pressed="true"] { border-color: var(--farbe, #ffb547); background: color-mix(in srgb, var(--farbe, #ffb547) 16%, transparent); color: var(--text-primary) !important; box-shadow: 0 0 10px color-mix(in srgb, var(--farbe, #ffb547) 35%, transparent); }
+/* Schwerpunkt-Popup (schwerpunkt.js) */
+.sp-popup { position: fixed; z-index: 330; width: 520px; max-width: calc(100vw - 16px); padding: 12px; border-radius: 16px; background: #261c15; color: var(--text-primary);
+    border: 1px solid rgba(255,236,214,.18); box-shadow: 0 18px 50px rgba(0,0,0,.6); animation: rein .16s ease; font-family: var(--font-body); }
+.sp-popup.blatt { left: 0 !important; right: 0; bottom: 0; top: auto !important; width: auto; max-width: 680px; margin: 0 auto; border-radius: 20px 20px 0 0; border-bottom: 0;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+.sp-kopf { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sp-titel { flex: 1; min-width: 0; font-size: .92rem; color: var(--text-leise); }
+.sp-titel b { color: var(--text-primary); font-family: var(--font-display); }
+.sp-an { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(255,236,214,.16); background: transparent; color: var(--text-leise); font: 700 .74rem var(--font-display); letter-spacing: .06em; text-transform: uppercase; }
+.sp-an i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,236,214,.25); }
+.sp-an[aria-pressed="true"] { color: var(--text-primary); border-color: var(--farbe); }
+.sp-an[aria-pressed="true"] i { background: var(--farbe); box-shadow: 0 0 8px var(--farbe); }
+.sp-zu { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; border: 0; background: transparent; color: var(--text-leise); }
+.sp-zu:hover { background: rgba(255,244,230,.08); color: var(--text-primary); }
+.sp-graf { position: relative; height: 210px; border-radius: 12px; background: #0d0a08; border: 3px solid #080605; overflow: hidden; touch-action: none; cursor: crosshair; }
+.sp-graf svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sp-raster { stroke: rgba(200,215,240,.07); }
+.sp-raster.stark { stroke: rgba(200,215,240,.15); }
+.sp-null { stroke: rgba(200,215,240,.22); stroke-dasharray: 3 4; }
+.sp-spektrum { fill: rgba(200,215,240,.1); stroke: rgba(200,215,240,.25); stroke-width: 1; }
+.sp-kurve { fill: none; stroke: var(--farbe); stroke-width: 2.4; stroke-linejoin: round; }
+.sp-rest { fill: none; stroke: #f6efe7; stroke-width: 1.4; stroke-dasharray: 4 4; opacity: .7; }
+.sp-popup.aus .sp-kurve { opacity: .35; }
+.sp-pkt { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--pf); border: 2px solid #0d0a08; cursor: grab; transition: box-shadow .15s; }
+.sp-pkt.gew, .sp-pkt:focus-visible { box-shadow: 0 0 0 3px rgba(255,244,230,.6); outline: none; }
+.sp-popup.aus .sp-pkt { opacity: .5; }
+.sp-mk { position: absolute; bottom: 4px; transform: translateX(-50%); font-size: .66rem; color: rgba(200,215,240,.45); pointer-events: none; }
+.sp-info { position: absolute; top: 6px; right: 8px; font: 600 .74rem var(--font-display); color: var(--text-leise); pointer-events: none; font-variant-numeric: tabular-nums; }
+.sp-fuss { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.sp-regler { flex: 1; min-width: 220px; display: flex; align-items: center; gap: 10px; font-size: .82rem; color: var(--text-leise); }
+.sp-regler input { flex: 1; min-width: 0; accent-color: var(--farbe); }
+.sp-regler output { width: 3.4em; text-align: right; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.sp-knopf { height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid rgba(255,236,214,.16); background: transparent; color: var(--text-leise); font-size: .8rem; }
+.sp-knopf:hover { color: var(--text-primary); border-color: rgba(255,236,214,.3); }
+.sp-hinweis { margin: 10px 2px 0; font-size: .74rem; line-height: 1.45; color: var(--text-leise); }
 .fx-sperre { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,143,122,.1); border: 1px solid rgba(255,143,122,.3); color: #ffb3a5; font-size: .8rem; }
 
 /* Fenster, Meter */

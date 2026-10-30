@@ -26,7 +26,7 @@ echo "Engine …"
 rc_bauen "$HIER/engine/engine.rc" "$HIER/build/engine_res.o"
 "$LLVM_MINGW/bin/x86_64-w64-mingw32-clang" -O2 -Wall -static -o "$HIER/build/amberwave-engine.exe" "$HIER/build/engine_res.o" \
   "$HIER/engine/engine.c" "$HIER/engine/klang.c" "$HIER/engine/vstanbindung.c" "$HIER/engine/ausgabe_wasapi.c" "$HIER/engine/ausgabe_asio.c" "$HIER/engine/geraet.c" "$HIER/engine/netz_win.c" \
-  "$HIER/../dsp/gemeinsam.c" "$HIER/../dsp/glow.c" "$HIER/../dsp/iron.c" "$HIER/../dsp/silk.c" "$HIER/../dsp/eq.c" \
+  "$HIER/../dsp/gemeinsam.c" "$HIER/../dsp/glow.c" "$HIER/../dsp/iron.c" "$HIER/../dsp/silk.c" "$HIER/../dsp/eq.c" "$HIER/../dsp/schwerpunkt.c" \
   "$HIER/../dsp/upmix.c" "$HIER/../dsp/faltung.c" "$HIER/../dsp/raumgraph.c" "$HIER/../dsp/umrechner.c" \
   -lpthread -lole32 -lwinhttp -lavrt -luuid -lksuser -luser32 -ladvapi32 2>&1 | grep -v "dr_flac.h\|dr_wav.h" | grep -E "warning|error" || true
 

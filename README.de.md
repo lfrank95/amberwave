@@ -1,4 +1,4 @@
-# Amberwave 0.9.1-beta.2
+# Amberwave 0.9.1-beta.3
 
 > **Eine App statt fünf:** Bibliothek, bitgenaue Ausgabe, Effekte, VST3, Routing pro Kanal und Fernsteuerung –
 > ohne virtuelle Kabel, ohne Treiber-Basteleien.
@@ -25,6 +25,8 @@ Mehrkanal-Routing und Fernsteuerung – an einem Ort.
 Diese Funktionen sind später als kostenpflichtige **Pro**-Funktionen geplant. In der Beta sind sie **für alle kostenlos**:
 
 - **DSP-Effekte:** AmberGlow (Röhre), AmberIron (Übertrager), AmberSilk (Band), AmberSpace (Raumhall und 5.1-Upmix), EQ
+- **Sättigungs-Schwerpunkt:** pro Effekt eine Kurve mit ziehbaren Punkten, die bestimmt, wo er sättigt (EQ davor, exakt
+  das Gegenteil danach – der Klang bleibt neutral, nur der Klirr wandert; De-Emphasis 0–100 %).
 - **VST3-Plug-ins** im Windows-Client
 - **ASIO-Ausgabe** im Windows-Client
 - **Ausgangs-Routing-Matrix mit EQ pro Kanal**

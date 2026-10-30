@@ -8,6 +8,14 @@ Engine, bei der Abtastrate der Datei), später den Windows Server und als WebAss
 Schnittstelle: `aw_dsp.h` (Gerät anlegen, Werte setzen wie `port.postMessage`, Blöcke rechnen, Messung abholen).
 Keine Abhängigkeiten außer libm; kompiliert ohne Warnungen mit gcc und llvm-mingw (Windows).
 
+## WebAssembly (Browser)
+
+`wasm/bauen.sh` übersetzt Glow, Iron, Silk und EQ nach `app/js/aw-dsp.wasm` (clang mit wasm32-Ziel, ohne C-Bibliothek:
+eigene kleine Laufzeit in `wasm/laufzeit.c`, sin/exp/log/pow … kommen als `Math.*` aus JavaScript). `app/js/dsp-worklet.js`
+registriert damit `aw-roehre`, `aw-trafo` und `aw-band` – dieselben Namen und Nachrichten wie die JS-Worklets, die nur noch
+als Rückfall dienen (Browser ohne WebAssembly). Nach jeder Änderung an den C-Dateien: `wasm/bauen.sh` und
+`GEGEN=wasm tests/vergleich.py` (das Worklet so, wie es im Browser läuft, gegen das JS-Original).
+
 ## Prüfung gegen das Original
 
 `tests/vergleich.py` schickt dieselben Testsignale (Sinus, Sweep, Rauschen, Stille, harte Spitzen, Akkorde) mit denselben

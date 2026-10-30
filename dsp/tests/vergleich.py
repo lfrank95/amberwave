@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""DSP-Vergleich: jedes Gerät mit denselben Signalen und Abläufen durch das JS-Original und die C-Version.
-Aufruf: vergleich.py [art …]  (ohne Angabe: alle). Grenze: Abweichung < −140 dB (die Übersetzung liegt bei −165 … −190 dB, Float-Rundung) (bezogen auf das Ausgangssignal)."""
+"""DSP-Vergleich: jedes Gerät mit denselben Signalen und Abläufen durch zwei Umsetzungen.
+Aufruf: vergleich.py [art …]  (ohne Angabe: alle). VERGLEICH=c-wasm (Standard): C-Bibliothek (Windows-Client) gegen das
+WebAssembly-Worklet, so wie es im Browser läuft (app/js/dsp-worklet.js + aw-dsp.wasm). VERGLEICH=js-c: die alten JS-Worklets
+gegen C (nur noch für Glow, Iron und EQ gleich – Silk rechnet seit 0.9.1-beta.3 mit 8× statt 4× und exakter Kennlinie). Grenze: Abweichung < −140 dB (die Übersetzung liegt bei −165 … −190 dB, Float-Rundung) (bezogen auf das Ausgangssignal)."""
 import os, subprocess, sys, numpy as np
 HIER = os.path.dirname(os.path.abspath(__file__))
 W = '/tmp/dspv'
 os.makedirs(W, exist_ok=True)
 C_PROG = f'{W}/c_ref'
-QUELLEN = [f'{HIER}/../{d}' for d in ('gemeinsam.c', 'glow.c', 'iron.c', 'silk.c', 'eq.c')]
+QUELLEN = [f'{HIER}/../{d}' for d in ('gemeinsam.c', 'glow.c', 'iron.c', 'silk.c', 'eq.c', 'schwerpunkt.c')]
 subprocess.run(['gcc', '-O2', '-o', C_PROG, f'{HIER}/c_ref.c', *[q for q in QUELLEN if os.path.exists(q)], '-lm'], check=True)
+
+MODUS = os.environ.get('VERGLEICH', 'c-wasm')
 
 ABLAEUFE = {
   'glow': {
@@ -36,7 +40,9 @@ def lauf(art, sr, kan, name, ablauf, seed=12345):
     ab = f'{W}/{art}_{name}.txt'
     open(ab, 'w').write(ablauf)
     erg = {}
-    for wer, prog in (('js', ['node', f'{HIER}/js_ref.mjs']), ('c', [C_PROG])):
+    progs = {'js': ['node', f'{HIER}/js_ref.mjs'], 'c': [C_PROG], 'wasm': ['node', f'{HIER}/wasm_ref.mjs']}
+    ref, kand = MODUS.split('-')
+    for wer, prog in (('js', progs[ref]), ('c', progs[kand])):
         aus, mess = f'{W}/{art}_{name}_{sr}_{kan}_{wer}.f32', f'{W}/{art}_{name}_{sr}_{kan}_{wer}.txt'
         subprocess.run([*prog, art, str(sr), str(kan), sig, ab, aus, mess, str(seed)], check=True)
         erg[wer] = (np.fromfile(aus, dtype=np.float32).astype(np.float64), open(mess).read().split('\n'))
@@ -51,7 +57,7 @@ def lauf(art, sr, kan, name, ablauf, seed=12345):
     print(f"  {'✓' if ok else '✗'} {art:4} {name:4} {sr:6} Hz {kan} Kan.: Abweichung {db:7.1f} dB (Spitze {spitze:.2e}), Messungen {len(mc)}/{len(mj)} {'gleich' if m_ok else 'ABWEICHEND'}")
     return ok
 
-arten = sys.argv[1:] or list(ABLAEUFE)
+arten = sys.argv[1:] or [a for a in ABLAEUFE if not ('wasm' in MODUS and a == 'eq')]
 fehler = 0
 for art in arten:
     for name, ablauf in ABLAEUFE[art].items():

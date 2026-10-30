@@ -35,7 +35,7 @@ function sicherheits_header_senden(): void
         }
         // die Import-Map der App (index.php) ist ein Inline-Skript: per Hash erlaubt, sonst nichts Inline
         $karte = function_exists('import_map_json') ? " 'sha256-" . base64_encode(hash('sha256', import_map_json(), true)) . "'" : '';
-        header("Content-Security-Policy: default-src 'self'; script-src 'self'{$karte}; style-src 'self' 'unsafe-inline'{$css}; "
+        header("Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'{$karte}; style-src 'self' 'unsafe-inline'{$css}; "
             . "img-src 'self' data: blob:{$direkt}; media-src 'self' blob:{$direkt}; font-src 'self' data:{$font}; connect-src 'self'{$direkt}; "
             . "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self'; manifest-src 'self'");
     }

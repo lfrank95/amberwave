@@ -2,7 +2,7 @@
 // Einstellung pro Gerät: { an, stufe: 'hauch'|'satt'|'schwer'|'eigen', kern, drive, glanz, mix, hq, auto, bezug }
 //  kern   nickel | stahl | eisen → Kernmaterial: Nickel sättigt spät und hart (klar, offen), Stahl mittel (satter Bass,
 //         etwas Glanz), Eisen früh und weich (Ausgangsübertrager: dicht, rund, etwas dunkler oben)
-//  drive  0–100 → Ansteuerung (wie heiß der Übertrager gefahren wird); wirkt fast nur im Bass – so arbeitet ein Kern
+//  drive  0–150 → Ansteuerung (wie heiß der Übertrager gefahren wird); wirkt fast nur im Bass – so arbeitet ein Kern
 //  glanz  0–100 → oberste Oktave: 0 = runder, 100 = offener (±1 dB um den Kern-Charakter)
 //  quelle auto | nieder | studio | roehre → was den Übertrager treibt: der Innenwiderstand der Quelle bestimmt (physikalisch),
 //         wie viel Klirr und Bassabfall entstehen. auto = Röhre, wenn AmberGlow an ist, sonst Studio (600 Ω)
@@ -12,6 +12,7 @@
 //  auto   true  → Ansteuerung wird hinter dem Kern herausgerechnet (gleich laut, nur dichter) – immer an
 //  bezug  true  → Ansteuerung folgt der gemessenen Lautheit (wie Glow und Silk) – immer an
 import { t } from './i18n.js';
+import { spNormal, spParameter } from './schwerpunkt.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 const META = (() => { try { return JSON.parse(metaInhalt('aw-trafo') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
@@ -48,10 +49,11 @@ export function trafoNormal(t) {
     stufe: TRAFO_STUFEN[x.stufe] ? x.stufe : 'eigen',
     kern: TRAFO_KERNE[x.kern] ? x.kern : 'stahl',
     quelle: TRAFO_QUELLEN[x.quelle] ? x.quelle : 'auto',
-    drive: Math.round(clamp(x.drive, 0, 100)),
+    drive: Math.round(clamp(x.drive, 0, 150)),   // über 100 %: bewusst übertreiben
     glanz: Math.round(clamp(x.glanz, 0, 100)),
     mix: Math.round(clamp(x.mix, 0, 100)),
     vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
+    sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,
     bezug: true,
     hq: x.hq === true,
@@ -84,7 +86,7 @@ export function trafoBezugDb(t, lufsEingang) {
 }
 
 /**
- * Einstellung → Parameter für den Worklet (drive: 0 → 1 … 50 → 3,2 … 100 → 10, × Lautheitsbezug).
+ * Einstellung → Parameter für den Worklet (drive: 0 → 1 … 50 → 3,2 … 100 → 10 … 150 → 32, × Lautheitsbezug).
  * glowAn: treibt die Röhre den Übertrager? (für quelle = auto)
  */
 export function trafoParameter(t, bezugDb = 0, glowAn = false) {
@@ -96,6 +98,7 @@ export function trafoParameter(t, bezugDb = 0, glowAn = false) {
     glanz: x.glanz / 100,
     mix: x.mix / 100,
     vert: x.vert / 100,
+    ...spParameter(x.sp),
     auto: x.auto ? 1 : 0,
     hq: x.hq ? 1 : 0,
   };

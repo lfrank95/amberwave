@@ -1,6 +1,6 @@
 // „Wärme“: Röhrensättigung vor Raumklang und EQ (Rechnung in waerme-worklet.js). Hier: Stufen, Grenzen, Texte.
 // Einstellung pro Gerät: { an, stufe: 'hauch'|'warm'|'glut'|'eigen', drive, charakter, ton, mix, auto }
-//  drive     0–100 → Ansteuerung der Kennlinie (0 = kaum, 100 = kräftig)
+//  drive     0–150 → Ansteuerung der Kennlinie (0 = kaum, 100 = kräftig, darüber bewusst übertrieben)
 //  charakter 0–100 → Arbeitspunkt: mehr = mehr gerade Harmonische (k2), „röhriger“
 //  ton       0–100 → Höhen: 0 = unverändert, 100 = samtig (ca. 6 kHz)
 //  mix       0–100 → Anteil des gesättigten Signals (Parallelbetrieb erhält die Transienten)
@@ -13,6 +13,7 @@
 //  bezug     true  → Ansteuerung an die gemessene Lautheit des Titels/Albums koppeln: jeder Titel fährt die Röhre gleich an
 //                   (Bezugspunkt WAERME_BEZUG_LUFS, Standard −18 LUFS; Korrektur auf ±12 dB begrenzt)
 import { t } from './i18n.js';
+import { spNormal, spParameter } from './schwerpunkt.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 
 export const WAERME_STUFEN = {
@@ -48,8 +49,9 @@ export function waermeNormal(w) {
   const aus = {
     an: !!x.an,
     stufe: WAERME_STUFEN[x.stufe] ? x.stufe : (x.stufe === 'eigen' ? 'eigen' : 'warm'),
-    drive: Math.round(clamp(x.drive, 0, 100)), charakter: Math.round(clamp(x.charakter, 0, 100)),
+    drive: Math.round(clamp(x.drive, 0, 150)), charakter: Math.round(clamp(x.charakter, 0, 100)),
     ton: Math.round(clamp(x.ton, 0, 100)), mix: Math.round(clamp(x.mix, 0, 100)), vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
+    sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,   // immer an (Gegenkopplung zur Ansteuerung)
     bezug: true,  // immer an (Ansteuerung folgt der gemessenen Lautheit)
     hq: x.hq === true,
@@ -94,11 +96,12 @@ export function waermeBezugDb(w, lufsEingang) {
 export function waermeParameter(w, bezugDb = 0) {
   const x = waermeNormal(w);
   return {
-    drive: 0.6 * Math.pow(10, (x.drive / 100) * 1.1) * Math.pow(10, (bezugDb || 0) / 20),  // 0 → 0,6 … 100 → 7,5 (logarithmisch), × Lautheitsbezug
+    drive: 0.6 * Math.pow(10, (x.drive / 100) * 1.1) * Math.pow(10, (bezugDb || 0) / 20),  // 0 → 0,6 … 100 → 7,5 … 150 → 27 (logarithmisch), × Lautheitsbezug
     bias: 0.04 + (x.charakter / 100) * 0.4,              // 0,04 … 0,44
     ton: x.ton / 100,
     mix: x.mix / 100,
     vert: x.vert / 100,
+    ...spParameter(x.sp),
     auto: x.auto ? 1 : 0,
     hq: x.hq ? 1 : 0,
     roehre: x.roehre,

@@ -71,7 +71,7 @@ static Abgel ableiten(Iron *t) {
 static void iron_setzen(AwFx *fx, const AwWert *w, int n) {
   Iron *t = (Iron *)fx;
   double v; const char *s;
-  if (wert_zahl(w, n, "drive", &v)) t->drive = klemmen(v, 0.05, 30);
+  if (wert_zahl(w, n, "drive", &v)) t->drive = klemmen(v, 0.05, 160);
   if ((s = wert_text(w, n, "kern")) && kern_suchen(s)) t->kern = kern_suchen(s);
   if ((s = wert_text(w, n, "quelle")) && quelle_suchen(s)) t->quelle = quelle_suchen(s);
   if (wert_zahl(w, n, "glanz", &v)) t->glanz = klemmen(v, 0, 1);

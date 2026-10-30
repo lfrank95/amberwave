@@ -58,6 +58,8 @@ try {
 <meta name="aw-worklet-band" content="<?= h(asset_url('/js/band-worklet.js')) ?>">
 <meta name="aw-band" content="<?= h(json_encode(['vorgabe' => konfig()['band']['vorgabe'], 'bezug' => konfig()['band']['bezug_lufs'], 'sorte' => konfig()['band']['sorte'], 'norm' => konfig()['band']['norm']])) ?>">
 <meta name="aw-worklet-trafo" content="<?= h(asset_url('/js/trafo-worklet.js')) ?>">
+<meta name="aw-worklet-dsp" content="<?= h(asset_url('/js/dsp-worklet.js')) ?>">
+<meta name="aw-worklet-wasm" content="<?= h(asset_url('/js/aw-dsp.wasm')) ?>">
 <meta name="aw-trafo" content="<?= h(json_encode(['vorgabe' => konfig()['trafo']['vorgabe'], 'kern' => konfig()['trafo']['kern'], 'bezug' => konfig()['trafo']['bezug_lufs']])) ?>">
 <meta name="aw-waerme" content="<?= h(json_encode(['vorgabe' => konfig()['waerme']['vorgabe'], 'bezug' => konfig()['waerme']['bezug_lufs'], 'roehre' => konfig()['waerme']['roehre'], 'schaltung' => konfig()['waerme']['schaltung']])) ?>">
 <script type="importmap"><?= import_map_json() ?></script>

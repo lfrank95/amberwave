@@ -147,16 +147,21 @@ AwFx *aw_fx_neu(const char *art, double sr, uint32_t seed) {
   if (fx) {
     fx->zufall = seed;
     fx->messer = faerb_neu();
+    fx->mit_sp = strcmp(art, "eq") != 0;
   }
   return fx;
 }
-void aw_fx_setzen(AwFx *fx, const AwWert *w, int n) { if (fx) fx->setzen(fx, w, n); }
+void aw_fx_setzen(AwFx *fx, const AwWert *w, int n) {
+  if (!fx) return;
+  fx->setzen(fx, w, n);
+  if (fx->mit_sp) sp_setzen(fx, w, n);
+}
 void aw_fx_steuern(AwFx *fx, const char *was, int an) {
   if (!fx) return;
   if (!strcmp(was, "messen")) { fx->messen = !!an; faerb_leeren(fx->messer); fx->messer->neu = 0; }
   else if (!strcmp(was, "delta")) fx->delta_ziel = an ? 1 : 0;
 }
-void aw_fx_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) { if (fx && n > 0) fx->block(fx, ein, aus, kan, n); }
+void aw_fx_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) { if (fx && n > 0) sp_block(fx, ein, aus, kan, n); }
 int aw_fx_faerbung(AwFx *fx, float w[2]) {
   if (!fx || !fx->messer->neu) return 0;
   w[0] = fx->messer->wert[0]; w[1] = fx->messer->wert[1];
@@ -168,5 +173,6 @@ void aw_fx_frei(AwFx *fx) {
   if (!fx) return;
   faerb_frei(fx->messer);
   free(fx->dz_puffer);
+  sp_frei(fx);
   fx->frei(fx);
 }

@@ -60,6 +60,24 @@ const EQ_WORKLET_URL = new URL(metaInhalt('aw-worklet-eq') || './eq-worklet.js',
 const WAERME_WORKLET_URL = new URL(metaInhalt('aw-worklet-waerme') || './waerme-worklet.js', metaInhalt('aw-worklet-waerme') ? location.href : import.meta.url).href;
 const TRAFO_WORKLET_URL = new URL(metaInhalt('aw-worklet-trafo') || './trafo-worklet.js', metaInhalt('aw-worklet-trafo') ? location.href : import.meta.url).href;
 const BAND_WORKLET_URL = new URL(metaInhalt('aw-worklet-band') || './band-worklet.js', metaInhalt('aw-worklet-band') ? location.href : import.meta.url).href;
+// Glow, Iron und Silk als WebAssembly (C-Bibliothek dsp/, derselbe Code wie im Windows-Client); die JS-Worklets oben nur noch
+// als Rückfall, falls der Browser WebAssembly nicht übersetzen darf
+const DSP_WORKLET_URL = new URL(metaInhalt('aw-worklet-dsp') || './dsp-worklet.js', metaInhalt('aw-worklet-dsp') ? location.href : import.meta.url).href;
+const DSP_WASM_URL = new URL(metaInhalt('aw-worklet-wasm') || './aw-dsp.wasm', metaInhalt('aw-worklet-wasm') ? location.href : import.meta.url).href;
+/** Bytes der WebAssembly-Datei, wenn sie sich hier übersetzen lässt (sonst null → JS-Worklets) */
+async function dspWasmLaden() {
+  try {
+    if (typeof WebAssembly === 'undefined') return null;
+    const r = await fetch(DSP_WASM_URL, { credentials: 'same-origin' });
+    if (!r.ok) return null;
+    const bytes = await r.arrayBuffer();
+    await WebAssembly.compile(bytes);   // Probe: scheitert z. B. an einer Content-Security-Policy ohne 'wasm-unsafe-eval'
+    return bytes;
+  } catch (e) {
+    console.warn('Amberwave: Effekte ohne WebAssembly (JS-Rückfall)', e);
+    return null;
+  }
+}
 
 /** Fassung des tatsächlich geladenen Raumklang-Worklets (meldet sich beim Start) und die erwartete App-Version */
 export const workletStand = { geladen: null, erwartet: metaInhalt('aw-worklet-stand') || null };
@@ -540,7 +558,11 @@ export class Raumklang {
     if (this.audio?.nativ) return this.nativKontext();
     const C = window.AudioContext || window.webkitAudioContext;
     const ctx = new C({ latencyHint: 'playback' });
-    this.workletBereit = Promise.all([ctx.audioWorklet.addModule(WORKLET_URL), ctx.audioWorklet.addModule(EQ_WORKLET_URL), ctx.audioWorklet.addModule(WAERME_WORKLET_URL), ctx.audioWorklet.addModule(BAND_WORKLET_URL), ctx.audioWorklet.addModule(TRAFO_WORKLET_URL)]);
+    this.workletBereit = (async () => {
+      this.dspWasm = await dspWasmLaden();
+      const effekte = this.dspWasm ? [DSP_WORKLET_URL] : [WAERME_WORKLET_URL, BAND_WORKLET_URL, TRAFO_WORKLET_URL];
+      await Promise.all([WORKLET_URL, EQ_WORKLET_URL, ...effekte].map((u) => ctx.audioWorklet.addModule(u)));
+    })();
     await this.workletBereit;
     this.quelle = ctx.createMediaElementSource(this.audio);
     // quelle → [Glow, Iron, Silk, EQ in der gewählten Reihenfolge] → vorne → [Upmix-Graph oder direkt] → ausgang (Überblendung) →
@@ -664,7 +686,7 @@ export class Raumklang {
     if (typeof d.messen === 'boolean' || typeof d.delta === 'boolean') return; // laufen über messenSetzen/deltaSetzen
     if (art === 'eq') { this.nativEq(); return; }
     const o = { c: 'fx', art };
-    for (const [k, v] of Object.entries(d)) if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') o[`w.${k}`] = v;
+    for (const [k, v] of Object.entries(d)) if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean' || (Array.isArray(v) && v.every(Number.isFinite))) o[`w.${k}`] = v;
     nativ.senden(o);
   }
 
@@ -790,6 +812,7 @@ export class Raumklang {
     if (this.ctx?.nativ) return this.nativStufe(art);
     const ctx = this.ctx;
     const stereo = { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers' };
+    const wasm = this.dspWasm ? { wasm: this.dspWasm } : {};
     let k;
     if (art === 'eq') {
       k = new AudioWorkletNode(ctx, 'aw-eq', {
@@ -797,11 +820,11 @@ export class Raumklang {
         processorOptions: { k: eqKoeffizienten(this.eq, ctx.sampleRate), gain: Math.pow(10, eqGainDb(this.eq, ctx.sampleRate) / 20) },
       });
     } else if (art === 'glow') {
-      k = new AudioWorkletNode(ctx, 'aw-roehre', { ...stereo, processorOptions: waermeParameter(this.waerme, this.waermeBezug || 0) });
+      k = new AudioWorkletNode(ctx, 'aw-roehre', { ...stereo, processorOptions: { ...waermeParameter(this.waerme, this.waermeBezug || 0), ...wasm } });
     } else if (art === 'iron') {
-      k = new AudioWorkletNode(ctx, 'aw-trafo', { ...stereo, processorOptions: this.trafoParameter(this.trafo, this.trafoBezug || 0) });
+      k = new AudioWorkletNode(ctx, 'aw-trafo', { ...stereo, processorOptions: { ...this.trafoParameter(this.trafo, this.trafoBezug || 0), ...wasm } });
     } else {
-      k = new AudioWorkletNode(ctx, 'aw-band', { ...stereo, processorOptions: bandParameter(this.band, this.bandBezug || 0) });
+      k = new AudioWorkletNode(ctx, 'aw-band', { ...stereo, processorOptions: { ...bandParameter(this.band, this.bandBezug || 0), ...wasm } });
     }
     if (art !== 'eq') {
       k.port.onmessage = (e) => { if (e.data && e.data.faerb) this.faerbung[art] = { w: e.data.faerb, t: performance.now() }; };

@@ -8,12 +8,12 @@
 static double langevin(double x) {
   double ax = x < 0 ? -x : x;
   if (ax < 1e-3) return x / 3 - x * x * x / 45;
-  return 1 / th(x) - 1 / x;
+  return 1 / tanh(x) - 1 / x;   // exakt (nicht die Padé-Näherung th): passt nahtlos zur Stammfunktion im ADAA
 }
 static double langevin_abl(double x) {
   double ax = x < 0 ? -x : x;
   if (ax < 1e-3) return 1.0 / 3 - x * x / 15;
-  double t = th(x);
+  double t = tanh(x);
   return 1 - 1 / (t * t) + 1 / (x * x);
 }
 #define LT_MAX 40
@@ -239,7 +239,7 @@ static void silk_setzen(AwFx *fx, const AwWert *w, int n) {
   Silk *s = (Silk *)fx;
   Ziel *z = &s->ziel;
   double v; const char *t;
-  if (wert_zahl(w, n, "drive", &v)) z->drive = klemmen(v, 0.05, 30);
+  if (wert_zahl(w, n, "drive", &v)) z->drive = klemmen(v, 0.05, 160);
   if (wert_zahl(w, n, "ips", &v)) z->ips = (v == 7.5 || v == 15 || v == 30) ? v : 15;
   if (wert_zahl(w, n, "bias", &v)) z->bias = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "gleichlauf", &v)) z->gleichlauf = klemmen(v, 0, 1);
@@ -255,7 +255,7 @@ static void silk_setzen(AwFx *fx, const AwWert *w, int n) {
   s->abg = ableiten(s, z);
   if (s->ist_da && s->ist.z.hq != z->hq) for (int c = 0; c < 16; c++) if (s->kanal[c]) { s->kanal[c]->ja.M = 0; s->kanal[c]->ja.Hv = 0; }
   fx->initial = 1;
-  fx->latenz = s->verz + (z->hq ? HB_VERZ + (int)floor(fx->sr * WF_VERZ_MS / 1000 + 0.5) : 0);
+  fx->latenz = s->verz + HB_VERZ + (z->hq ? (int)floor(fx->sr * WF_VERZ_MS / 1000 + 0.5) : 0);
   if (!fx->gestartet) { s->ist = ableiten(s, z); s->ist_da = 1; }
 }
 
@@ -312,7 +312,7 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
   double envA = 1 - exp(-1 / (sr * 0.003)), envR = 1 - exp(-1 / (sr * 0.08));
   double wfNominal = floor(sr * WF_VERZ_MS / 1000 + 0.5);
   // HQ: der trockene Weg läuft durch dieselbe modulierte Verzögerung (sonst kämmt Mix < 1 wie ein Flanger)
-  int trockenVerz = VERZ + (hq ? HB_VERZ : 0);
+  int trockenVerz = VERZ + HB_VERZ;
   int ms = kan == 2 && ein && ein[0] && ein[1];
   if (ms) {
     if (S->ms_kap < n) { for (int c = 0; c < 2; c++) { free(S->ms_ein[c]); S->ms_ein[c] = malloc(sizeof(float) * (size_t)n); } S->ms_kap = n; }
@@ -374,10 +374,9 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
         u *= OS * dr;
         if (k == 0 && mA) { mA[i] = (float)((3 * langevin_t(u) - u) * mx); mL[i] = (float)u; }
         double v;
-        if (!hq) {
-          double ya = band_adaa(&z->adaa, u);
-          v = ya + 0.2 * (ya - z->adaa_y); z->adaa_y = ya;
-        } else {
+        {
+          // Kennlinie immer im inneren 2× (Halbband): zusammen mit dem äußeren Oversampling 8× bei 44,1/48 kHz, 4× ab 88,2 kHz –
+          // sonst falten die Obertöne der (vorentzerrten) Höhen bei viel Ansteuerung hörbar zurück
           double *hu = z->hb_u, *hd = z->hb_d;
           const int hl = HB_MITTE + 2;
           int up = z->hb_u_pos; hu[up] = u; z->hb_u_pos = up = up == hl - 1 ? 0 : up + 1;
@@ -499,7 +498,7 @@ AwFx *silk_neu(double sr) {
   wf_bauen();
   Silk *s = calloc(1, sizeof *s);
   s->fx.setzen = silk_setzen; s->fx.block = silk_block; s->fx.frei = silk_frei; s->fx.sr = sr;
-  s->os = sr >= 150000 ? 1 : sr >= 75000 ? 2 : 4;
+  s->os = sr >= 75000 ? 2 : 4;   // mit dem inneren 2×: 8× bei 44,1/48 kHz, 4× darüber (auch 192 kHz, sonst Ultraschall-Rückfaltungen)
   s->taps = s->os == 1 ? 1 : 40 * s->os + 1;
   s->ph = (s->taps + s->os - 1) / s->os;
   s->verz = (s->taps - 1) / s->os;

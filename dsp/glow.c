@@ -195,7 +195,7 @@ static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
   Glow *g = (Glow *)fx;
   Werte *z = &g->ziel;
   double v;
-  if (wert_zahl(w, n, "drive", &v)) z->drive = klemmen(v, 0.1, 40);
+  if (wert_zahl(w, n, "drive", &v)) z->drive = klemmen(v, 0.1, 160);
   if (wert_zahl(w, n, "bias", &v)) z->bias = klemmen(v, -0.6, 0.6);
   if (wert_zahl(w, n, "ton", &v)) z->ton = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "mix", &v)) z->mix = klemmen(v, 0, 1);

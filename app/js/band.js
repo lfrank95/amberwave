@@ -1,6 +1,6 @@
 // „Band“: Bandmaschine hinter der Röhre, vor Raumklang und EQ (Rechnung in band-worklet.js). Hier: Stufen, Grenzen, Texte.
 // Einstellung pro Gerät: { an, stufe: 'fresh'|'worn'|'old'|'eigen', drive, ips, bias, gleichlauf, kopf, mix, vert, auto, hq, rauschen, bezug }
-//  drive      0–100 → Ansteuerung des Bands (Aufnahmepegel)
+//  drive      0–150 → Ansteuerung des Bands (Aufnahmepegel; über 100 bewusst übertrieben)
 //  ips        7.5 | 15 | 30 → Bandgeschwindigkeit: Höhenverlust, Kopfbump-Frequenz, Entzerrung
 //  bias       0–100 → Vormagnetisierung: wenig = frühere Sättigung und offene Höhen, viel = sauberer, aber dunkler
 //  gleichlauf 0–100 → Wow und Flutter (HQ), 100 ≈ 0,25 % Geschwindigkeitsabweichung
@@ -14,6 +14,7 @@
 //  sorte      sm900 | 456 | sm468 → Bandsorte (Datenblatt: MOL/SOL je Geschwindigkeit, Schichtdicke, Rauschen)
 //  norm       nab | ccir → Entzerrungsnorm (Zeitkonstante der Höhen-Vorentzerrung)
 import { t } from './i18n.js';
+import { spNormal, spParameter } from './schwerpunkt.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 const META = (() => { try { return JSON.parse(metaInhalt('aw-band') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
@@ -49,13 +50,14 @@ export function bandNormal(b) {
   return {
     an: !!x.an,
     stufe: BAND_STUFEN[x.stufe] ? x.stufe : 'eigen',
-    drive: Math.round(clamp(x.drive, 0, 100)),
+    drive: Math.round(clamp(x.drive, 0, 150)),   // über 100 %: bewusst übertreiben
     ips: BAND_IPS.includes(+x.ips) ? +x.ips : 15,
     bias: Math.round(clamp(x.bias, 0, 100)),
     gleichlauf: Math.round(clamp(x.gleichlauf, 0, 100)),
     kopf: x.kopf !== false,
     mix: Math.round(clamp(x.mix, 0, 100)),
     vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
+    sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,   // immer an
     bezug: true,  // immer an
     hq: x.hq === true,
@@ -94,13 +96,14 @@ export function bandBezugDb(b, lufsEingang) {
 export function bandParameter(b, bezugDb = 0) {
   const x = bandNormal(b);
   return {
-    drive: 0.5 * Math.pow(10, (x.drive / 100) * 1.2) * Math.pow(10, (bezugDb || 0) / 20), // 0 → 0,5 … 100 → 7,9
+    drive: 0.5 * Math.pow(10, (x.drive / 100) * 1.2) * Math.pow(10, (bezugDb || 0) / 20), // 0 → 0,5 … 100 → 7,9 … 150 → 32
     ips: x.ips,
     bias: x.bias / 100,
     gleichlauf: x.gleichlauf / 100,
     kopf: x.kopf ? 1 : 0,
     mix: x.mix / 100,
     vert: x.vert / 100,
+    ...spParameter(x.sp),
     auto: x.auto ? 1 : 0,
     hq: x.hq ? 1 : 0,
     rauschen: x.rauschen ? 1 : 0,
