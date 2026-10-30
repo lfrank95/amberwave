@@ -3,7 +3,7 @@
 speichern (Opus, dann Original), abspielen (Benachrichtigung/Sperrbildschirm), ohne Netz neu starten.
 
 Gesteuert wird die Oberfläche über die Entwicklerwerkzeuge der WebView (nur mit dem Test-Schalter aw_test, nur über adb).
-Aufruf: android_test.py <apk>   – Testserver auf 127.0.0.1:8080 (tests/android_server.sh)
+Aufruf: android_test.py <apk>   – Testserver auf 127.0.0.1:8080 (tests/android_server.sh), im Emulator 10.0.2.2:8080
 """
 import json
 import re
@@ -160,7 +160,8 @@ def main():
     adb('install', '-r', apk, pruefen=True)
     ok('APK installiert')
     adb('shell', 'pm', 'grant', PAKET, 'android.permission.POST_NOTIFICATIONS')
-    adb('reverse', 'tcp:8080', 'tcp:8080')
+    # Server über die Adresse des Rechners im Emulator (10.0.2.2) – nicht über „adb reverse“: lange Downloads durch den
+    # adb-Tunnel bringen adb ins Stocken
     s = Seite()
     starten(s)
 
@@ -169,7 +170,7 @@ def main():
         ok('Startseite mit Brücke')
     else:
         schlecht('Startseite fehlt')
-    s.js("document.getElementById('adresse').value = 'http://127.0.0.1:8080'; document.querySelector('[data-form]').requestSubmit(); true")
+    s.js("document.getElementById('adresse').value = 'http://10.0.2.2:8080'; document.querySelector('[data-form]').requestSubmit(); true")
     if s.bis("location.pathname.includes('login.php')", 90):
         ok('Server gefunden, Anmeldeseite')
     else:
@@ -264,7 +265,6 @@ def main():
         print('::warning title=Android-Test::Medientaste Pause: Zustand ' + str(s.js('navigator.mediaSession.playbackState')))
 
     # 5. Ohne Netz neu starten
-    adb('reverse', '--remove-all')
     adb('shell', 'svc', 'wifi', 'disable')
     adb('shell', 'svc', 'data', 'disable')
     time.sleep(3)

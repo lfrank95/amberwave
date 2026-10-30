@@ -1,6 +1,6 @@
 #!/bin/bash
 # Testserver für den Rauchtest der Android-App: All-in-One-Image mit dem aktuellen app/ darüber, drei kleine Alben,
-# eingelesen. Lauscht auf 127.0.0.1:8080 (im Emulator über „adb reverse“ dieselbe Adresse – ein sicherer Kontext).
+# eingelesen. Lauscht auf 127.0.0.1:8080 (im Emulator erreichbar als 10.0.2.2:8080).
 set -euo pipefail
 W="$(mktemp -d)"
 mkdir -p "$W/appdata" "$W/musik"
