@@ -63,12 +63,28 @@ function sprache_locale(): string
 
 function i18n_woerter(): array
 {
-    static $w = null;
-    if ($w === null) {
-        $d = __DIR__ . '/i18n_' . sprache() . '.php';
-        $w = sprache() !== 'de' && is_file($d) ? (require $d) : [];
+    static $w = [];
+    $s = sprache();
+    if (!isset($w[$s])) {
+        $d = __DIR__ . '/i18n_' . $s . '.php';
+        $w[$s] = $s !== 'de' && is_file($d) ? (require $d) : [];
     }
-    return $w;
+    return $w[$s];
+}
+
+/** $f in einer anderen Sprache ausführen (E-Mails an andere Nutzer in deren Sprache); null/unbekannt = aktuelle Sprache */
+function mit_sprache(?string $andere, callable $f): mixed
+{
+    if ($andere === null || !isset(SPRACHEN[$andere])) {
+        return $f();
+    }
+    $alt = sprache();
+    sprache($andere);
+    try {
+        return $f();
+    } finally {
+        sprache($alt);
+    }
 }
 
 /** Übersetzt einen deutschen Text; $p = Platzhalter {name} */

@@ -154,11 +154,29 @@ function login_sperre_verbleibend(string $name, string $ip, ?string $absender = 
     if ($sperre === 0) {
         $n = (int) db_wert("SELECT COUNT(*) FROM login_versuche WHERE benutzername = :u AND erfolgreich = 0 AND zeitstempel > (NOW() - INTERVAL 1 HOUR)",
             ['u' => mb_substr($name, 0, 255)]);
-        if ($n >= $s['login_max_pro_name_stunde'] && !login_bekanntes_geraet($name)) {
+        if ($n >= $s['login_max_pro_name_stunde'] && !login_bekanntes_geraet($name) && !login_bekannte_ip($name, $ip)) {
             $sperre = 300;
         }
     }
     return $sperre;
+}
+
+/**
+ * Hat sich dieses Konto von dieser Adresse in den letzten 60 Tagen erfolgreich angemeldet? Dann gilt die Namens-Pause nicht:
+ * wer viele Fehlversuche auf einen Namen schickt, sperrt so nicht den echten Besitzer aus (z. B. die Windows-App zu Hause,
+ * die kein Browser-Cookie hat). Raten von dieser Adresse bremst weiter die Sperre je Name und Adresse.
+ */
+function login_bekannte_ip(string $name, string $ip): bool
+{
+    if ($ip === '') {
+        return false;
+    }
+    try {
+        return (bool) db_wert('SELECT 1 FROM login_versuche WHERE benutzername = :u AND ip_adresse = :ip AND erfolgreich = 1 AND zeitstempel > (NOW() - INTERVAL 60 DAY) LIMIT 1',
+            ['u' => mb_substr($name, 0, 255), 'ip' => $ip]);
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 /** Hat sich dieses Konto auf diesem Browser schon einmal angemeldet (Geräte-Cookie gehört zu einem seiner Geräte)? */

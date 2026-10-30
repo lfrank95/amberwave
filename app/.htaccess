@@ -19,7 +19,7 @@ CGIPassAuth On
     RewriteRule ^api/v1/(.*)$ api/index.php?pfad=$1 [QSA,L]
 
     # Interne Ordner nie direkt aufrufbar
-    RewriteRule ^(includes|migrations|scripts)(/|$) - [F,L]
+    RewriteRule ^(includes|migrations|scripts|bin|klang|i18n)(/|$) - [F,L]
 
     # Single-Page-App: alles, was keine Datei ist, landet bei index.php
     RewriteCond %{REQUEST_FILENAME} !-f

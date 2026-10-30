@@ -19,8 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!rate_erlaubt('reset_ip', client_ip(), $s['reset_max_pro_ip_stunde'], 3600)) {
         $fehler = t('Zu viele Anfragen. Bitte später erneut versuchen.');
     } else {
-        // Antwort ist immer gleich – verrät nicht, ob die Adresse existiert
+        // Antwort ist immer gleich – verrät nicht, ob die Adresse existiert; auch die Dauer nicht (beide Wege mind. 0,6 s)
         $erfolg = $antwort;
+        $start = hrtime(true);
         if (rate_erlaubt('reset_mail', mb_strtolower($email), $s['reset_max_pro_mail_stunde'], 3600)) {
             $u = db_zeile("SELECT * FROM users WHERE email = :e AND status = 'aktiv'", ['e' => $email]);
             if ($u) {
@@ -33,9 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'vorname' => $u['vorname'], 'minuten' => $min, 'link' => app_link('/passwort-zuruecksetzen.php?t=' . $roh),
                 ]);
                 log_sicherheitsereignis((int) $u['id'], 'passwort_reset_angefordert');
-            } else {
-                passwort_schein_pruefung('x'); // ähnliche Antwortzeit
             }
+        }
+        $rest = 600_000 - intdiv(hrtime(true) - $start, 1000) + random_int(0, 80_000);
+        if ($rest > 0) {
+            usleep($rest);
         }
     }
 }

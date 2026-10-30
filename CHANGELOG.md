@@ -16,6 +16,18 @@
   copy (tested sample by sample: −170 dB difference). Silk 2× and Iron 1.6× faster in the browser. Browsers without
   WebAssembly fall back to the old JavaScript version (without the new features).
 
+Security test (two independent testers attacking the app: anonymous from the internet, and as a normal family member):
+no way in, no admin rights for normal users, no access to other users' data. Fixed what they found:
+
+- **Password reset and all notification mails were broken** (registration notice, approval, extension, expiry): a
+  missing helper made them crash – and that crash revealed which email addresses have an account. Mails now go out in
+  the recipient's language, and the reset page answers equally fast for known and unknown addresses.
+- **Login lockout of real users:** many failed logins against one name used to block everybody with that name for
+  5 minutes, including the real owner. Now the owner keeps logging in from addresses that logged in successfully before.
+- The login no longer reveals through its response time whether a user name exists.
+- Internal folders (`bin`, `klang`, `i18n`) are no longer downloadable.
+- Device settings have a size limit per device.
+
 ## 0.9.1-beta.2 – large libraries
 
 Load test with a synthetic library (20,000 real files scanned, database multiplied to 100,000 tracks) on a real

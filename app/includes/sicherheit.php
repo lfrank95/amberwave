@@ -58,8 +58,11 @@ function passwort_hash_aktualisieren(int $userId, string $passwort, string $hash
 /** Gleiche Rechenzeit wie ein echter Passwort-Check (verrät nicht, ob es den Nutzer gibt). */
 function passwort_schein_pruefung(string $passwort): void
 {
-    static $hash = null;
-    $hash ??= passwort_hashen('schein-' . bin2hex(random_bytes(4)));
+    // Fester Hash mit denselben Kosten wie passwort_hashen(): nur EIN Prüfschritt wie bei einem echten Konto
+    // (vorher wurde zusätzlich ein Hash erzeugt – unbekannte Namen brauchten doppelt so lange und waren daran erkennbar)
+    $hash = defined('PASSWORD_ARGON2ID')
+        ? '$argon2id$v=19$m=65536,t=4,p=1$bndNQkVQY25XazV1Mktrcw$U89EaN411pkLXXylyGMEaRk6vJ3/oNkDY+MpFCRodhw'
+        : '$2y$10$POIURTWgKKFXL4TZCj2i..nVe4RNMOM3aGz1xwYII/DeSZbCYlEBG';
     password_verify($passwort, $hash);
 }
 

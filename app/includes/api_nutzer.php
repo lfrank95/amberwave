@@ -352,6 +352,11 @@ function api_geraet_einstellungen_schreiben(array $user): array
     if (!is_array($werte) || count($werte) > 50) {
         throw new ApiFehler(t('Ungültige Einstellungen.'));
     }
+    // Obergrenze je Gerät (alle Werte zusammen), damit niemand die Datenbank mit Einstellungen füllt
+    $gesamt = (int) db_wert('SELECT COALESCE(SUM(LENGTH(wert)), 0) FROM geraet_einstellungen WHERE geraet_id = :g', ['g' => $g]);
+    if ($gesamt + strlen((string) json_encode($werte)) > 2_000_000) {
+        throw new ApiFehler(t('Ungültige Einstellungen.'));
+    }
     foreach ($werte as $k => $w) {
         if (!preg_match('/^[a-z0-9_.-]{1,60}$/', (string) $k)) {
             continue;

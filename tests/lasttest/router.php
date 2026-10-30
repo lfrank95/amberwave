@@ -8,7 +8,7 @@ if (preg_match('#^/api/v1/(.*)$#', $pfad, $m)) {
     require $root . '/api/index.php';
     return true;
 }
-if (preg_match('#^/(includes|migrations|scripts)(/|$)#', $pfad)) {
+if (preg_match('#^/(includes|migrations|scripts|bin|klang|i18n)(/|$)#', $pfad)) {
     http_response_code(403);
     echo 'Forbidden';
     return true;
