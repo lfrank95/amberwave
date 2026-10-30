@@ -5,6 +5,11 @@
 - **Windows client download in the web app:** on a Windows PC the profile menu offers "Download Windows client" – the
   installer of exactly the server's version from the GitHub release. A one-time hint points to it.
 - Windows client: "New version – download" now downloads the installer directly instead of opening the release page.
+- **Amberwave Windows Server (first test build):** the server runs natively on Windows without Docker – a program in the
+  notification area (like Plex) starts the bundled MariaDB, PHP, nginx, ffmpeg and cloudflared. Choose your music folder
+  on the first start, set up in the browser, done. Every build is tested on a Windows machine (setup, scan, streaming,
+  clean shutdown, restart).
+- Server code is now platform-neutral (starting programs, background jobs, paths) – Linux behaves exactly as before.
 
 ## 0.9.1-beta.4 – all-in-one image
 
