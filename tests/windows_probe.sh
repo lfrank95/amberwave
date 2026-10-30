@@ -33,7 +33,7 @@ JAR="$WU/jar"; SEITE="$(curl -s -c "$JAR" http://127.0.0.1:8095/einrichtung.php)
 CSRF="$(printf '%s' "$SEITE" | sed -n 's/.*data-csrf="\([^"]*\)".*/\1/p' | head -n1)"
 b "Einrichtungsseite: $([ -n "$CSRF" ] && echo ok || echo "FEHLER: $(printf '%s' "$SEITE" | head -c 400)")"
 b "Code nötig: $(printf '%s' "$SEITE" | sed -n 's/.*data-code="\([01]\)".*/\1/p' | head -n1)"
-schritt() { curl -s -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:8095/einrichtung.php?schritt=$1" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" \
+schritt() { curl -s --max-time 60 -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:8095/einrichtung.php?schritt=$1" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" \
   -d '{"vorname":"Probe","nachname":"Admin","benutzername":"probe","email":"probe@example.org","passwort":"Probe-Passwort-2026","passwort2":"Probe-Passwort-2026","servername":"Win","sprache":"de","land":"DE","zeitzone":"Europe/Berlin","waehrung":"EUR","zeitformat":"auto","datumsformat":"auto","einheiten":"auto","musik_schreiben":"1"}'; }
 A="$(schritt system)"; b "Werkzeuge laut Systemprüfung: $(echo "$A" | php -r '$d=json_decode(stream_get_contents(STDIN),true); foreach($d["werkzeuge"]??[] as $w) echo $w["name"],"=",$w["ok"]?"ok":"FEHLT","; ";')"
 for s in pruefen db tabellen admin abschluss; do A="$(schritt $s)"; echo "$A" | grep -q '"ok":true' && b "Schritt $s: ok" || b "FEHLER Schritt $s: $(echo "$A" | head -c 400)"; done
@@ -44,23 +44,23 @@ for i in $(seq 1 40); do A="$(schritt scan_status)"; echo "$A" | grep -q '"laeuf
 b "scan_status: $(echo "$A" | head -c 400)"
 b "Scan-Fehler: $(php -r 'require "app/includes/db.php"; foreach (db_alle("SELECT * FROM scan_fehler ORDER BY id DESC LIMIT 5") as $z) echo json_encode($z, JSON_UNESCAPED_UNICODE), " | ";' 2>&1 | head -c 1200)"
 b "== Scan (CLI)"
-T0=$(date +%s); php -d error_log="$W\\php-cli.log" -d log_errors=1 app/scripts/scan.php voll > "$WU/scan.out" 2>&1; b "scan.php rc=$? in $(( $(date +%s) - T0 )) s: $(tail -c 600 "$WU/scan.out")"
+T0=$(date +%s); php -d error_log="$W\\php-cli.log" -d log_errors=1 app/scripts/scan.php voll > "$WU/scan.out" 2>&1 & SP=$!; ( sleep 180; kill $SP 2>/dev/null ) & wait $SP; b "scan.php rc=$? in $(( $(date +%s) - T0 )) s: $(tail -c 600 "$WU/scan.out")"
 b "Titel in der DB: $(php -r 'require "app/includes/db.php"; echo db_wert("SELECT COUNT(*) FROM tracks");' 2>&1 | head -c 300)"
 b "Titelpfade: $(php -r 'require "app/includes/db.php"; foreach (db_alle("SELECT pfad FROM dateien LIMIT 5") as $z) echo $z["pfad"], " | ";' 2>&1 | head -c 800)"
 
 b "== API"
-TOKEN="$(curl -s -X POST http://127.0.0.1:8095/api/v1/auth/token -H 'Content-Type: application/json' -d '{"benutzername":"probe","passwort":"Probe-Passwort-2026","geraet_name":"Probe"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+TOKEN="$(curl -s --max-time 30 -X POST http://127.0.0.1:8095/api/v1/auth/token -H 'Content-Type: application/json' -d '{"benutzername":"probe","passwort":"Probe-Passwort-2026","geraet_name":"Probe"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
 b "Token: $([ -n "$TOKEN" ] && echo ok || echo FEHLT)"
-AL="$(curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8095/api/v1/alben)"; b "Alben: $(echo "$AL" | head -c 500)"
+AL="$(curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8095/api/v1/alben)"; b "Alben: $(echo "$AL" | head -c 500)"
 TID="$(php -r 'require "app/includes/db.php"; echo db_wert("SELECT track_id FROM dateien ORDER BY id LIMIT 1");' 2>/dev/null)"
 for q in original opus128; do
   curl -s -H "Authorization: Bearer $TOKEN" -o "$WU/strom_$q" -D "$WU/kopf_$q" "http://127.0.0.1:8095/api/v1/stream/$TID?q=$q" --max-time 60
   b "Stream $q: Status $(head -1 "$WU/kopf_$q" | tr -d '\r') Typ $(grep -i '^content-type' "$WU/kopf_$q" | tr -d '\r') Bytes $(wc -c < "$WU/strom_$q")"
 done
-curl -s -H "Authorization: Bearer $TOKEN" -o /dev/null -w "Cover-Liste: %{http_code}\n" http://127.0.0.1:8095/api/v1/alben | tee -a "$BERICHT" >/dev/null
+curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" -o /dev/null -w "Cover-Liste: %{http_code}\n" http://127.0.0.1:8095/api/v1/alben | tee -a "$BERICHT" >/dev/null
 
 b "== Zeitplan / Hintergrund"
-php -d error_log="$W\\php-cli.log" -d log_errors=1 app/scripts/zeitplan.php > "$WU/zeitplan.out" 2>&1; b "zeitplan.php rc=$?: $(tail -c 600 "$WU/zeitplan.out")"
+php -d error_log="$W\\php-cli.log" -d log_errors=1 app/scripts/zeitplan.php > "$WU/zeitplan.out" 2>&1 & ZP=$!; ( sleep 120; kill $ZP 2>/dev/null ) & wait $ZP; b "zeitplan.php rc=$?: $(tail -c 600 "$WU/zeitplan.out")"
 sleep 20
 b "Prozesse php: $(tasklist //FI "IMAGENAME eq php.exe" 2>/dev/null | grep -c php.exe)"
 
