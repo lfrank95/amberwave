@@ -1,0 +1,26 @@
+# Vorübergehend: Diagnose für den MariaDB-Einbau im All-in-One-Image (wird wieder entfernt)
+name: AIO diagnosis
+on: workflow_dispatch
+permissions:
+  contents: read
+  packages: read
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          docker run --rm ghcr.io/${{ github.repository_owner }}/amberwave:main bash -c '
+            . /etc/os-release; echo "OS: $PRETTY_NAME"
+            apt-get update >/tmp/u 2>&1; echo "update rc=$?"
+            apt-get install -y --no-install-recommends curl ca-certificates gnupg procps >/tmp/i 2>&1; echo "install rc=$?"
+            curl -fsSL https://r.mariadb.com/downloads/mariadb_repo_setup -o /tmp/s; echo "curl rc=$?"
+            bash /tmp/s --mariadb-server-version=mariadb-11.4 --skip-maxscale --skip-tools >/tmp/r 2>&1; echo "setup rc=$?"; tail -n 8 /tmp/r
+            cat /etc/apt/sources.list.d/mariadb.list 2>/dev/null
+            apt-get install -y --no-install-recommends mariadb-server mariadb-client >/tmp/m 2>&1; echo "mariadb rc=$?"; tail -n 8 /tmp/m
+          ' 2>&1 | tee out.txt
+          while IFS= read -r z; do echo "::warning::$z"; done < out.txt
