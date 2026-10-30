@@ -21,6 +21,12 @@ All-in-one: MariaDB 11.8 LTS is included, no second container needed. Set your m
   <WebUI>http://[IP]:[PORT:80]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/lfrank95/amberwave/main/templates/amberwave.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/lfrank95/amberwave/main/templates/amberwave.png</Icon>
+  <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/home.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/albums.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/album.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/now-playing.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/effects-rack.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/phone.png</Screenshot>
   <ExtraParams>--stop-timeout=60 --security-opt no-new-privileges:true</ExtraParams>
   <PostArgs/>
   <Requires>The image is amd64 (x86-64) only.</Requires>
