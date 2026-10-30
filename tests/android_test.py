@@ -27,10 +27,17 @@ def schlecht(t):
     global fehler
     fehler = 1
     print(f'::error title=Android-Test::{t}', flush=True)
-    protokoll()
+    if fehler_zahl() == 1:
+        protokoll()
 
 
 _gezeigt = set()
+_fehler_n = [0]
+
+
+def fehler_zahl():
+    _fehler_n[0] += 1
+    return _fehler_n[0]
 
 
 def protokoll():
@@ -39,11 +46,14 @@ def protokoll():
         log = subprocess.run(['adb', 'logcat', '-d', '-v', 'brief'], capture_output=True, text=True, timeout=60).stdout.splitlines()
     except Exception:  # noqa: BLE001
         return
-    wichtig = [z for z in log if re.search(r'FATAL|AndroidRuntime|AwLaden|AwOberflaeche|AwUpdate|amberwave|chromium.*(Uncaught|Error)|Console', z)]
-    neu = [z for z in wichtig if z not in _gezeigt][-40:]
+    wichtig = [z for z in log if re.search(r'FATAL|AndroidRuntime|E/|W/Aw|AwLaden|AwOberflaeche|lfrank95|chromium|Console|Exception|\tat ', z)]
+    neu = [z for z in wichtig if z not in _gezeigt][-60:]
     for z in neu:
         _gezeigt.add(z)
-        print('::warning title=logcat::' + z.replace('%', '%25')[:400], flush=True)
+    print(f'logcat: {len(log)} Zeilen, {len(wichtig)} wichtig', flush=True)
+    if neu:
+        # eine Anmerkung mit allen Zeilen (GitHub zeigt je Schritt nur wenige Anmerkungen)
+        print('::error title=logcat::' + ' ⏎ '.join(z.strip()[:300] for z in neu).replace('%', '%25'), flush=True)
 
 
 def adb(*a, pruefen=False):
