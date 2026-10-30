@@ -45,12 +45,13 @@ WASAPI-Wiedergabe im Windows-Client – ist der kostenlose Kern.
    - `APP_PORT` – Standard 9950
    - `PUID`/`PGID` – leer lassen (wird erkannt) oder wie Lidarr & Co. auf Unraid `99`/`100`
 3. Starten: `docker compose up -d`
-4. **Einrichten:** Im Log (`docker logs amberwave_app`) steht der Link mit Code, z. B. `http://<server>:9950/einrichtung.php?code=…`.
+4. **Einrichten:** Von einem Rechner im Heimnetz `http://<server>:9950` öffnen (oder den Link aus dem Log, `docker logs amberwave_app`).
    Der Assistent prüft Ordner und Rechte, fragt, ob Amberwave im Musikordner schreiben darf (Standard: nein), legt
    Datenbank und Admin-Konto an und zeigt am Ende einmal den Schlüssel für gespeicherte Zugangsdaten (Kopie liegt
    neben den Sicherungen).
-   - Ohne den Link fragt die Seite nach dem **Einrichtungscode** (im Log und in
-     `<APPDATA_PFAD>/cache/geheimnisse/einrichtungscode`). Das Fenster ist 30 Minuten nach dem Start offen.
+   - Aus dem Heimnetz braucht es keinen Code. Über einen Proxy, Tunnel, die Docker-Brücke oder das Internet fragt die Seite
+     nach dem **Einrichtungscode** (im Log und in `<APPDATA_PFAD>/cache/geheimnisse/einrichtungscode`). Das Fenster ist
+     30 Minuten nach dem Start offen.
 5. Musik einlesen (macht der Assistent direkt), danach Alben über **„Abgleichen“** mit MusicBrainz verknüpfen.
 
 **Update:** `docker compose pull && docker compose up -d`. Die Datenbank wird beim Start automatisch angepasst; Musik,

@@ -225,6 +225,7 @@ if ($rest <= 0) {
 $ausEnv = konfig()['db']['quelle'] === 'env';
 $zeigeDb = $z['art'] === 'db_fehlt' && !$ausEnv;
 $codeNoetig = einrichtung_code_noetig();
+$herkunft = einrichtung_herkunft();
 $pw = einrichtung_zufallspasswort(20);
 $k = konfig();
 einr_kopf(t('Einrichtung'));
@@ -286,7 +287,12 @@ einr_kopf(t('Einrichtung'));
 <div class="karte">
  <div class="schritte"><div class="ok"><?= h(t('Willkommen')) ?></div><div class="ok"><?= h(t('Region')) ?></div><div class="jetzt ok"><?= h(t('Einrichtungscode')) ?></div><div><?= h(t('Ordner')) ?></div><div><?= h(t('Konto')) ?></div></div>
  <h1><?= h(t('Einrichtungscode')) ?></h1>
- <p class="sub"><?= h(t('Du rufst die Seite nicht direkt aus dem Heimnetz auf (Proxy, Tunnel oder Internet). Dann braucht es einen Code – so kann niemand außer dir einrichten.')) ?></p>
+ <p class="sub"><?= h(t('Damit niemand außer dir einrichten kann, braucht es hier einen Code.')) ?> <?= h(match ($herkunft['grund']) {
+     'proxy' => t('Deine Anfrage kommt über einen Proxy oder Tunnel.'),
+     'bruecke' => t('Deine Anfrage kommt über die Docker-Brücke ({ip}) – so kommen auch Zugriffe aus dem Internet über Dockers Portweiterleitung an.', ['ip' => $herkunft['ip']]),
+     'lokal' => t('So ist es in der .env eingestellt (EINRICHTUNG_CODE_IMMER=1).'),
+     default => t('Deine Adresse {ip} gehört nicht zum Heimnetz.', ['ip' => $herkunft['ip']]),
+ }) ?></p>
  <div class="hinweis"><span>🔑</span><span><?= t('<b>Wo steht der Code?</b>Im Log von <code>amberwave_app</code> (Unraid: Docker-Tab → Logs) oder in der Datei <code>cache/geheimnisse/einrichtungscode</code>.') ?></span></div>
  <label for="f-code"><?= h(t('Einrichtungscode')) ?></label><input id="f-code" name="code" type="text" placeholder="<?= h(t('z. B. K7QM-4TXP')) ?>" autocapitalize="characters" spellcheck="false" autocomplete="off">
  <div class="hinweis rot" id="code-fehler" style="margin-top:10px" hidden><span>⚠️</span><span id="code-fehler-text"></span></div>

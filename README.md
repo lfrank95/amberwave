@@ -67,11 +67,12 @@ ARM devices such as a Raspberry Pi are not supported yet.
    SSD recommended) and, if you like, `APP_PORT` (default 9950). Leave `PUID`/`PGID` empty unless you know you need them
    (Unraid: `99`/`100`).
 3. `docker compose up -d`
-4. Open the setup link from `docker logs amberwave_app` (e.g. `http://<server>:9950/einrichtung.php?code=…`). The assistant
+4. Open `http://<server>:9950` from a computer on your home network (or the setup link from `docker logs amberwave_app`). The assistant
    checks folders and permissions, asks whether Amberwave may write to your music folder (default: no), creates the
    database and your admin account, and scans your music.
-   - The link in the log already contains the **setup code**; without it the page asks for the code. The setup window
-     closes 30 minutes after the container starts (restart the container to reopen it).
+   - From the home network no code is needed. Via a proxy, tunnel, the Docker bridge or the internet the page asks for the
+     **setup code** (in the log; the link there already contains it). The setup window closes 30 minutes after the
+     container starts (restart the container to reopen it).
 5. Match albums with MusicBrainz ("Match" on an album, or automatically by sound with a free AcoustID key).
 
 **Update:** `docker compose pull && docker compose up -d` – database changes run automatically. The admin overview tells

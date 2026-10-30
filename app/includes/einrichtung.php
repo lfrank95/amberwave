@@ -138,25 +138,52 @@ function einrichtung_fenster_rest(): int
     return max(0, $start + $min * 60 - time());
 }
 
-/** Direkt aus dem Heimnetz, ohne Proxy: private Absenderadresse und keinerlei Proxy-Kopfzeilen */
-function einrichtung_ist_direkt_lokal(): bool
+/**
+ * Kommt diese Anfrage direkt aus dem Heimnetz? ['lokal' => bool, 'grund' => proxy|bruecke|extern|lokal, 'ip' => Absender]
+ *  – Proxy- oder Tunnel-Kopfzeilen: nicht direkt;
+ *  – Absender ist die Docker-Brücke (Standard-Gateway des Containers): über sie kommt auch Dockers eigene Portweiterleitung,
+ *    die Zugriffe aus dem Internet wie lokale aussehen lassen kann – deshalb nicht als Heimnetz werten;
+ *  – private Adresse (LOKALE_NETZE) oder IPv6 aus demselben Netz (/64) wie der Container selbst: Heimnetz.
+ */
+function einrichtung_herkunft(): array
 {
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_FORWARDED', 'HTTP_X_REAL_IP', 'HTTP_CF_CONNECTING_IP', 'HTTP_CF_RAY', 'HTTP_TRUE_CLIENT_IP',
         'HTTP_X_FORWARDED_HOST', 'HTTP_X_FORWARDED_PROTO', 'HTTP_VIA'] as $k) {
         if (!empty($_SERVER[$k])) {
-            return false;
+            return ['lokal' => false, 'grund' => 'proxy', 'ip' => $ip];
         }
     }
-    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-        return false;
+        return ['lokal' => false, 'grund' => 'extern', 'ip' => $ip];
+    }
+    if ($ip !== '127.0.0.1' && $ip !== '::1' && $ip === docker_gateway_ip()) {
+        return ['lokal' => false, 'grund' => 'bruecke', 'ip' => $ip];
     }
     foreach (konfig()['netz']['lokale_netze'] as $netz) {
         if (ip_in_netz($ip, str_contains($netz, '/') ? $netz : $netz . (str_contains($netz, ':') ? '/128' : '/32'))) {
-            return true;
+            return ['lokal' => true, 'grund' => 'lokal', 'ip' => $ip];
         }
     }
-    return false;
+    // weltweite IPv6-Adresse aus demselben /64 wie der Container (Container direkt im Heimnetz, z. B. Unraid br0)
+    if (str_contains($ip, ':')) {
+        foreach (@file('/proc/net/if_inet6') ?: [] as $z) {
+            $f = preg_split('/\s+/', trim($z));
+            if (count($f) < 6 || $f[5] === 'lo' || str_starts_with($f[0], 'fe80')) {
+                continue;
+            }
+            $eigen = implode(':', str_split($f[0], 4));
+            if (ip_in_netz($ip, $eigen . '/64')) {
+                return ['lokal' => true, 'grund' => 'lokal', 'ip' => $ip];
+            }
+        }
+    }
+    return ['lokal' => false, 'grund' => 'extern', 'ip' => $ip];
+}
+
+function einrichtung_ist_direkt_lokal(): bool
+{
+    return einrichtung_herkunft()['lokal'];
 }
 
 function einrichtung_code_noetig(): bool

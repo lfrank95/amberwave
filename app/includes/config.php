@@ -333,7 +333,7 @@ if (!function_exists('konfig')) {
             // Code auch im direkten Heimnetz verlangen, eigener Code statt des erzeugten
             'einrichtung' => [
                 'fenster_minuten' => max(0, $zahl('EINRICHTUNG_FENSTER_MINUTEN', 30)),
-                'code_immer' => $zahl('EINRICHTUNG_CODE_IMMER', 1) === 1,   // Standard: Code immer (sicher auch hinter Docker-Portweiterleitungen)
+                'code_immer' => $zahl('EINRICHTUNG_CODE_IMMER', 0) === 1,   // Standard: im Heimnetz ohne Code (Docker-Brücke und Proxys zählen nicht als Heimnetz)
                 'code' => $env('EINRICHTUNGSCODE', ''),
             ],
         ];

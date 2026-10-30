@@ -451,5 +451,10 @@
  "Das Update der Datenbank läuft noch – bitte kurz warten.": "The database update is still running – please wait a moment.",
  "Eine Änderung an der Datenbank ist gescheitert (Details im Container-Log).": "A database change failed (details in the container log).",
  "Amberwave versucht es in zwei Minuten erneut. Eine Sicherung vom Stand vor dem Update liegt im Sicherungsordner (Einstellungen › Sicherung).": "Amberwave will try again in two minutes. A backup from before the update is in the backup folder (Settings › Backup).",
- "Bitte eine private IP-Adresse angeben.": "Please enter a private IP address."
+ "Bitte eine private IP-Adresse angeben.": "Please enter a private IP address.",
+ "Damit niemand außer dir einrichten kann, braucht es hier einen Code.": "So that nobody but you can set this up, a code is needed here.",
+ "Deine Adresse {ip} gehört nicht zum Heimnetz.": "Your address {ip} is not on the home network.",
+ "Deine Anfrage kommt über die Docker-Brücke ({ip}) – so kommen auch Zugriffe aus dem Internet über Dockers Portweiterleitung an.": "Your request arrives via the Docker bridge ({ip}) – internet access through Docker's port forwarding arrives the same way.",
+ "Deine Anfrage kommt über einen Proxy oder Tunnel.": "Your request comes through a proxy or tunnel.",
+ "So ist es in der .env eingestellt (EINRICHTUNG_CODE_IMMER=1).": "That's how it is set in the .env (EINRICHTUNG_CODE_IMMER=1)."
 }

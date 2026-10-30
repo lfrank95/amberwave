@@ -30,6 +30,9 @@ no way in, no admin rights for normal users, no access to other users' data. Fix
 - **Reverse proxy confirmation:** if requests arrive from a private address with a forwarded client address, the admin
   overview asks once whether that is your reverse proxy. "Yes" trusts only that proxy, "No" ignores forwarded addresses
   from private senders – nobody can fake their address to get around the login lockout any more.
+- **Setup from the home network without a code again:** the setup page recognises the home network more reliably
+  (private addresses and IPv6 addresses from the server's own network) and asks for the code only via a proxy, tunnel,
+  the Docker bridge or the internet – and says why. `EINRICHTUNG_CODE_IMMER=1` brings back "always ask".
 - **Own reverb files (impulse responses):** a normal user can no longer overwrite someone else's file with the same name
   (the new one gets "(2)"); admins can still replace. Uploads must be real WAV files (format and data sections).
 
