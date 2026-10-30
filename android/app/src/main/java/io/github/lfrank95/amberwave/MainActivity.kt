@@ -94,6 +94,23 @@ class MainActivity : ComponentActivity() {
             benachrichtigungErlaubnis.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (Einstellungen.server.isNotEmpty()) Aktualisierung.pruefen(this)
+        webViewPruefen()
+    }
+
+    /** Die Oberfläche braucht eine aktuelle WebView (Chrome 105+). Alte Geräte ohne Updates: Hinweis mit Link zum Store */
+    private fun webViewPruefen() {
+        val paket = WebViewCompat.getCurrentWebViewPackage(this) ?: return
+        val haupt = paket.versionName?.substringBefore('.')?.toIntOrNull() ?: return
+        if (haupt >= 105) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.webview_alt_titel)
+            .setMessage(getString(R.string.webview_alt_text, paket.versionName))
+            .setPositiveButton(R.string.webview_aktualisieren) { _, _ ->
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${paket.packageName}"))) }
+                    .onFailure { runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${paket.packageName}"))) } }
+            }
+            .setNegativeButton(R.string.update_spaeter, null)
+            .show()
     }
 
     fun serverLaden() {

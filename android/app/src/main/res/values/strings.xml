@@ -23,4 +23,7 @@
     <string name="update_fehler">The update could not be downloaded</string>
     <string name="update_erlaubnis">Allow Amberwave to install apps, then tap Install again</string>
     <string name="update_aktuell">Amberwave is up to date</string>
+    <string name="webview_alt_titel">Android System WebView is outdated</string>
+    <string name="webview_alt_text">Amberwave needs a newer version of “Android System WebView” (installed: %1$s). Please update it in the Play Store – otherwise parts of the app may stay blank.</string>
+    <string name="webview_aktualisieren">Update</string>
 </resources>

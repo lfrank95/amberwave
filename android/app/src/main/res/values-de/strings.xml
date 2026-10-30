@@ -22,4 +22,7 @@
     <string name="update_fehler">Das Update ließ sich nicht laden</string>
     <string name="update_erlaubnis">Erlaube Amberwave, Apps zu installieren, und tippe dann noch einmal auf Installieren</string>
     <string name="update_aktuell">Amberwave ist auf dem neuesten Stand</string>
+    <string name="webview_alt_titel">Android System WebView ist veraltet</string>
+    <string name="webview_alt_text">Amberwave braucht eine neuere Version von „Android System WebView“ (installiert: %1$s). Bitte im Play Store aktualisieren – sonst bleiben Teile der App leer.</string>
+    <string name="webview_aktualisieren">Aktualisieren</string>
 </resources>

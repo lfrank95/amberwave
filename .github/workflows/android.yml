@@ -70,13 +70,14 @@ jobs:
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Android 13 und 11 sind die Prüfung; das Emulator-Abbild von Android 14 stürzt auf den GitHub-Rechnern beim Laden
-    # gelegentlich samt Emulator ab (nicht die App) – läuft mit, entscheidet aber nicht
+    # Android 13 entscheidet; das Emulator-Abbild von Android 14 stürzt auf den GitHub-Rechnern beim Laden gelegentlich
+    # samt Emulator ab (nicht die App) – läuft mit, entscheidet aber nicht. Ältere Abbilder bringen eine WebView mit, die
+    # für die Oberfläche zu alt ist (echte Geräte aktualisieren sie über den Play Store).
     continue-on-error: ${{ matrix.api == 34 }}
     strategy:
       fail-fast: false
       matrix:
-        api: [33, 30, 34]
+        api: [33, 34]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

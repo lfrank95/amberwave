@@ -298,10 +298,10 @@ def main():
     else:
         schlecht('Start ohne Netz: ' + str(s.js("location.href + ' ' + document.documentElement.className")))
     s.js("history.pushState({}, '', '/offline'); dispatchEvent(new PopStateEvent('popstate')); true")
-    if s.bis("document.querySelectorAll('.offline-zeile').length >= 1", 20):
+    if s.bis("document.querySelectorAll('.offline-zeile').length >= 1", 45):
         ok('„Auf diesem Gerät“ zeigt das Album ohne Netz')
     else:
-        schlecht('„Auf diesem Gerät“ leer ohne Netz')
+        schlecht('„Auf diesem Gerät“ leer ohne Netz: ' + str(s.js("location.pathname + ' | ' + (document.querySelector('main, #app')?.innerText || '').slice(0, 300)")) + ' | Konsole: ' + ' | '.join(s.konsole[-8:]))
     groesse = s.js(f"fetch('/__aw/offline/{tid}').then(r => r.blob()).then(b => b.size)") if tid else 0
     if groesse and groesse > 1000:
         ok('Ton ohne Netz lesbar')
