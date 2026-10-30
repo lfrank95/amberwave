@@ -82,6 +82,19 @@ class Seite:
     def __init__(self):
         self.ws = None
         self.n = 0
+        self.konsole = []
+
+    def merken(self, m):
+        """Konsolenmeldungen und Fehler der Seite sammeln (für die Diagnose)"""
+        meth = m.get('method', '')
+        p = m.get('params', {})
+        if meth == 'Runtime.consoleAPICalled' and p.get('type') in ('error', 'warning', 'warn'):
+            self.konsole.append(p['type'] + ': ' + ' '.join(str(a.get('value', a.get('description', ''))) for a in p.get('args', []))[:300])
+        elif meth == 'Runtime.exceptionThrown':
+            d = p.get('exceptionDetails', {})
+            self.konsole.append('exception: ' + str(d.get('exception', {}).get('description') or d.get('text'))[:300])
+        elif meth == 'Log.entryAdded' and p.get('entry', {}).get('level') in ('error', 'warning'):
+            self.konsole.append('log: ' + p['entry'].get('text', '')[:300])
 
     def verbinden(self, zeit=60):
         ende = time.time() + zeit
@@ -97,6 +110,8 @@ class Seite:
                     seiten = [z for z in ziele if z.get('type') == 'page' and z.get('webSocketDebuggerUrl')]
                     if seiten:
                         self.ws = websocket.create_connection(seiten[0]['webSocketDebuggerUrl'], timeout=30, suppress_origin=True)
+                        self.befehl('Runtime.enable', {})
+                        self.befehl('Log.enable', {})
                         return True
                 except Exception as e:  # noqa: BLE001
                     print('warte auf WebView:', e)
@@ -109,6 +124,7 @@ class Seite:
         self.ws.send(json.dumps({'id': nr, 'method': 'Runtime.evaluate', 'params': {'expression': ausdruck, 'awaitPromise': warten, 'returnByValue': True}}))
         while True:
             m = json.loads(self.ws.recv())
+            self.merken(m)
             if m.get('id') == nr:
                 r = m.get('result', {})
                 if 'exceptionDetails' in r:
@@ -121,6 +137,7 @@ class Seite:
         self.ws.send(json.dumps({'id': nr, 'method': methode, 'params': params}))
         while True:
             m = json.loads(self.ws.recv())
+            self.merken(m)
             if m.get('id') == nr:
                 return m.get('result')
 
@@ -237,8 +254,13 @@ def main():
 
     # 4. Abspielen: Benachrichtigung und Sperrbildschirm
     s.js(f"history.pushState({{}}, '', '/alben/{aid}'); dispatchEvent(new PopStateEvent('popstate')); true")
-    s.bis("!!document.querySelector('.track-titel[data-aktion=\"track-play\"]')", 20)
-    s.tippen('.track-titel[data-aktion="track-play"]')
+    s.bis("!!document.querySelector('[data-aktion=\"track-play\"]')", 20)
+    s.konsole.clear()
+    s.js("document.querySelector('[data-aktion=\"track-play\"]').click(); true")
+    time.sleep(4)
+    if s.js("navigator.mediaSession.playbackState") != 'playing':
+        # wie ein Finger auf „Abspielen“ (Nutzergeste)
+        s.tippen('.player-knoepfe [data-play]')
     sitzung = ''
     for _ in range(20):
         time.sleep(1.5)
@@ -253,7 +275,7 @@ def main():
         ok('Wiedergabe läuft (Zustand „spielt“)')
     else:
         diag = s.js("JSON.stringify({ms: navigator.mediaSession.playbackState, zeit: document.querySelector('[data-zeit]')?.textContent, dauer: document.querySelector('[data-dauer]')?.textContent, toast: [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' / '), titel: document.title})")
-        print('::warning title=Android-Test::Zustand „spielt“ nicht erreicht (Emulator ohne Ton?) ' + str(diag))
+        print('::warning title=Android-Test::Zustand „spielt“ nicht erreicht (Emulator ohne Ton?) ' + str(diag) + ' | Konsole: ' + ' | '.join(s.konsole[-12:]))
     if PAKET in adb('shell', 'dumpsys', 'notification', '--noredact'):
         ok('Benachrichtigung da')
     # Taste „Pause“ wie vom Kopfhörer
