@@ -48,7 +48,7 @@ def protokoll():
     except Exception as e:  # noqa: BLE001
         print(f'::notice title=logcat::nicht lesbar: {e}', flush=True)
         return
-    wichtig = [z for z in log if re.search(r'FATAL|AndroidRuntime|W/Aw|E/Aw|AwLaden|AwOberflaeche|lfrank95|Exception|\tat |chromium.*(Uncaught|rror)', z)]
+    wichtig = [z for z in log if re.search(r'AndroidRuntime|/Aw[A-Z]|lfrank95|chromium|cr_|WebView|Console', z) and 'gsa' not in z and 'Cronet' not in z]
     neu = [z.strip()[:240] for z in wichtig if z not in _gezeigt][-45:]
     _gezeigt.update(wichtig)
     print(f'::notice title=logcat::{len(log)} Zeilen, {len(wichtig)} passend', flush=True)
