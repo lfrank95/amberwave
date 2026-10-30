@@ -118,7 +118,8 @@ def main():
     else:
         schlecht('Server nicht gefunden: ' + str(s.js("document.querySelector('[data-fehler]')?.textContent || location.href")))
         sys.exit(1)
-    if s.js("document.querySelector('input[name=geraet_merken]').checked"):
+    s.bis("document.readyState === 'complete' && !!document.querySelector('input[name=geraet_merken]')", 30)
+    if s.js("document.querySelector('input[name=geraet_merken]')?.checked"):
         ok('„Gerät merken“ in der App vorausgewählt')
     else:
         schlecht('„Gerät merken“ nicht vorausgewählt')
