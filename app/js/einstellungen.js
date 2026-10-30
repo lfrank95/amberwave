@@ -17,6 +17,9 @@ import { heimnetzZeichnen } from './heimnetz.js';
 import { falzStatus, falzBericht, falzWahl, falzWahlSetzen } from './falz.js';
 import { vstKarte } from './vstbrowser.js';
 import { downloadAnbieterPanel } from './dl_anbieter.js';
+import { offline, offlineStufen, offlineAktuell, offlineWunsch } from './offline.js';
+import { offlineAn, offlineQualitaetText } from './offline_ui.js';
+import { android, androidJson, androidRufen } from './android.js';
 
 const BEREICHE = [
   { id: 'konto', gruppe: 'persoenlich', titel: t('Konto'), icon: 'profil', text: t('Name, Bild, Passwort und die Geräte, auf denen du angemeldet bist.') },
@@ -25,6 +28,7 @@ const BEREICHE = [
   { id: 'bibliothek', gruppe: 'server', titel: t('Bibliothek & Automatik'), icon: 'alben', text: t('Wann Amberwave selbst einliest, abgleicht und misst. Von Hand ausführen geht weiter unter Verwaltung › Bibliothek.') },
   { id: 'dienste', gruppe: 'server', titel: t('Dienste & Schlüssel'), icon: 'schluessel', text: t('Zugänge zu Diensten für Metadaten, Bilder und Übersetzungen. Schlüssel werden verschlüsselt gespeichert und nie wieder angezeigt.') },
   { id: 'downloads', gruppe: 'server', titel: t('Downloads'), icon: 'download', text: t('Prowlarr oder Newznab-Indexer suchen, SABnzbd lädt, Amberwave übernimmt das Fertige in die Bibliothek.') },
+  { id: 'offline', gruppe: 'server', titel: t('Offline auf Geräten'), icon: 'download', text: t('Was Handys und Browser speichern dürfen – zum Hören ohne Netz und als echte Datei.') },
   { id: 'mail', gruppe: 'server', titel: t('E-Mail'), icon: 'mail', text: t('Für Freischaltungen, Ablauf-Erinnerungen und „Passwort vergessen“.') },
   { id: 'zugang', gruppe: 'server', titel: t('Zugang & Netz'), icon: 'start', text: t('Wie Geräte den Server erreichen – zuhause und unterwegs.') },
   { id: 'heimnetz', gruppe: 'server', titel: t('Geräte im Heimnetz'), icon: 'anlage', text: t('AV-Receiver, Fernseher und Streamer, die per DLNA abspielen. Sie erscheinen unter „Wiedergabe auf“ – Ein, Eingang und Lautstärke steuert Amberwave bei Denon/Marantz, Yamaha und Onkyo/Pioneer selbst.') },
@@ -89,6 +93,15 @@ const SERVER = {
       { k: 'download_reiter', name: t('Eigener Punkt im Hauptmenü'), hinweis: t('Neben Playlists (am Handy unter „Mehr“), mit der Zahl der laufenden Downloads. Nur für Admins.'), typ: 'schalter', an: an1 },
     ] },
   ],
+  offline: [
+    { karte: t('Offline speichern'), hinweis: t('Alben, Playlists und Titel „offline speichern“, damit sie ohne Netz spielen. Sie bleiben in der App und lassen sich nicht weitergeben.'), felder: [
+      { k: 'offline_qualitaet', name: t('Höchste Qualität'), hinweis: t('Jedes Gerät wählt seine Qualität bis zu dieser Grenze selbst. Original gibt es nur in der Android-App – Browser speichern höchstens Opus 256 (etwa 2 MB pro Minute, Original-FLAC etwa 5–10 MB).'), typ: 'auswahl',
+        optionen: [['0', t('Aus – nichts offline speichern')], ['opus128', 'Opus 128 kbit/s'], ['opus160', 'Opus 160 kbit/s'], ['opus256', t('Opus 256 kbit/s (Standard)')], ['original', t('Original (verlustfrei)')]] },
+    ] },
+    { karte: t('Echte Dateien'), hinweis: t('„Datei herunterladen“ im Menü eines Titels und der WAV-Export. Die Datei liegt danach frei auf dem Gerät – was damit passiert, hat Amberwave nicht mehr in der Hand. Admins dürfen das immer.'), felder: [
+      { k: 'downloads_erlaubt', name: t('Alle Konten dürfen Dateien herunterladen'), typ: 'schalter', an: an1 },
+    ] },
+  ],
   mail: [
     { karte: t('Server'), test: 'mail', hinweis: t('Bei web.de: smtp.web.de, Port 587, STARTTLS – in web.de „POP3/IMAP/SMTP“ erlauben.'), felder: [
       { k: 'smtp_host', name: t('Server'), typ: 'text', platzhalter: 'smtp.example.de' },
@@ -123,6 +136,7 @@ const SUCHE_PERSOENLICH = [
   ['konto', 'bild', t('Profilbild'), t('foto avatar')], ['konto', 'name', t('Name'), t('vorname nachname')], ['konto', 'passwort', t('Passwort ändern'), t('kennwort')],
   ['konto', 'mail_info', t('E-Mails zu meinem Konto'), t('erinnerung ablauf')], ['konto', 'sprache', 'Sprache / Language', 'language sprache deutsch english englisch german'], ['konto', 'geraete', t('Angemeldete Geräte'), t('abmelden umbenennen gerätename')],
   ['wiedergabe', 'qualitaet_heim', t('Qualität zuhause'), t('original flac opus heimnetz')], ['wiedergabe', 'qualitaet_unterwegs', t('Qualität unterwegs'), t('opus mobilfunk datensparen')],
+  ['wiedergabe', 'offline_qualitaet', t('Qualität beim Speichern'), t('offline herunterladen download speicher')],
   ['wiedergabe', 'lueckenlos', t('Lückenlose Wiedergabe'), t('gapless pause')], ['wiedergabe', 'lautheit', t('Lautstärke angleichen'), t('ebu r128 replaygain lufs normalisieren')],
   ['wiedergabe', 'lautheit_ziel', t('Zielwert Lautheit'), t('lufs')], ['wiedergabe', 'pegel', t('Pegelanzeige im Player'), t('meter dbfs')],
   ['wiedergabe', 'klang', t('Raumklang und Effekte'), t('upmix space hall glow iron silk eq rack')],
@@ -491,6 +505,15 @@ function wiedergabeZeichnen(app, inhalt) {
       ${zeile('qualitaet_heim', `<label for="ew-qh">${t('Zuhause')}</label>`, t('Im Heimnetz – auch über die öffentliche Adresse. „Original“ spielt die Datei unverändert; was hier nicht abspielbar ist (z. B. DSD, APE), wird umgewandelt.'), `<select id="ew-qh" class="einst-feld" data-qualitaet="heim">${qOpt('qualitaet_heim', t('Automatisch (Original, wenn möglich)'))}</select>`)}
       ${zeile('qualitaet_unterwegs', `<label for="ew-qu">${t('Unterwegs')}</label>`, t('Über das Internet und Mobilfunk. Original braucht viel Datenvolumen.'), `<select id="ew-qu" class="einst-feld" data-qualitaet="unterwegs">${qOpt('qualitaet_unterwegs', t('Automatisch ({was})', { was: pl.mobil ? t('Handy/Tablet: Opus 160, im Mobilfunk 128') : 'Opus 256' }))}</select>`)}
     `, chip(pl.netz?.lokal ? t('gerade zuhause') : t('gerade unterwegs'), pl.netz?.lokal ? 'gut' : ''))}
+    ${android ? karte(t('Android-App'), `
+      ${zeile('android_server', t('Server'), h(String(androidRufen('server') || '')), `<button type="button" class="btn btn-zweit btn-klein" data-android-server>${t('Anderen Server wählen')}</button>`)}
+      ${zeile('android_update', t('App-Version {version}', { version: String(androidRufen('version') || '') }), t('Die App schaut zweimal am Tag bei GitHub nach einer neuen Version und fragt, bevor sie etwas installiert.'), `<button type="button" class="btn btn-zweit btn-klein" data-android-update>${t('Jetzt nachsehen')}</button>`)}
+    `) : ''}
+    ${offlineAn() ? karte(t('Offline auf diesem Gerät'), `
+      ${zeile('offline_qualitaet', `<label for="ew-oq">${t('Qualität beim Speichern')}</label>`, t('Gilt für neu gespeicherte Titel. Höher klingt besser und braucht mehr Platz: Opus 256 etwa 2 MB pro Minute, Original etwa 5–10 MB.') + (offlineStufen().length < 4 && android ? ' ' + t('Mehr hat der Admin nicht freigegeben.') : ''),
+        `<select id="ew-oq" class="einst-feld" data-offline-q>${offlineStufen().map((q) => `<option value="${q}" ${offlineAktuell() === q ? 'selected' : ''}>${h(offlineQualitaetText(q))}</option>`).join('')}</select>`)}
+      ${android ? zeile('offline_wlan', t('Nur im WLAN laden'), t('Im Mobilfunk wartet das Speichern, bis wieder WLAN da ist.'), schalter(!!androidJson('einstellungen')?.nurWlan, `data-offline-wlan aria-label="${h(t('Nur im WLAN laden'))}"`)) : ''}
+    `) : ''}
     ${karte(t('Lückenlos'), `
       ${zeile('lueckenlos', t('Titel ohne Pause aneinanderhängen'), t('Live-Alben und durchgehende Alben laufen auf das Sample genau durch. Nur ausschalten, wenn ein Gerät Probleme macht.'), schalter(e.lueckenlos !== false, `data-lueckenlos aria-label="${h(t('Lückenlose Wiedergabe'))}"`))}
       ${zeile('lueckenlos_vorrang', `<label for="ew-lv">${t('Wenn „Original“ hier nicht lückenlos geht')}</label>`, h(t('Dieses Gerät: {mse} · FLAC-Strom: {flac} · Opus-Strom: {opus}', { mse: dg.mse || t('keine Media Source Extensions'), flac: jn(dg.flac), opus: jn(dg.opus) }) + (pl.motorFehlerText ? ' · ' + t('zuletzt gestört: {fehler}', { fehler: pl.motorFehlerText }) : '')),
@@ -512,6 +535,22 @@ function wiedergabeZeichnen(app, inhalt) {
     if (neuLaden && pl.track && pl.audio.src) pl.laden(pl.zeit, !pl.audio.paused);
     toast(t('Übernommen'));
   };
+  inhalt.querySelector('[data-android-update]')?.addEventListener('click', () => androidRufen('updatePruefen'));
+  inhalt.querySelector('[data-android-server]')?.addEventListener('click', async () => {
+    if (!await bestaetigen(t('Anderen Server wählen?'), t('Die Offline-Musik auf diesem Handy gehört zu diesem Server und wird beim Wechsel gelöscht.'), t('Server wählen'), true)) return;
+    androidRufen('serverWechseln');
+  });
+  inhalt.querySelector('[data-offline-q]')?.addEventListener('change', (ev) => {
+    offlineWunsch(ev.target.value);
+    persoenlich('offline_qualitaet', ev.target.value);
+    if (offline.andereQualitaet()) toast(t('Schon gespeicherte Titel lassen sich unter „Auf diesem Gerät“ neu laden.'), 'info', 6000);
+  });
+  inhalt.querySelector('[data-offline-wlan]')?.addEventListener('click', (ev) => {
+    const b = ev.currentTarget, an = b.getAttribute('aria-checked') !== 'true';
+    b.setAttribute('aria-checked', String(an));
+    androidRufen('einstellungSetzen', 'nurWlan', an ? '1' : '0');
+    toast(t('Übernommen'));
+  });
   inhalt.querySelector('[data-lueckenlos]').addEventListener('click', (ev) => { const b = ev.currentTarget, an = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', String(an)); persoenlich('lueckenlos', an, true); });
   inhalt.querySelector('[data-lueckenlos-vorrang]').addEventListener('change', (ev) => persoenlich('lueckenlos_vorrang', ev.target.value === 'ja', true));
   inhalt.querySelectorAll('[data-lautheit] button').forEach((b) => b.addEventListener('click', async () => {

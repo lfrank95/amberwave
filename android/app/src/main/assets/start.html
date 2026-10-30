@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Amberwave</title>
+<style>
+  :root { --grund: #120d0a; --karte: #1d1510; --rand: rgba(255, 195, 90, .18); --text: #f6efe7; --leise: #b8a898; --akzent: #ffa94d; --fehler: #ff7a5c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at 18% -12%, #3a2412 0%, #120d0a 46%), var(--grund); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 420px; margin: 0 auto; padding: 56px 20px 32px; display: flex; flex-direction: column; gap: 22px; }
+  .kopf { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .kopf h1 { margin: 0; font-size: 26px; letter-spacing: .01em; }
+  .kopf p { margin: 0; color: var(--leise); }
+  form { background: var(--karte); border: 1px solid var(--rand); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  label { font-weight: 600; }
+  input { width: 100%; padding: 14px 14px; border-radius: 12px; border: 1px solid var(--rand); background: #120d0a; color: var(--text); font: inherit; }
+  input:focus { outline: 2px solid var(--akzent); outline-offset: 1px; }
+  button { padding: 14px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #ffc35a, #ff6a3d); color: #1a120c; font: inherit; font-weight: 700; }
+  button[disabled] { opacity: .6; }
+  button.zweit { background: transparent; color: var(--akzent); border: 1px solid var(--rand); }
+  .hinweis { color: var(--leise); font-size: 14px; margin: 0; }
+  .fehler { color: var(--fehler); font-size: 14px; margin: 0; min-height: 1.5em; }
+  .band { background: rgba(255, 122, 92, .1); border: 1px solid rgba(255, 122, 92, .35); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .band b { color: var(--text); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="kopf">
+    <svg viewBox="0 0 64 64" width="72" height="72" aria-hidden="true">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc35a"/><stop offset="1" stop-color="#ff6a3d"/></linearGradient></defs>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="#1a120c"/>
+      <rect x="2.5" y="2.5" width="59" height="59" rx="15.5" fill="none" stroke="url(#g)" stroke-opacity=".55"/>
+      <g fill="url(#g)"><rect x="11" y="27" width="5" height="10" rx="2.5"/><rect x="19.5" y="20" width="5" height="24" rx="2.5"/><rect x="28" y="13" width="5" height="38" rx="2.5"/><rect x="36.5" y="22" width="5" height="20" rx="2.5"/><rect x="45" y="17" width="5" height="30" rx="2.5"/></g>
+    </svg>
+    <h1>Amberwave</h1>
+    <p data-t="unter">Deine Musik, von deinem eigenen Server.</p>
+  </div>
+
+  <div class="band" data-band hidden>
+    <span><b data-t="band_titel">Server gerade nicht erreichbar</b><br><span data-band-adresse></span></span>
+    <span class="hinweis" data-t="band_text">Prüfe die Verbindung. Ohne Netz startet Amberwave mit deiner Offline-Musik, sobald sie einmal geladen war.</span>
+    <button type="button" data-nochmal data-t="nochmal">Erneut versuchen</button>
+  </div>
+
+  <form data-form>
+    <label for="adresse" data-t="label">Adresse deines Servers</label>
+    <input id="adresse" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="musik.example.de" required>
+    <p class="hinweis" data-t="tipp">Die Adresse, unter der du Amberwave im Browser öffnest – unterwegs über den Tunnel, zuhause auch z. B. 192.168.1.10:8095.</p>
+    <p class="fehler" data-fehler aria-live="polite"></p>
+    <button type="submit" data-los data-t="verbinden">Verbinden</button>
+  </form>
+</main>
+<script>
+  const de = (navigator.language || '').toLowerCase().startsWith('de');
+  const T = de ? {} : {
+    unter: 'Your music, from your own server.', band_titel: 'Server not reachable right now',
+    band_text: 'Check the connection. Without a network, Amberwave starts with your offline music once it has been loaded.',
+    nochmal: 'Try again', label: 'Your server’s address',
+    tipp: 'The address you use to open Amberwave in the browser – on the go via the tunnel, at home also e.g. 192.168.1.10:8095.',
+    verbinden: 'Connect', pruefe: 'Checking …', adresse: 'Please enter a valid address.',
+    nicht_erreichbar: 'No Amberwave server answers at this address.',
+  };
+  const D = { pruefe: 'Prüfe …', adresse: 'Bitte eine gültige Adresse eingeben.', nicht_erreichbar: 'Unter dieser Adresse antwortet kein Amberwave-Server.' };
+  const t = (k) => T[k] || D[k] || '';
+  if (!de) { document.documentElement.lang = 'en'; document.querySelectorAll('[data-t]').forEach((e) => { if (T[e.dataset.t]) e.textContent = T[e.dataset.t]; }); }
+
+  const A = window.AwAndroid;
+  const feld = document.getElementById('adresse');
+  const los = document.querySelector('[data-los]');
+  const fehler = document.querySelector('[data-fehler]');
+  const p = new URLSearchParams(location.search);
+  const gespeichert = A ? A.gespeicherterServer() : '';
+  if (gespeichert) feld.value = gespeichert.replace(/^https:\/\//, '');
+  if (p.get('fehler')) {
+    document.querySelector('[data-band]').hidden = false;
+    document.querySelector('[data-band-adresse]').textContent = p.get('fehler');
+  }
+  document.querySelector('[data-nochmal]').addEventListener('click', () => A && A.neuVersuchen());
+
+  window.startErgebnis = (r) => {
+    los.disabled = false;
+    los.textContent = de ? 'Verbinden' : T.verbinden;
+    if (r.ok) { A.serverSetzen(r.adresse); return; }
+    fehler.textContent = t(r.fehler) || t('nicht_erreichbar');
+  };
+  document.querySelector('[data-form]').addEventListener('submit', (e) => {
+    e.preventDefault();
+    fehler.textContent = '';
+    const v = feld.value.trim();
+    if (!v) { fehler.textContent = t('adresse'); return; }
+    los.disabled = true;
+    los.textContent = t('pruefe');
+    A.serverPruefen(v);
+  });
+</script>
+</body>
+</html>

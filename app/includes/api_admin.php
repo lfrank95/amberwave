@@ -277,7 +277,7 @@ function api_admin_konto_loeschen(array $admin, int $id): array
 const ADMIN_EINSTELLUNGEN = ['smtp_host', 'smtp_port', 'smtp_verschluesselung', 'smtp_benutzer', 'smtp_passwort', 'smtp_absender', 'smtp_absender_name', 'smtp_tls_pruefen',
     'mail_ablauf_tage', 'scan_auto_stunden', 'kuenstler_standardnamen', 'erkennung_modus', 'auto_metadaten', 'auto_vorschau', 'nachtlauf_stunde', 'sicherung_stunde', 'sicherung_tage', 'sicherung_wochen', 'klang_aktiv', 'musicbrainz_user_agent', 'fanart_api_key', 'acoustid_api_key', 'claude_api_key', 'lidarr_url', 'lidarr_api_key',
     'prowlarr_url', 'prowlarr_api_key', 'prowlarr_kategorien', 'sabnzbd_url', 'sabnzbd_api_key', 'sabnzbd_kategorie', 'download_ziel', 'download_nach_import', 'download_einsortieren', 'download_wav_flac',
-    'download_haengt_min', 'download_weg_min', 'download_reiter', 'usenet_aktiv', 'musik_schreiben', 'update_hinweis'];
+    'download_haengt_min', 'download_weg_min', 'download_reiter', 'usenet_aktiv', 'musik_schreiben', 'update_hinweis', 'offline_qualitaet', 'downloads_erlaubt'];
 
 function api_admin_einstellungen(): array
 {
@@ -329,7 +329,10 @@ function api_admin_einstellungen_speichern(array $admin): array
         if (in_array($k, ['download_haengt_min', 'download_weg_min'], true) && (!preg_match('/^\d+$/', $w) || (int) $w < 5 || (int) $w > 1440)) {
             throw new ApiFehler(t('Wartezeit in Minuten, 5 bis 1440.'));
         }
-        if (in_array($k, ['download_einsortieren', 'download_wav_flac', 'download_reiter', 'usenet_aktiv', 'musik_schreiben', 'update_hinweis'], true) && !in_array($w, ['0', '1'], true)) {
+        if ($k === 'offline_qualitaet' && !in_array($w, ['0', 'opus128', 'opus160', 'opus256', 'original'], true)) {
+            throw new ApiFehler(t('Offline-Qualität: 0, opus128, opus160, opus256 oder original.'));
+        }
+        if (in_array($k, ['download_einsortieren', 'download_wav_flac', 'download_reiter', 'usenet_aktiv', 'musik_schreiben', 'update_hinweis', 'downloads_erlaubt'], true) && !in_array($w, ['0', '1'], true)) {
             throw new ApiFehler(t('Ungültiger Wert für „einsortieren“.'));
         }
         if ($k === 'download_nach_import' && !in_array($w, ['behalten', 'loeschen'], true)) {

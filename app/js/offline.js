@@ -1,21 +1,41 @@
-// Offline: Alben, Playlists und einzelne Titel auf dem Gerät speichern (Opus 256 kbit/s) und ohne Netz abspielen.
+// Offline: Alben, Playlists und einzelne Titel auf dem Gerät speichern und ohne Netz abspielen.
 //
-// Gespeichert wird im Speicher der App (nicht als Datei im Download-Ordner):
+// Im Browser (PWA) wird im Speicher des Browsers gespeichert (nicht als Datei im Download-Ordner):
 //  - Cache Storage „aw-offline-v1“: der Ton je Titel (WebM/Opus, unter /offline/titel/<id>.webm) und die Cover
 //  - IndexedDB „aw-offline“: je Titel die Angaben für den Player (Titel, Künstler, Album, Lautheit, exakte Länge) und je
 //    Sammlung (Album, Playlist, „Einzelne Titel“) die Liste der Titel. Ein Titel bleibt, solange ihn eine Sammlung braucht.
 // Geladen wird über /stream/kette mit einem Titel: genau der Opus-Strom des lückenlosen Players, ohne Lautheitsangleich
 // (den rechnet der Player beim Abspielen) – mit exakter Länge (X-Dauern), damit gespeicherte Titel lückenlos aneinanderpassen.
+//
+// In der Android-App speichert die App selbst: der Ton als Datei in ihrem eigenen Speicher (Android räumt ihn nicht weg),
+// die Angaben in ihrer Datenbank. Geladen wird im Hintergrund – auch wenn die App geschlossen ist, auf Wunsch nur im WLAN.
+// Dort gibt es zusätzlich die Originalqualität (/offline/titel/<id>: die Datei selbst bzw. verlustfrei als FLAC).
 import { api } from './api.js';
+import { android, androidRufen, androidJson, androidHoeren } from './android.js';
 import { netzweg } from './netzweg.js';
 import { t } from './i18n.js';
 
 const DB_NAME = 'aw-offline';
 const CACHE = 'aw-offline-v1';
-// Qualität vom Server (OFFLINE_QUALITAET); Standard Opus 256
-let QUALITAET = 'opus256';
-let KBIT = 256;
-export function offlineQualitaet(q) { if (q) { QUALITAET = q; KBIT = Number(q.replace(/\D/g, '')) || 256; } }
+// Qualität: die höchste erlaubte legt der Admin fest (app.offline), darunter wählt jedes Gerät selbst (offline_qualitaet)
+export const OFFLINE_STUFEN = ['opus128', 'opus160', 'opus256', 'original'];
+let HOECHSTE = 'opus256';
+let WUNSCH = '';
+/** Was dieses Gerät höchstens speichern kann: der Browser bis Opus 256, die Android-App auch das Original */
+export const geraetHoechste = () => (android ? 'original' : 'opus256');
+/** Erlaubte Stufen für dieses Gerät (aufsteigend) */
+export function offlineStufen() {
+  const grenze = Math.min(OFFLINE_STUFEN.indexOf(HOECHSTE), OFFLINE_STUFEN.indexOf(geraetHoechste()));
+  return OFFLINE_STUFEN.slice(0, grenze + 1);
+}
+/** Qualität, mit der jetzt gespeichert wird */
+export function offlineAktuell() {
+  const s = offlineStufen();
+  return s.includes(WUNSCH) ? WUNSCH : s.includes('opus256') ? 'opus256' : s[s.length - 1];
+}
+export function offlineQualitaet(q) { if (q && OFFLINE_STUFEN.includes(q)) HOECHSTE = q; }
+export function offlineWunsch(q) { WUNSCH = OFFLINE_STUFEN.includes(q) ? q : ''; }
+const kbitVon = (q) => (q === 'original' ? 1000 : Number(String(q).replace(/\D/g, '')) || 256);
 export const EINZELN = 'titel:einzeln';
 
 const tonUrl = (id) => `/offline/titel/${id}.webm`;
@@ -47,11 +67,12 @@ class Offline extends EventTarget {
     this.bereit = this.laden();
   }
 
-  /** Geht das hier? (Cache Storage + IndexedDB; im Windows-Client nicht nötig) */
-  get moeglich() { return typeof caches !== 'undefined' && typeof indexedDB !== 'undefined' && window.isSecureContext !== false; }
+  /** Geht das hier? (Android-App: eigener Speicher; Browser: Cache Storage + IndexedDB; im Windows-Client nicht nötig) */
+  get moeglich() { return !!android || (typeof caches !== 'undefined' && typeof indexedDB !== 'undefined' && window.isSecureContext !== false); }
 
   async laden() {
     if (!this.moeglich) return;
+    if (android) { this.androidLaden(); return; }
     try {
       this.db = await idbOeffnen();
       const tx = this.db.transaction(['titel', 'sammlungen']);
@@ -76,7 +97,81 @@ class Offline extends EventTarget {
 
   melden(key = null) { this.dispatchEvent(new CustomEvent('aenderung', { detail: { key } })); }
 
+  // ---------- Android-App: Speicher und Downloads macht die App ----------
+  androidLaden() {
+    this.db = 'android';
+    const titel = androidJson('kvAlle', 'titel') || [];
+    const samm = androidJson('kvAlle', 'sammlungen') || [];
+    const dateien = androidJson('dateien') || {};
+    for (const t of titel) {
+      const f = dateien[t.id];
+      if (f) Object.assign(t, { bytes: f.bytes, dauer: f.dauer || t.dauer || 0, format: f.format, q: f.q });
+      else t.bytes = 0;
+      this.titel.set(t.id, t);
+      if (t.bytes > 0) this.da.add(t.id);
+    }
+    for (const s of samm) this.sammlungen.set(s.key, s);
+    // Dateien ohne Angaben (Sammlung inzwischen entfernt) freigeben
+    for (const id of Object.keys(dateien)) if (!this.titel.has(Number(id))) androidRufen('dateiLoeschen', Number(id));
+    androidHoeren((e) => this.androidEreignis(e));
+    for (const t of titel) {
+      if (!(t.bytes > 0) && t.in?.length) {
+        this.warteschlange.push({ key: t.in[0], id: t.id });
+        for (const k of t.in) if (!this.laufend.has(k)) this.laufend.set(k, { fehler: null });
+      }
+    }
+    this.melden();
+    if (this.warteschlange.length) this.abarbeiten();
+  }
+
+  /** Meldungen der App zu ihren Downloads */
+  androidEreignis(e) {
+    const d = this.titel.get(Number(e.id));
+    if (e.art === 'fortschritt') {
+      this.titelAnteil = { id: Number(e.id), anteil: Math.min(0.99, Number(e.anteil) || 0) };
+      this.dispatchEvent(new CustomEvent('fortschritt', { detail: this.titelAnteil }));
+      return;
+    }
+    if (e.art === 'wartet') { this.wartet = e.grund || ''; this.melden(); return; }
+    if (e.art === 'fertig' && d) {
+      Object.assign(d, { bytes: e.bytes, dauer: e.dauer || d.dauer, format: e.format, q: e.q, gespeichert: Date.now() });
+      this.da.add(d.id);
+      this.titelAnteil = null;
+      this.wartet = '';
+      this.warteschlange = this.warteschlange.filter((w) => w.id !== d.id);
+      for (const k of d.in) { const l = this.laufend.get(k); if (l) l.fehler = null; }
+      this.laufendAufraeumen();
+      this.melden(d.in[0] || null);
+      return;
+    }
+    if (e.art === 'fehler' && d) {
+      this.titelAnteil = null;
+      this.warteschlange = this.warteschlange.filter((w) => w.id !== d.id);
+      for (const k of d.in) this.laufend.set(k, { fehler: e.text || t('Fehler') });
+      this.melden(d.in[0] || null);
+      return;
+    }
+    if (e.art === 'platz' || e.art === 'abgebrochen') {
+      const text = e.art === 'platz' ? t('Kein Platz mehr auf dem Gerät') : t('Abgebrochen');
+      for (const w of this.warteschlange) for (const k of this.titel.get(w.id)?.in || []) this.laufend.set(k, { fehler: text });
+      this.warteschlange = [];
+      this.titelAnteil = null;
+      this.melden();
+      if (e.art === 'platz') this.dispatchEvent(new CustomEvent('fehler', { detail: t('Kein Platz mehr auf dem Gerät – gespeichert wurde, was passte.') }));
+    }
+  }
+
+  laufendAufraeumen() {
+    for (const [k, l] of this.laufend) if (!l.fehler && !this.warteschlange.some((w) => this.titel.get(w.id)?.in.includes(k))) this.laufend.delete(k);
+  }
+
+  /** Pfad, über den die App einen Titel lädt (Opus-Kette wie im Browser oder die Originaldatei) */
+  ladePfad(id, q) {
+    return q === 'original' ? `/api/v1/offline/titel/${id}` : `/api/v1/stream/kette?ids=${id}&q=${q}`;
+  }
+
   async schreiben(store, wert) {
+    if (this.db === 'android') { androidRufen('kvSetzen', store, String(store === 'titel' ? wert.id : wert.key), wert); return; }
     if (!this.db) return;
     const tx = this.db.transaction(store, 'readwrite');
     tx.objectStore(store).put(wert);
@@ -84,6 +179,7 @@ class Offline extends EventTarget {
   }
 
   async loeschen(store, key) {
+    if (this.db === 'android') { androidRufen('kvLoeschen', store, String(key)); return; }
     if (!this.db) return;
     const tx = this.db.transaction(store, 'readwrite');
     tx.objectStore(store).delete(key);
@@ -111,8 +207,18 @@ class Offline extends EventTarget {
   track(id) { return this.titel.get(Number(id))?.track || null; }
   lautheit(id) { return this.titel.get(Number(id))?.lh || null; }
   dauer(id) { return this.titel.get(Number(id))?.dauer || 0; }
+  /** Format des gespeicherten Tons: 'opus' (lückenlos über den Motor) oder die Dateiendung des Originals */
+  format(id) { return this.titel.get(Number(id))?.format || 'opus'; }
+  /** Qualität, in der ein Titel gespeichert ist */
+  qualitaet(id) { const d = this.titel.get(Number(id)); return d?.q || (d?.format && d.format !== 'opus' ? 'original' : 'opus256'); }
+  /** Titel, die nicht in der jetzt gewählten Qualität gespeichert sind */
+  andereQualitaet() { const q = offlineAktuell(); return [...this.da].filter((id) => this.qualitaet(id) !== q).length; }
 
   async ton(id) {
+    if (android) {
+      const r = await fetch(`/__aw/offline/${Number(id)}`);
+      return r.ok ? r.blob() : null;
+    }
     const r = await (await caches.open(CACHE)).match(tonUrl(id));
     return r ? r.blob() : null;
   }
@@ -125,7 +231,7 @@ class Offline extends EventTarget {
   async speichern(art, id, daten = null) {
     await this.bereit;
     if (!this.db) throw new Error(t('Der Speicher dieses Browsers ist gesperrt (privater Modus?).'));
-    try { await navigator.storage?.persist?.(); } catch (e) { /* egal */ }
+    if (!android) try { await navigator.storage?.persist?.(); } catch (e) { /* egal */ }
     let s;
     if (art === 'titel') {
       const alt = this.sammlungen.get(EINZELN);
@@ -190,6 +296,12 @@ class Offline extends EventTarget {
 
   /** Cover in den Cache – unter dem relativen Pfad (ohne Direktadresse und Schlüssel), so findet sie der Service Worker offline */
   async coverSpeichern(urls) {
+    if (android) {
+      const liste = [];
+      for (const u of urls.filter(Boolean).map((x) => netzweg.relativ(x))) liste.push(u, u.replace(/g=\d+/, 'g=600'));
+      if (liste.length) androidRufen('bilderMerken', liste);
+      return;
+    }
     try {
       const c = await caches.open(CACHE);
       for (const u of urls.filter(Boolean).map((x) => netzweg.relativ(x))) {
@@ -203,6 +315,16 @@ class Offline extends EventTarget {
 
   /** Warteschlange abarbeiten: ein Titel nach dem anderen (der Server wandelt um) */
   async abarbeiten() {
+    if (android) {
+      // die App lädt der Reihe nach im Hintergrund – hier nur übergeben (doppelte Aufträge übergeht sie)
+      const q = offlineAktuell();
+      const auftraege = this.warteschlange.filter((w) => { const d = this.titel.get(w.id); return d && d.in.length && !this.da.has(w.id); })
+        .map((w) => ({ id: w.id, pfad: this.ladePfad(w.id, q), q, name: this.titel.get(w.id)?.track?.titel || '' }));
+      if (auftraege.length) androidRufen('laden', auftraege);
+      this.laufendAufraeumen();
+      this.melden();
+      return;
+    }
     if (this._laeuft) return;
     this._laeuft = true;
     try {
@@ -210,7 +332,7 @@ class Offline extends EventTarget {
         if (!navigator.onLine) { await schlafen(5000); continue; }
         const w = this.warteschlange[0];
         const d = this.titel.get(w.id);
-        if (!d || this.da.has(w.id) || !d.in.length) { this.warteschlange.shift(); continue; }
+        if (!d || (this.da.has(w.id) && !w.ersetzen) || !d.in.length) { this.warteschlange.shift(); continue; }
         try {
           await this.titelLaden(d);
           this.warteschlange = this.warteschlange.filter((x) => x !== w);
@@ -252,12 +374,13 @@ class Offline extends EventTarget {
   }
 
   async titelLaden(d) {
-    const r = await this.holen(`/api/v1/stream/kette?ids=${d.id}&q=${QUALITAET}`);
+    const q = offlineAktuell();
+    const r = await this.holen(`/api/v1/stream/kette?ids=${d.id}&q=${q}`);
     if (r.status === 503) { const e = new Error(t('Server ausgelastet')); e.warten = (Number(r.headers.get('Retry-After')) || 5) * 1000; throw e; }
     if (!r.ok) throw new Error(t('Titel {id}: Server antwortet {status}', { id: d.id, status: r.status }));
     const dauer = Number((r.headers.get('X-Dauern') || '').split(',')[0]) || (d.track?.laenge_ms || 0) / 1000;
-    // Stückweise lesen, damit der Fortschritt im Titel sichtbar ist (geschätzt aus Länge × 256 kbit/s)
-    const erwartet = Math.max(1, dauer * KBIT * 125);
+    // Stückweise lesen, damit der Fortschritt im Titel sichtbar ist (geschätzt aus Länge × Bitrate)
+    const erwartet = Math.max(1, dauer * kbitVon(q) * 125);
     const leser = r.body.getReader();
     const teile = [];
     let n = 0;
@@ -278,6 +401,8 @@ class Offline extends EventTarget {
     if (this.titel.get(d.id) !== d || !d.in.length) { await c.delete(tonUrl(d.id)); this.titelAnteil = null; return; }
     d.bytes = blob.size;
     d.dauer = dauer;
+    d.format = 'opus';
+    d.q = q;
     d.gespeichert = Date.now();
     await this.schreiben('titel', d);
     this.da.add(d.id);
@@ -308,7 +433,7 @@ class Offline extends EventTarget {
   }
 
   async titelLoesen(ids, key) {
-    const c = await caches.open(CACHE);
+    const c = android ? null : await caches.open(CACHE);
     for (const id of ids) {
       const d = this.titel.get(id);
       if (!d) continue;
@@ -318,7 +443,7 @@ class Offline extends EventTarget {
       this.da.delete(id);
       this.warteschlange = this.warteschlange.filter((w) => w.id !== id);
       await this.loeschen('titel', id);
-      await c.delete(tonUrl(id));
+      if (c) await c.delete(tonUrl(id)); else androidRufen('dateiLoeschen', id);
     }
   }
 
@@ -329,8 +454,34 @@ class Offline extends EventTarget {
     for (const k of [...this.sammlungen.keys()]) { this.sammlungen.delete(k); await this.loeschen('sammlungen', k); }
     for (const id of [...this.titel.keys()]) { this.titel.delete(id); await this.loeschen('titel', id); }
     this.da.clear();
-    await caches.delete(CACHE);
+    if (android) androidRufen('allesLoeschen'); else await caches.delete(CACHE);
     this.melden();
+  }
+
+  /** Alles, was nicht in der jetzt gewählten Qualität gespeichert ist, neu laden (der alte Ton bleibt, bis der neue da ist) */
+  async neuLaden() {
+    await this.bereit;
+    const q = offlineAktuell();
+    for (const id of this.da) {
+      if (this.qualitaet(id) === q) continue;
+      const d = this.titel.get(id);
+      if (!d?.in.length) continue;
+      if (android) { if (!this.warteschlange.some((w) => w.id === id)) this.warteschlange.push({ key: d.in[0], id }); for (const k of d.in) if (!this.laufend.has(k)) this.laufend.set(k, { fehler: null }); }
+    }
+    if (android) {
+      const auftraege = this.warteschlange.map((w) => ({ id: w.id, pfad: this.ladePfad(w.id, q), q, name: this.titel.get(w.id)?.track?.titel || '', ersetzen: true }));
+      if (auftraege.length) androidRufen('laden', auftraege);
+      this.melden();
+      return;
+    }
+    // Browser: Ton ersetzen heißt neu laden – der Titel bleibt bis dahin abspielbar
+    for (const id of [...this.da]) {
+      if (this.qualitaet(id) === q) continue;
+      const d = this.titel.get(id);
+      if (!d?.in.length) continue;
+      this.warteschlange.push({ key: d.in[0], id, ersetzen: true });
+    }
+    this.abarbeiten();
   }
 
   // ---------- Abgleich mit dem Server ----------

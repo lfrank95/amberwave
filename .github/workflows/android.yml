@@ -1,0 +1,67 @@
+# Baut die Android-App (APK) und hängt sie als Testversion an den Lauf (kein Release, keine Ankündigung).
+# Signiert mit dem Schlüssel aus den Secrets AW_KEYSTORE_B64 (Keystore als Base64) und AW_KEYSTORE_PASSWORT –
+# ohne die beiden mit einem Wegwerf-Schlüssel (zum Ausprobieren; Updates darüber gehen dann nicht).
+# Von Hand: Actions → Android app → Run workflow; außerdem bei Änderungen unter android/.
+name: Android app
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Signierschlüssel
+        env:
+          AW_KEYSTORE_B64: ${{ secrets.AW_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$AW_KEYSTORE_B64" ]; then
+            echo "$AW_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/amberwave.jks"
+            echo "AW_KEYSTORE=$RUNNER_TEMP/amberwave.jks" >> "$GITHUB_ENV"
+            echo "SIGNIERT=ja" >> "$GITHUB_ENV"
+          else
+            echo "::warning title=Android::Kein Signierschlüssel in den Secrets – APK nur zum Ausprobieren (Wegwerf-Schlüssel)."
+            echo "SIGNIERT=nein" >> "$GITHUB_ENV"
+          fi
+      - name: APK bauen
+        working-directory: android
+        env:
+          AW_KEYSTORE_PASSWORT: ${{ secrets.AW_KEYSTORE_PASSWORT }}
+        run: |
+          set -o pipefail
+          if ! gradle assembleRelease --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/bau.log"; then
+            # Fehler als Anmerkungen (Kotlin „e: …“, Ressourcen „error: …“, Gradle „What went wrong“)
+            grep -E '^e: |error:|ERROR:|What went wrong|> ' "$RUNNER_TEMP/bau.log" | tr -d '\r' | head -40 | while IFS= read -r z; do
+              echo "::error title=Android-Bau::${z//%/%25}"
+            done
+            exit 1
+          fi
+      - name: Prüfen und benennen
+        run: |
+          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          echo "V=$V" >> "$GITHUB_ENV"
+          APK="$(ls android/app/build/outputs/apk/release/*.apk | head -1)"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/apksigner" verify --print-certs "$APK" | grep -E 'SHA-256|Signer' | head -3 | while IFS= read -r z; do echo "::notice title=Signatur ($SIGNIERT)::$z"; done
+          "$BT/aapt2" dump badging "$APK" | grep -E "^package|sdkVersion|targetSdk" | while IFS= read -r z; do echo "::notice title=APK::$z"; done
+          mkdir -p "$RUNNER_TEMP/aus"
+          cp "$APK" "$RUNNER_TEMP/aus/Amberwave-Android-$V.apk"
+          echo "::notice title=Größe::$(du -h "$RUNNER_TEMP/aus/Amberwave-Android-$V.apk" | cut -f1)"
+      # Nur als Anhang am Lauf (Actions → Lauf → Artifacts), 14 Tage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Amberwave-Android-${{ env.V }}
+          path: ${{ runner.temp }}/aus/Amberwave-Android-${{ env.V }}.apk
+          retention-days: 14

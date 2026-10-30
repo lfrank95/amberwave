@@ -21,15 +21,22 @@ import { scrollSetzen, gemerkt } from './merker.js';
 import { falzBeobachten } from './falz.js';
 import { zoomSperren } from './zoomsperre.js';
 import { nativ, ausgabeWeg } from './nativ.js';
+import { android, androidRufen, androidVersion } from './android.js';
 
 // Windows-Client passend zur Server-Version: Installer aus dem GitHub-Release derselben Version (Name wie vom Build-Skript)
 const istWindowsDesktop = () => !nativ && (navigator.userAgentData?.platform === 'Windows' || /Windows NT/.test(navigator.userAgent)) && !/Mobile|Android/i.test(navigator.userAgent);
+// Android-App passend zur Server-Version (APK aus dem GitHub-Release) – nur im Browser am Android-Gerät anbieten
+const istAndroidBrowser = () => !android && /Android/i.test(navigator.userAgent);
+function apkDownload(version) {
+  const v = String(version || '');
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/.test(v) ? `https://github.com/lfrank95/amberwave/releases/download/v${v}/Amberwave-Android-${v}.apk` : '';
+}
 function clientDownload(version) {
   const v = String(version || '');
   return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/.test(v) ? `https://github.com/lfrank95/amberwave/releases/download/v${v}/Amberwave-Windows-Client-${v}.exe` : '';
 }
 import { offlineEinrichten, offlineMarkieren, offlineAn, offlineSammlung } from './offline_ui.js';
-import { offline } from './offline.js';
+import { offline, offlineWunsch } from './offline.js';
 import { symbolSvg, symbolVon, ausgangName, treiberVon } from './ausgaenge.js';
 
 /** Bereich einer Listen-Seite (bestimmt den aktiven Navigationspunkt) – Detailseiten liefern null */
@@ -116,7 +123,9 @@ class App {
     if (this.ich.user.rolle === 'admin' && !this.offline) setTimeout(() => verwaltung().then((m) => m.flacWachtStarten()), 6000);   // erst, wenn der Start durch ist (lädt das Verwaltungs-Stück nach)   // läuft noch eine FLAC-Umwandlung? Ende dann melden
     // Zahl am Menüpunkt „Downloads“ aktuell halten (nur wenn eingeschaltet und die Seite sichtbar ist)
     setInterval(() => { if (!document.hidden && this.ich?.admin?.download_reiter && location.pathname !== '/downloads') this.zaehlerAktualisieren(); }, 60000);
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(() => this.huelleVorladen()).catch(() => {});
+    // Android-App: ohne Service Worker – die Oberfläche für den Start ohne Netz hält die App selbst
+    if (android) this.huelleVorladen();
+    else if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(() => this.huelleVorladen()).catch(() => {});
     window.addEventListener('online', () => this.wiederOnline());
     if (this.offline) { setInterval(() => { if (!document.hidden) this.wiederOnline(); }, 30000); return; }
     window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); this.installHinweis = e; });
@@ -125,6 +134,12 @@ class App {
       let gezeigt = false;
       try { gezeigt = localStorage.getItem('aw-winclient-hinweis') === '1'; localStorage.setItem('aw-winclient-hinweis', '1'); } catch (e) { gezeigt = true; }
       if (!gezeigt) setTimeout(() => toast(t('Für den besten Klang am PC gibt es den Windows-Client (bitgenau, ASIO, VST) – Download im Profilmenü oben rechts.'), 'info', 9000), 4000);
+    }
+    // Einmal je Browser: am Android-Gerät auf die App hinweisen (Offline-Musik als Dateien, Wiedergabe im Hintergrund)
+    if (istAndroidBrowser() && apkDownload(this.ich.app.version)) {
+      let gezeigt = false;
+      try { gezeigt = localStorage.getItem('aw-android-hinweis') === '1'; localStorage.setItem('aw-android-hinweis', '1'); } catch (e) { gezeigt = true; }
+      if (!gezeigt) setTimeout(() => toast(t('Es gibt Amberwave als Android-App – Musik bleibt offline sicher auf dem Handy und spielt im Hintergrund weiter. Download im Profilmenü.'), 'info', 9000), 4000);
     }
     // Geräte-Einstellungen vom Server übernehmen (z. B. nach Neuinstallation)
     // Die Qualität ist pro Gerät gemerkt: der Server-Stand gilt, sonst wird der Stand dieses Browsers hochgeladen
@@ -152,6 +167,7 @@ class App {
       if (e.trafo && typeof e.trafo === 'object') { pl.einst.trafo = trafoNormal(e.trafo); pl.raumklang.trafoSetzen(pl.einst.trafo); }
       if (typeof e.raumklang_ir === 'string') { pl.einst.raumklang_ir = e.raumklang_ir; pl.raumklang.irWahl = e.raumklang_ir; }
       if (e.raumklang_fein && typeof e.raumklang_fein === 'object') { pl.einst.raumklang_fein = e.raumklang_fein; pl.raumklang.feinSetzen(e.raumklang_fein); }
+      if (typeof e.offline_qualitaet === 'string') { pl.einst.offline_qualitaet = e.offline_qualitaet; offlineWunsch(e.offline_qualitaet); }
       if (typeof e.qualitaet === 'string' && typeof e.qualitaet_unterwegs !== 'string' && e.qualitaet !== 'auto') { pl.einst.qualitaet_unterwegs = e.qualitaet; neu.qualitaet_unterwegs = e.qualitaet; }
       pl.einstSpeichern();
       if (Object.keys(neu).length) api.put('/geraet/einstellungen', { einstellungen: neu }).catch(() => {});
@@ -171,8 +187,8 @@ class App {
     document.querySelectorAll('meta[name^="aw-worklet-"]').forEach((m) => { if (m.content.startsWith('/')) urls.add(m.content); });
     const stand = [...urls].sort().join('|');
     try { if (localStorage.getItem('aw_huelle') === stand) return; } catch (e) { /* egal */ }
-    const reg = await navigator.serviceWorker.ready;
-    reg.active?.postMessage({ art: 'vorladen', urls: [...urls] });
+    if (android) androidRufen('huelleVorladen', [...urls]);
+    else (await navigator.serviceWorker.ready).active?.postMessage({ art: 'vorladen', urls: [...urls] });
     try { localStorage.setItem('aw_huelle', stand); } catch (e) { /* egal */ }
   }
 
@@ -293,9 +309,10 @@ class App {
       <div class="fly-gruppe">
         ${this.installHinweis ? punkt('installieren', 'installieren', t('App installieren')) : ''}
         ${istWindowsDesktop() && clientDownload(this.ich.app.version) ? punkt('windows-client', 'download', t('Windows-Client herunterladen')) : ''}
+        ${istAndroidBrowser() && apkDownload(this.ich.app.version) ? punkt('android-app', 'download', t('Android-App herunterladen')) : ''}
         ${punkt('abmelden', 'abmelden', t('Abmelden'), '', 'rot')}
       </div>
-      <div class="fly-fuss">${h(this.ich.app.name)} ${h(this.ich.app.version)}${nativ?.version ? ` · ${h(t('Client {version}', { version: nativ.version }))}` : ''}</div>`;
+      <div class="fly-fuss">${h(this.ich.app.name)} ${h(this.ich.app.version)}${nativ?.version ? ` · ${h(t('Client {version}', { version: nativ.version }))}` : ''}${android ? ` · ${h(t('App {version}', { version: androidVersion() }))}` : ''}</div>`;
     document.body.appendChild(m);
     const r = anker.getBoundingClientRect();
     m.style.top = `${r.bottom + 8}px`;
@@ -317,6 +334,7 @@ class App {
       if (ziel === 'abmelden') this.abmelden();
       else if (ziel === 'installieren') { this.installHinweis?.prompt(); this.installHinweis = null; }
       else if (ziel === 'windows-client') { location.href = clientDownload(this.ich.app.version); }
+      else if (ziel === 'android-app') { location.href = apkDownload(this.ich.app.version); }
       else this.navigieren(ziel);
     });
     m.querySelector('.fly-punkt')?.focus({ preventScroll: true });

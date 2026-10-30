@@ -127,14 +127,11 @@ if (!function_exists('konfig')) {
             ],
             'stream' => [
                 'standard' => $env('STREAM_STANDARD', 'opus256'),
-                // „Offline speichern“ (PWA): Qualität der gespeicherten Titel (opus128, opus160, opus256), 0 = abgeschaltet
-                'offline' => $env('OFFLINE_QUALITAET', 'opus256'),
                 'max_umwandlungen' => $zahl('STREAM_MAX_UMWANDLUNGEN', 8),
                 'ffmpeg' => $env('FFMPEG_PFAD', 'ffmpeg'),
                 'ffprobe' => $env('FFPROBE_PFAD', 'ffprobe'),
                 'gehoert_ab_prozent' => $zahl('GEHOERT_AB_PROZENT', 50),
                 'gehoert_ab_sekunden' => $zahl('GEHOERT_AB_SEKUNDEN', 240),
-                'downloads_erlaubt' => $zahl('DOWNLOADS_ERLAUBT', 0) === 1,
             ],
             'quellen' => [
                 'musicbrainz_url' => rtrim($env('MUSICBRAINZ_URL', 'https://musicbrainz.org/ws/2'), '/'),

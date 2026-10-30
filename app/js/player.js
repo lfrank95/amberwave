@@ -11,6 +11,7 @@ import { eqNormal, eqWirksam } from './eq.js';
 import { netzweg } from './netzweg.js';
 import { nativ, NativAudio } from './nativ.js';
 import { offline } from './offline.js';
+import { androidPlayer } from './android.js';
 import { t } from './i18n.js';
 
 const SPEICHER = 'aw-warteschlange';
@@ -70,6 +71,7 @@ export class Player extends EventTarget {
     this.app = app;
     // Windows-Client: abgespielt wird in der Engine (bitgenau, WASAPI) statt im Browser
     this.audio = nativ ? new NativAudio() : new Audio();
+    androidPlayer(this.audio);   // Android-App: Zustand an Benachrichtigung und Sperrbildschirm
     this.nativ = !!nativ;
     this.audio.preload = 'auto';
     // CORS-fähig, damit Streams von der Direktadresse im Heimnetz auch durch EQ/Raumklang/Pegel laufen dürfen
@@ -97,7 +99,8 @@ export class Player extends EventTarget {
     this.lautheit = new Map(); // Track-ID -> Messwerte (vom Server, einmal je Sitzung)
     this.lhDecke = -1;         // höchster True-Peak nach dem Anheben (dBTP)
     this.motor = new LueckenlosMotor(this.audio, {
-      naechster: (t) => this.naechsterNach(t),
+      // Gespeichertes Original (FLAC, MP3 …) passt nicht in den Opus-Strom: dort endet der Motor, der Player lädt es einzeln
+      naechster: (t) => { const n = this.naechsterNach(t); return n && this.lokal(n) && offline.format(n.id) !== 'opus' ? null : n; },
       // Opus-Ketten: der Server rechnet den Gain je Titel ein (sample-genau an jeder Titelgrenze)
       gain: (t) => this.lautheitFuer(t)?.db ?? 0,
       // offline gespeicherte Titel kommen aus dem Speicher der App
@@ -879,11 +882,12 @@ export class Player extends EventTarget {
   async lokalLaden(trk, ab, abspielen) {
     await this.lautheitLaden(this.liste);
     if (this.track !== trk) return;
-    if (this.lueckenlosMoeglich('opus')) {
-      this.modus = { art: 'offline', qualitaet: 'opus256', lueckenlos: true };
+    const q = offline.qualitaet(trk.id);
+    if (offline.format(trk.id) === 'opus' && this.lueckenlosMoeglich('opus')) {
+      this.modus = { art: 'offline', qualitaet: q, lueckenlos: true };
       this.offset = 0;
       this.letzteZeit = ab;
-      const start = this.motor.start(trk, ab, 'opus', 'opus256');
+      const start = this.motor.start(trk, ab, 'opus', q);
       this.lautstaerkeAnwenden();
       this.metadaten();
       this.melden('track');
@@ -896,7 +900,7 @@ export class Player extends EventTarget {
       if (!blob) { toast(t('Der gespeicherte Titel fehlt – bitte neu speichern.'), 'fehler'); return; }
       if (this._blobUrl) URL.revokeObjectURL(this._blobUrl);
       this._blobUrl = URL.createObjectURL(blob);
-      this.modus = { art: 'offline', qualitaet: 'opus256' };
+      this.modus = { art: 'offline', qualitaet: q };
       this.offset = 0;
       this.letzteZeit = 0;
       this.audio.src = this._blobUrl;

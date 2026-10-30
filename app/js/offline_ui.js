@@ -1,13 +1,17 @@
 // Offline – Oberfläche: Knopf „Offline speichern“ an Alben und Playlists, Einträge in den Menüs, Markierung gespeicherter
 // Titel in Listen und die Seite „Auf diesem Gerät“ (auch die Startseite, wenn die App ohne Netz startet).
 import { h, icon, toast, bestaetigen, menue } from './ui.js';
-import { offline, EINZELN, offlineQualitaet } from './offline.js';
+import { offline, EINZELN, offlineQualitaet, offlineWunsch, offlineAktuell } from './offline.js';
 import { nativ } from './nativ.js';
+import { android, androidJson } from './android.js';
 import { t, tn, zahl } from './i18n.js';
 
 /** Offline überhaupt anbieten? (nicht im Windows-Client: der spielt immer vom Server/Heimnetz) */
 export const offlineAn = () => !nativ && offline.moeglich && offlineErlaubt;
 let offlineErlaubt = true;
+
+/** „Opus 256 kbit/s“ bzw. „Original (verlustfrei)“ */
+export const offlineQualitaetText = (q) => (q === 'original' ? t('Original (verlustfrei)') : `Opus ${String(q).replace(/\D/g, '')} kbit/s`);
 
 const mb = (b) => (b >= 1e9 ? `${zahl(b / 1e9, 1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
 /** Titel einer gespeicherten Sammlung (der Sammelname „Einzelne Titel“ steht fest auf Deutsch im Speicher) */
@@ -62,7 +66,7 @@ async function speichern(app, art, id, daten = null) {
   try {
     const s = await offline.speichern(art, id, daten);
     toast(art === 'titel' ? t('„{name}“ wird auf diesem Gerät gespeichert', { name: daten?.[0]?.titel || t('Titel') }) : tn(s.ids.length, '„{name}“ wird auf diesem Gerät gespeichert (ein Titel)', '„{name}“ wird auf diesem Gerät gespeichert ({n} Titel)', { name: sammlungTitel(s) }));
-    if (!localStorage.getItem('aw_offline_hinweis') && /iphone|ipad/i.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches) {
+    if (!android && !localStorage.getItem('aw_offline_hinweis') && /iphone|ipad/i.test(navigator.userAgent) && !matchMedia('(display-mode: standalone)').matches) {
       toast(t('Tipp fürs iPhone: Amberwave zum Home-Bildschirm hinzufügen – sonst kann Safari gespeicherte Musik nach einigen Wochen löschen.'), 'info', 9000);
       try { localStorage.setItem('aw_offline_hinweis', '1'); } catch (e) { /* egal */ }
     }
@@ -116,6 +120,7 @@ export function offlineEinrichten(app) {
   // Vom Server abgeschaltet (OFFLINE_QUALITAET=0)? Schon Gespeichertes bleibt abspielbar, Neues gibt es nicht
   if (app.ich?.app && 'offline' in app.ich.app) {
     offlineQualitaet(app.ich.app.offline);
+    offlineWunsch(app.player?.einst?.offline_qualitaet || '');
     offlineErlaubt = !!app.ich.app.offline;
     // was schon gespeichert ist, weiß der Speicher erst nach dem Laden – dann noch einmal entscheiden
     if (!offlineErlaubt) offline.bereit.then(() => { if (offline.sammlungen.size > 0 && !offlineErlaubt) { offlineErlaubt = true; offlineVerdrahten(app); } }).catch(() => {});
@@ -159,11 +164,18 @@ export async function offlineSeite({ app, ziel }) {
   await offline.bereit;
   const liste = [...offline.sammlungen.values()].sort((a, b) => (a.key === EINZELN) - (b.key === EINZELN) || b.gespeichert - a.gespeichert);
   let schaetzung = null;
-  try { schaetzung = await navigator.storage?.estimate?.(); } catch (e) { /* egal */ }
   let dauerhaft = null;
-  try { dauerhaft = await navigator.storage?.persisted?.(); } catch (e) { /* egal */ }
+  if (android) {
+    const sp = androidJson('speicher');
+    schaetzung = sp ? { quota: sp.frei, usage: 0 } : null;
+  } else {
+    try { schaetzung = await navigator.storage?.estimate?.(); } catch (e) { /* egal */ }
+    try { dauerhaft = await navigator.storage?.persisted?.(); } catch (e) { /* egal */ }
+  }
   const belegt = offline.bytes;
   const frei = schaetzung?.quota ? Math.max(0, schaetzung.quota - (schaetzung.usage || 0)) : null;
+  const q = offlineAktuell();
+  const anders = offline.andereQualitaet();
   const zeile = (s) => {
     const st = offline.stand(s.key);
     const bytes = s.ids.reduce((n, id) => n + (offline.titel.get(id)?.bytes || 0), 0);
@@ -180,9 +192,11 @@ export async function offlineSeite({ app, ziel }) {
   };
   ziel.innerHTML = `<div class="offline-seite">
     <div class="seiten-kopf"><div><h1>${t('Auf diesem Gerät')}</h1><div class="unter">${liste.length ? `${tn(liste.length, '{n} Eintrag', '{n} Einträge')} · ${mb(belegt)}${frei != null ? ` · ${t('noch {platz} frei', { platz: mb(frei) })}` : ''}` : t('Für unterwegs, im Auto oder im Flieger')}</div></div></div>
+    ${offline.wartet && offline.warteschlange.length ? `<div class="offline-band">${icon('download', 18)}<span>${h(offline.wartet === 'wlan' ? t('Wartet auf WLAN – geladen wird nur im WLAN (Einstellungen › Wiedergabe).') : t('Wartet auf Netz.'))}</span></div>` : ''}
     ${app.offline ? `<div class="offline-band">${icon('warnung', 18)}<span>${t('Kein Netz – du hörst, was auf diesem Gerät gespeichert ist.')}</span><button type="button" class="btn btn-klein btn-zweit" data-off-neu>${t('Neu verbinden')}</button></div>` : ''}
-    ${liste.length ? `<div class="glass-panel offline-liste">${liste.map(zeile).join('')}</div>` : `<div class="leer"><h3>${t('Noch nichts gespeichert')}</h3><p>${t('Bei Alben und Playlists auf {symbol} tippen – dann spielt die Musik auch ohne Netz. Gespeichert wird in Opus, bei 256 kbit/s etwa 2 MB pro Minute.', { symbol: icon('download', 16) })}</p></div>`}
-    <p class="hinweis offline-fuss">${t('Gespeichert wird im Speicher der App, nicht als Datei. Unterwegs spielt Amberwave gespeicherte Titel immer vom Gerät, das spart Daten. Gespeicherte Alben und Playlists bleiben auf dem Stand der Bibliothek, neue Titel kommen von selbst dazu.')}${dauerhaft === false ? ` ${t('<b>Der Browser darf den Speicher bei Platzmangel leeren</b> – als App installiert ist er geschützt.')}` : ''}</p>
+    ${liste.length ? `<div class="glass-panel offline-liste">${liste.map(zeile).join('')}</div>` : `<div class="leer"><h3>${t('Noch nichts gespeichert')}</h3><p>${t('Bei Alben und Playlists auf {symbol} tippen – dann spielt die Musik auch ohne Netz.', { symbol: icon('download', 16) })}</p></div>`}
+    <p class="hinweis offline-fuss">${t('Gespeichert wird in {qualitaet}.', { qualitaet: offlineQualitaetText(q) })}${anders && !app.offline ? ` ${tn(anders, 'Ein Titel liegt noch in einer anderen Qualität vor.', '{n} Titel liegen noch in einer anderen Qualität vor.')} <button type="button" class="btn btn-zweit btn-klein" data-off-qualitaet>${t('Neu laden')}</button>` : ''} <a href="/einstellungen/wiedergabe" data-link>${t('Qualität ändern')}</a></p>
+    <p class="hinweis offline-fuss">${android ? t('Gespeichert wird als Datei im Speicher der App – Android löscht sie nicht von selbst, nur beim Deinstallieren. Geladen wird im Hintergrund weiter, auch wenn die App zu ist.') : t('Gespeichert wird im Speicher der App, nicht als Datei.')} ${t('Unterwegs spielt Amberwave gespeicherte Titel immer vom Gerät, das spart Daten. Gespeicherte Alben und Playlists bleiben auf dem Stand der Bibliothek, neue Titel kommen von selbst dazu.')}${dauerhaft === false ? ` ${t('<b>Der Browser darf den Speicher bei Platzmangel leeren</b> – als App installiert ist er geschützt.')}` : ''}</p>
     ${liste.length ? `<p style="text-align:center"><button type="button" class="btn btn-zweit btn-klein btn-rot-text" data-off-alles>${t('Alles vom Gerät entfernen')}</button></p>` : ''}
   </div>`;
   ziel.querySelectorAll('[data-off-play]').forEach((b) => b.addEventListener('click', () => {
@@ -197,6 +211,7 @@ export async function offlineSeite({ app, ziel }) {
     toast(t('Alles vom Gerät entfernt'));
   });
   ziel.querySelector('[data-off-neu]')?.addEventListener('click', () => location.reload());
+  ziel.querySelector('[data-off-qualitaet]')?.addEventListener('click', () => { offline.neuLaden(); toast(t('Wird in der neuen Qualität geladen')); });
 }
 
 /** Gespeichertes Album / gespeicherte Playlist ohne Netz anzeigen */

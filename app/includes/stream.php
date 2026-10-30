@@ -22,6 +22,24 @@ const STREAM_QUALITAETEN = [
     'aac160' => ['codec' => 'aac', 'kbit' => 160],
 ];
 
+/** Reihenfolge der Offline-Qualitäten (die höchste erlaubte legt der Admin fest, darunter wählt jedes Gerät selbst) */
+const OFFLINE_QUALITAETEN = ['opus128', 'opus160', 'opus256', 'original'];
+
+/** Höchste Qualität für „Offline speichern“ (null = abgeschaltet) */
+function offline_hoechste(): ?string
+{
+    require_once __DIR__ . '/einstellungen.php';
+    $q = einstellung('offline_qualitaet');
+    return in_array($q, OFFLINE_QUALITAETEN, true) ? $q : null;
+}
+
+/** Dürfen Nutzer echte Dateien herunterladen? (Admins immer) */
+function downloads_erlaubt(array $user): bool
+{
+    require_once __DIR__ . '/einstellungen.php';
+    return einstellung('downloads_erlaubt') === '1' || ist_admin($user);
+}
+
 const AUDIO_MIME = [
     'flac' => 'audio/flac', 'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'aac' => 'audio/aac', 'alac' => 'audio/mp4',
     'ogg' => 'audio/ogg', 'opus' => 'audio/ogg', 'wav' => 'audio/wav', 'aif' => 'audio/aiff', 'aiff' => 'audio/aiff',
@@ -134,6 +152,39 @@ function stream_senden(array $user, int $trackId): void
     $start = max(0.0, (float) ($_GET['t'] ?? 0));
     require_once __DIR__ . '/lautheit.php';
     umwandeln_senden($pfad, STREAM_QUALITAETEN[$q], $start, lh_gain_param($_GET['g'] ?? null));
+}
+
+/**
+ * Offline speichern in Originalqualität (Android-App): die Datei selbst, wenn das Gerät sie abspielen kann (FLAC, MP3, AAC,
+ * Ogg/Opus, WAV mit PCM) – sonst verlustfrei als FLAC (ALAC, APE, WavPack, AIFF, DSD). Kopfzeilen: X-Endung (Dateiendung
+ * für den Speicher) und X-Dauern (exakte Länge in Sekunden, wie bei /stream/kette).
+ */
+function offline_titel_senden(array $user, int $trackId): void
+{
+    if (offline_hoechste() !== 'original') {
+        throw new ApiFehler(t('Offline in Originalqualität ist auf diesem Server nicht freigegeben.'), 403);
+    }
+    [$pfad, $d] = stream_datei($trackId);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    $l = stream_genaue_laenge($pfad, $d);
+    $dauer = number_format($l['samples'] / max(1, $l['rate']), 6, '.', '');
+    $codec = (string) ($d['codec'] ?? '');
+    $format = (string) $d['format'];
+    $direkt = in_array($format, ['flac', 'mp3', 'ogg', 'opus'], true)
+        || (in_array($format, ['m4a', 'aac'], true) && $codec === 'aac')
+        || ($format === 'wav' && str_starts_with($codec, 'pcm_'));
+    db_schliessen();
+    header('X-Dauern: ' . $dauer);
+    header('Access-Control-Expose-Headers: X-Dauern, X-Endung');
+    if ($direkt) {
+        header('X-Endung: ' . ($format === 'aac' ? 'm4a' : $format));
+        datei_mit_range_senden($pfad, AUDIO_MIME[$format] ?? 'application/octet-stream');
+        return;
+    }
+    header('X-Endung: flac');
+    flac_strom_senden($pfad, $d, 0.0);
 }
 
 /** Datei mit Unterstützung für Range-Anfragen ausliefern. */

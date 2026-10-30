@@ -88,6 +88,10 @@ $routen = [
     ['GET', '/stream/kette', function () {
         lueckenlos_kette_senden(api_user_medien(), (string) ($_GET['ids'] ?? ''), (string) ($_GET['q'] ?? 'opus256'), max(0.0, (float) ($_GET['t'] ?? 0)), (string) ($_GET['g'] ?? ''));
     }],
+    ['GET', '/offline/titel/{id}', function ($p) {
+        offline_titel_senden(api_user_medien(), (int) $p['id']);
+        return null;
+    }],
     ['GET', '/stream/{id}', function ($p) {
         stream_senden(api_user_medien(), (int) $p['id']);
         return null;
@@ -438,8 +442,8 @@ $routen = [
     }],
     ['POST', '/export', function () {
         $u = api_user();
-        if (!konfig()['stream']['downloads_erlaubt'] && !ist_admin($u)) {
-            throw new ApiFehler(t('Downloads sind auf diesem Server nicht freigegeben (DOWNLOADS_ERLAUBT).'), 403);
+        if (!downloads_erlaubt($u)) {
+            throw new ApiFehler(t('Downloads sind auf diesem Server nicht freigegeben.'), 403);
         }
         $art = (string) api_wert('art', '');
         $optionen = api_wert('optionen', []);
@@ -562,7 +566,7 @@ $routen = [
     }],
     ['GET', '/download/{id}', function ($p) {
         $u = api_user_medien(); // auch mit Stream-Schlüssel – so laufen Downloads zuhause über die schnelle Direktadresse
-        if (!konfig()['stream']['downloads_erlaubt'] && !ist_admin($u)) {
+        if (!downloads_erlaubt($u)) {
             throw new ApiFehler(t('Downloads sind ausgeschaltet.'), 403);
         }
         [$pfad, $d] = stream_datei((int) $p['id']);

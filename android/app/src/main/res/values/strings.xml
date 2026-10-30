@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Amberwave</string>
+    <string name="kanal_wiedergabe">Playback</string>
+    <string name="kanal_laden">Saving offline</string>
+    <string name="zurueck">Previous</string>
+    <string name="weiter">Next</string>
+    <string name="pause">Pause</string>
+    <string name="abspielen">Play</string>
+    <string name="abbrechen">Cancel</string>
+    <string name="laden_start">Saving music offline</string>
+    <string name="laden_titel">Saving offline · %1$d of %2$d</string>
+    <string name="laden_wartet_wlan">Waiting for Wi-Fi</string>
+    <string name="laden_wartet_netz">Waiting for a network</string>
+    <string name="fehler_anmeldung">Not signed in – open the app and sign in again</string>
+    <string name="datei_laedt">Downloading %1$s to Music/Amberwave</string>
+    <string name="datei_fehler">The download could not be started</string>
+    <string name="update_titel">Amberwave %1$s is available</string>
+    <string name="update_text">You have %1$s. Download and install the new version now? Your offline music stays.</string>
+    <string name="update_installieren">Install</string>
+    <string name="update_spaeter">Not now</string>
+    <string name="update_laedt">Downloading update …</string>
+    <string name="update_fehler">The update could not be downloaded</string>
+    <string name="update_erlaubnis">Allow Amberwave to install apps, then tap Install again</string>
+    <string name="update_aktuell">Amberwave is up to date</string>
+</resources>

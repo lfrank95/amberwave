@@ -38,8 +38,9 @@ function api_ich(): array
         'app' => [
             'name' => app_name(), 'version' => app_version(), 'image' => getenv('AMBERWAVE_IMAGE') === '1', 'windows' => getenv('AMBERWAVE_WINDOWS') === '1', 'gebuendelt' => buendel() !== null,   // Oberfläche aus js/_b (schneller Start) oder einzelne Module
             'stream_standard' => konfig()['stream']['standard'],
-            'offline' => in_array(konfig()['stream']['offline'], ['opus128', 'opus160', 'opus256'], true) ? konfig()['stream']['offline'] : null,
-            'downloads' => konfig()['stream']['downloads_erlaubt'] || ist_admin($user),
+            // höchste Qualität für „Offline speichern“ (null = aus); darunter wählt jedes Gerät selbst
+            'offline' => (static function () { require_once __DIR__ . '/stream.php'; return offline_hoechste(); })(),
+            'downloads' => (static function () use ($user) { require_once __DIR__ . '/stream.php'; return downloads_erlaubt($user); })(),
             'gehoert_ab_prozent' => konfig()['stream']['gehoert_ab_prozent'], 'gehoert_ab_sekunden' => konfig()['stream']['gehoert_ab_sekunden'],
             // Klangradio verfügbar, sobald es einen Index der akustisch ähnlichen Titel gibt
             'klang' => (int) (json_decode((string) einstellung('klang_index'), true)['anzahl'] ?? 0) > 1,

@@ -78,6 +78,10 @@ const EINSTELLUNGEN = [
     // Geräte im Heimnetz (DLNA): Adresse, unter der Receiver & Co. die Musik holen (leer = automatisch erkannt)
     'heimnetz_url'          => ['env' => 'HEIMNETZ_URL',          'standard' => '',          'geheim' => false],
     'cast_app_id'           => ['env' => 'CAST_APP_ID',           'standard' => '',          'geheim' => false],
+    // Offline auf Geräten: höchste Qualität, die Apps und Browser speichern dürfen (0 = aus, opus128/opus160/opus256, original),
+    // und ob Nutzer die echte Datei herunterladen dürfen („Datei herunterladen“, WAV-Export) – Admins dürfen das immer
+    'offline_qualitaet'     => ['env' => 'OFFLINE_QUALITAET',     'standard' => 'opus256',   'geheim' => false],
+    'downloads_erlaubt'     => ['env' => 'DOWNLOADS_ERLAUBT',     'standard' => '0',         'geheim' => false],
     // intern, ohne Oberfläche
     'direkt_aktiv'          => ['env' => '',                      'standard' => '0',         'geheim' => false],
     // Cloudflare Tunnel (von Amberwave angelegt, siehe tunnel.php)

@@ -484,5 +484,20 @@
  "Bibliothek": "Library",
  "Künstler{pl}": "Artists{pl}",
  "Titel{pl}": "Tracks{pl}",
- "heute{z}": "present{z}"
+ "heute{z}": "present{z}",
+ "Android-App herunterladen": "Download Android app",
+ "App {version}": "App {version}",
+ "Es gibt Amberwave als Android-App – Musik bleibt offline sicher auf dem Handy und spielt im Hintergrund weiter. Download im Profilmenü.": "Amberwave is available as an Android app – offline music stays safely on your phone and keeps playing in the background. Download in the profile menu.",
+ "Bei Alben und Playlists auf {symbol} tippen – dann spielt die Musik auch ohne Netz.": "Tap {symbol} on albums and playlists – the music then plays without a network too.",
+ "Ein Titel liegt noch in einer anderen Qualität vor.": "One track is still stored in a different quality.",
+ "{n} Titel liegen noch in einer anderen Qualität vor.": "{n} tracks are still stored in a different quality.",
+ "Gespeichert wird als Datei im Speicher der App – Android löscht sie nicht von selbst, nur beim Deinstallieren. Geladen wird im Hintergrund weiter, auch wenn die App zu ist.": "Saved as files in the app's storage – Android doesn't delete them on its own, only when you uninstall. Downloads continue in the background, even when the app is closed.",
+ "Gespeichert wird im Speicher der App, nicht als Datei.": "Saved in the app's storage, not as a file.",
+ "Gespeichert wird in {qualitaet}.": "Saved in {qualitaet}.",
+ "Qualität ändern": "Change quality",
+ "Unterwegs spielt Amberwave gespeicherte Titel immer vom Gerät, das spart Daten. Gespeicherte Alben und Playlists bleiben auf dem Stand der Bibliothek, neue Titel kommen von selbst dazu.": "On the go, Amberwave always plays saved tracks from the device, which saves data. Saved albums and playlists stay in step with the library, new tracks are added automatically.",
+ "Wartet auf Netz.": "Waiting for a network.",
+ "Wartet auf WLAN – geladen wird nur im WLAN (Einstellungen › Wiedergabe).": "Waiting for Wi-Fi – downloads only run on Wi-Fi (Settings › Playback).",
+ "Wird in der neuen Qualität geladen": "Downloading in the new quality",
+ "Original (verlustfrei)": "Original (lossless)"
 }

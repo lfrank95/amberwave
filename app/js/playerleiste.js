@@ -20,6 +20,8 @@ import { vstRack } from './vstrack.js';
 import { symbolSvg, symbolVon, ausgangName, layoutKurz, treiberVon } from './ausgaenge.js';
 import { Plattenkiste, gruppenVon } from './plattenkiste.js';
 
+/** Original unverändert – auch offline in Originalqualität gespeichert (Android-App) */
+const istOriginal = (p) => p.modus?.art === 'original' || p.modus?.qualitaet === 'original';
 const QUALI_KURZ = { opus256: 'Opus 256', opus160: 'Opus 160', opus128: 'Opus 128', aac256: 'AAC 256', aac160: 'AAC 160' };
 
 /** Stufe der Qualitätsanzeige als Wort: bitgenau / klanglich unverändert / verändert */
@@ -206,7 +208,7 @@ export class PlayerLeiste {
   qualitaetKurz() {
     const p = this.player;
     if (!p.track || !p.modus) return '–';
-    if (p.modus.art !== 'original') return (QUALI_KURZ[p.modus.qualitaet] || p.modus.qualitaet).replace(/\s*kbit\/s/, '');
+    if (!istOriginal(p)) return (QUALI_KURZ[p.modus.qualitaet] || p.modus.qualitaet).replace(/\s*kbit\/s/, '');
     const f = p.track.format;
     if (!f) return 'Original';
     const name = f.codec === 'alac' ? 'ALAC' : (f.datei || f.codec || '').toUpperCase();
@@ -226,7 +228,7 @@ export class PlayerLeiste {
     const p = this.player;
     if (!p.track || !p.modus) return { stufe: 'transparent', grund: '' };
     const khz = (r) => `${(r / 1000).toLocaleString(locale)} kHz`;
-    if (p.modus.art !== 'original') return { stufe: 'veraendert', grund: t('verlustbehaftet übertragen ({q} kbit/s)', { q: QUALI_KURZ[p.modus.qualitaet] || p.modus.qualitaet }) };
+    if (!istOriginal(p)) return { stufe: 'veraendert', grund: t('verlustbehaftet übertragen ({q} kbit/s)', { q: QUALI_KURZ[p.modus.qualitaet] || p.modus.qualitaet }) };
     const rk = p.raumklang;
     const effekte = rk?.angeschlossen && !p.bypass ? (p.einst.reihe || []).filter((a) => rk.stufeWirksam(a)).map((a) => ({ glow: 'Glow', iron: 'Iron', silk: 'Silk', eq: 'EQ' })[a] || vstRack.finde(a)?.name) : [];
     if (rk?.aktiv) effekte.push('Space');
@@ -273,7 +275,7 @@ export class PlayerLeiste {
   qualitaetText() {
     const p = this.player;
     if (!p.track || !p.modus) return { text: '–', gut: false };
-    if (p.modus.art === 'original') {
+    if (istOriginal(p)) {
       const f = p.nativ ? p.audio.format : null;
       const weg = f ? ` · ${ausgabeWeg(f)}${p.audio.bitgenau && f.exklusiv ? ` · ${t('bitgenau')}` : ''} · ${f.asio ? f.geraet.replace(/^ASIO · /, '') : f.geraet}` : '';
       return { text: (formatText(p.track.format) || 'Original') + weg, gut: true };
