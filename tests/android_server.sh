@@ -18,7 +18,8 @@ mk "Testband/2021 - Unterwegs" "Zweiter Titel" 550 2 "02 - Zweiter Titel.flac" "
 mk "Testband/2021 - Unterwegs" "Dritter Titel" 660 3 "03 - Dritter Titel.mp3" "Unterwegs" "Testband"
 sudo chmod -R a+rwX "$W"
 
-docker run -d --name aw-test -p 127.0.0.1:8080:80 -e ADMIN_BENUTZER=testadmin -e ADMIN_PASSWORT=Test-Passwort-2026 -e TZ=Europe/Berlin \
+# Ohne Hintergrundarbeit (Klanganalyse, Metadaten) und mit gedeckelter CPU – der Emulator braucht die Kerne
+docker run -d --name aw-test --cpus 1.5 -p 127.0.0.1:8080:80 -e KLANG_AKTIV=0 -e AUTO_METADATEN=0 -e AUTO_AUFRAEUM_VORSCHAU=0 -e ADMIN_BENUTZER=testadmin -e ADMIN_PASSWORT=Test-Passwort-2026 -e TZ=Europe/Berlin \
     -e OFFLINE_QUALITAET=original -v "$W/appdata:/appdata" -v "$W/musik:/musik" -v "$PWD/app:/var/www/html" "$IMG" >/dev/null
 for i in $(seq 1 90); do curl -fs http://127.0.0.1:8080/api/v1/ping | grep -q amberwave && break; sleep 2; done
 curl -fs http://127.0.0.1:8080/api/v1/ping >/dev/null || { docker logs aw-test | tail -50; echo "::error title=Android-Test::Testserver startet nicht"; exit 1; }
