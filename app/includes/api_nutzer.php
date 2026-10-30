@@ -36,7 +36,7 @@ function api_ich(): array
             return $url === '' ? null : ['url' => $url] + direkt_token($user);
         })(),
         'app' => [
-            'name' => app_name(), 'version' => app_version(), 'image' => getenv('AMBERWAVE_IMAGE') === '1', 'gebuendelt' => buendel() !== null,   // Oberfläche aus js/_b (schneller Start) oder einzelne Module
+            'name' => app_name(), 'version' => app_version(), 'image' => getenv('AMBERWAVE_IMAGE') === '1', 'windows' => getenv('AMBERWAVE_WINDOWS') === '1', 'gebuendelt' => buendel() !== null,   // Oberfläche aus js/_b (schneller Start) oder einzelne Module
             'stream_standard' => konfig()['stream']['standard'],
             'offline' => in_array(konfig()['stream']['offline'], ['opus128', 'opus160', 'opus256'], true) ? konfig()['stream']['offline'] : null,
             'downloads' => konfig()['stream']['downloads_erlaubt'] || ist_admin($user),

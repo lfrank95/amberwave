@@ -59,12 +59,14 @@ $z = einrichtung_zustand(true);
 
 // ---------- Schritte (JSON) ----------
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    $in = json_decode((string) file_get_contents('php://input'), true);
+    $schritt = (string) ($_GET['schritt'] ?? '');
+    // Umzugspaket kommt in Stücken als rohe Bytes (kein JSON) – der Einrichtungscode dann in einer Kopfzeile
+    $roh = $schritt === 'umzug_teil';
+    $in = $roh ? ['code' => (string) ($_SERVER['HTTP_X_EINRICHTUNG_CODE'] ?? '')] : json_decode((string) file_get_contents('php://input'), true);
     $in = is_array($in) ? $in : [];
     if (!hash_equals($_SESSION['csrf'], (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
         einr_json(['ok' => false, 'fehler' => t('Sicherheitsprüfung fehlgeschlagen. Bitte die Seite neu laden.')], 403);
     }
-    $schritt = (string) ($_GET['schritt'] ?? '');
 
     // Nach dem Abschluss darf nur die Sitzung, die eingerichtet hat, noch das erste Einlesen begleiten (zwei Stunden lang)
     if (in_array($schritt, ['scan_start', 'scan_status', 'zusammenfassung'], true)) {
@@ -149,9 +151,56 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $f += region_pruefen($in)[1];
             einr_json(['ok' => !$f, 'felder' => $f, 'fehler' => $f ? t('Bitte die markierten Angaben prüfen.') : null], $f ? 422 : 200);
         }
+        if ($schritt === 'umzug_teil') {
+            // Stück für Stück in eine Datei je Einrichtungs-Sitzung (Stück 0 beginnt neu); höchstens 8 GB
+            require_once __DIR__ . '/includes/umzug.php';
+            $nr = (int) ($_SERVER['HTTP_X_TEIL'] ?? -1);
+            if (empty($_SESSION['umzug_datei']) || $nr === 0) {
+                umzug_aufraeumen();
+                $_SESSION['umzug_datei'] = umzug_tmp() . '/einr_' . bin2hex(random_bytes(6)) . '.awumzug';
+            }
+            $datei = (string) $_SESSION['umzug_datei'];
+            $ein = fopen('php://input', 'rb');
+            $aus = fopen($datei, $nr === 0 ? 'wb' : 'ab');
+            if (!$ein || !$aus || $nr < 0) {
+                einr_json(['ok' => false, 'fehler' => t('Hochladen fehlgeschlagen.')], 500);
+            }
+            stream_copy_to_stream($ein, $aus);
+            fclose($ein);
+            fclose($aus);
+            clearstatcache(true, $datei);
+            if (filesize($datei) > 8 * 1024 ** 3) {
+                @unlink($datei);
+                einr_json(['ok' => false, 'fehler' => t('Das Umzugspaket ist zu groß.')], 413);
+            }
+            einr_json(['ok' => true, 'groesse' => filesize($datei)]);
+        }
+        if ($schritt === 'umzug') {
+            if ($z['art'] !== 'leer') {
+                einr_json(['ok' => false, 'fehler' => t('Die Datenbank ist noch nicht bereit.')], 409);
+            }
+            require_once __DIR__ . '/includes/umzug.php';
+            $datei = (string) ($_SESSION['umzug_datei'] ?? '');
+            if ($datei === '' || !is_file($datei)) {
+                einr_json(['ok' => false, 'fehler' => t('Bitte zuerst das Umzugspaket auswählen.')], 409);
+            }
+            set_time_limit(0);
+            ignore_user_abort(true);
+            try {
+                $r = umzug_einspielen($datei, (string) ($in['paket_passwort'] ?? ''));
+            } catch (Throwable $e) {
+                $falschesPw = str_contains($e->getMessage(), t('Das Passwort passt nicht zu diesem Umzugspaket.'));
+                einr_json(['ok' => false, 'fehler' => $e->getMessage(), 'felder' => $falschesPw ? ['paket_passwort' => $e->getMessage()] : null], $falschesPw ? 422 : 500);
+            }
+            @unlink($datei);
+            unset($_SESSION['umzug_datei']);
+            $_SESSION['einr_laeuft'] = true;
+            $_SESSION['einr_umzug'] = true;
+            einr_json(['ok' => true] + $r);
+        }
         if ($schritt === 'db') {
             if ($z['art'] === 'db_fehlt') {
-                $f = einrichtung_eingaben_pruefen($in, $ausEnv ? 'leer' : 'db_fehlt', true);
+                $f = einrichtung_eingaben_pruefen($in, $ausEnv ? 'leer' : 'db_fehlt', empty($in['umzug']));
                 if ($f) {
                     einr_json(['ok' => false, 'felder' => $f, 'fehler' => t('Bitte die markierten Angaben prüfen.')], 422);
                 }
@@ -211,13 +260,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $_SESSION['einr_nachlauf'] = time() + 7200;
             $_SESSION['einr_admin'] = (int) $admin['id'];
             $angemeldet = false;
+            $umzug = !empty($_SESSION['einr_umzug']);
+            unset($_SESSION['einr_umzug']);
             try {
+                if ($umzug) {
+                    throw new RuntimeException('nach dem Umzug meldet man sich mit dem bisherigen Konto an');
+                }
                 require_once __DIR__ . '/includes/auth.php';
                 einr_sitzung('amberwave', 'Lax');
                 anmelden($admin, false);
                 $angemeldet = true;
             } catch (Throwable $e) {
-                error_log('Einrichtung: automatische Anmeldung fehlgeschlagen: ' . $e->getMessage());
+                if (!$umzug) {
+                    error_log('Einrichtung: automatische Anmeldung fehlgeschlagen: ' . $e->getMessage());
+                }
             }
             einr_sitzung('amberwave_einr', 'Strict');
             $k = konfig();
@@ -409,6 +465,23 @@ einr_kopf(t('Einrichtung'));
  </details>
  <p class="mini" id="k-dbnotiz" hidden></p>
  <button class="btn" id="einrichten" type="button"><?= h(t('Einrichten')) ?></button>
+</div>
+</template>
+
+<!-- Umzug: Paket einer anderen Installation übernehmen (statt Konto anlegen) -->
+<template id="t-umzug">
+<div class="karte">
+ <div class="schritte"><div class="ok"><?= h(t('Willkommen')) ?></div><div class="ok"><?= h(t('Ordner')) ?></div><div class="jetzt ok"><?= h(t('Übernehmen')) ?></div><div><?= h(t('Fertig')) ?></div></div>
+ <h1><?= h(t('Von einer anderen Installation übernehmen')) ?></h1>
+ <p class="sub"><?= h(t('Das Umzugspaket erstellst du auf dem alten Server unter Einstellungen › Sicherung › „Umzugspaket erstellen“. Bibliothek, Konten, Playlists und Einstellungen kommen mit – die Musik selbst liegt hier im Musikordner.')) ?></p>
+ <div class="hinweis rot" id="u-meldung" role="alert" hidden></div>
+ <label for="u-datei"><?= h(t('Umzugspaket (.awumzug)')) ?></label>
+ <input id="u-datei" name="datei" type="file" accept=".awumzug">
+ <label for="u-pw"><?= h(t('Passwort des Pakets')) ?></label>
+ <input id="u-pw" name="paket_passwort" type="password" autocomplete="off">
+ <div class="fort" id="u-fort" hidden><b id="u-bar"></b></div>
+ <p class="mini" id="u-stand"></p>
+ <button class="btn" id="u-los" type="button"><?= h(t('Übernehmen')) ?></button>
 </div>
 </template>
 

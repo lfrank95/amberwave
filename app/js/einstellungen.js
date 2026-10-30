@@ -883,11 +883,15 @@ async function sicherungZeichnen(app, inhalt, signal) {
           </div></div>`).join('') : `<p class="einst-karten-hinweis">${t('Noch keine Sicherung vorhanden.')}</p>`}
       <p class="einst-fuss">${t('Ordner:')} <code>${h(s.ordner)}</code></p>`,
       `<button type="button" class="btn btn-zweit btn-klein" data-s-jetzt>${t('Jetzt sichern')}</button>`)}
+    ${karte(t('Umzug auf einen anderen Server'), `<p class="einst-karten-hinweis">${t('Ein Paket mit Bibliothek, Konten, Playlists, Verlauf und Einstellungen – für einen neuen Server, egal ob Docker-Stack, All-in-One oder Windows. Dort in der Einrichtung „Von einer anderen Installation übernehmen“ wählen. Das Paket ist mit einem Passwort verschlüsselt, das du hier festlegst. Deine Musik selbst ist nicht enthalten.')}</p>`,
+      `<button type="button" class="btn btn-zweit btn-klein" data-s-umzug>${t('Umzugspaket erstellen …')}</button>`)}
     <div class="einst-teil einst-teil-update"><span>${t('Update')}</span>${chip(t('installiert: {version}', { version: app.ich.app.version }))}</div>
-    ${app.ich.app.image ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
+    ${app.ich.app.windows ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
+      <p class="einst-karten-hinweis">${t('Der Windows-Server sucht täglich selbst nach neuen Versionen. Gibt es eine, steht im Menü des Amberwave-Symbols im Infobereich „Update installieren“ – Bibliothek, Konten und Einstellungen bleiben.')}</p></div>` : ''}
+    ${app.ich.app.image && !app.ich.app.windows ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
       <p class="einst-karten-hinweis">${t('Diese Installation läuft als fertiges Docker-Image. Update auf dem Server:')}</p><pre class="log">docker compose pull &amp;&amp; docker compose up -d</pre>
       <p class="einst-karten-hinweis">${t('Daten, Einstellungen und Musik bleiben erhalten; Datenbank-Änderungen laufen beim Start automatisch.')}</p></div>` : ''}
-    <form class="einst-karte einst-update" data-k="update" data-update ${app.ich.app.image ? 'hidden' : ''}>
+    <form class="einst-karte einst-update" data-k="update" data-update ${app.ich.app.image || app.ich.app.windows ? 'hidden' : ''}>
       <h2><span>${t('Neue Version einspielen')}</span></h2>
       ${zeile('update', t('Update-Paket (.zip)'), t('Vorher wird automatisch gesichert (Datenbank und Code – es bleibt immer die letzte). Danach werden ausstehende Datenbank-Änderungen angewendet. Die App ist dabei kurz nicht erreichbar.'),
         `<label class="einst-ablage" for="einst-update-zip" data-ablage>${t('Paket auswählen …')}</label><input id="einst-update-zip" type="file" name="archiv" accept=".zip,application/zip" hidden>`)}
@@ -900,6 +904,24 @@ async function sicherungZeichnen(app, inhalt, signal) {
     const r = await versuche(() => api.post('/admin/sicherungen', {}));
     b.disabled = false; b.textContent = t('Jetzt sichern');
     if (r) { toast(t('Sicherung angelegt'), 'gut'); neuZeichnen(app); }
+  });
+  inhalt.querySelector('[data-s-umzug]').addEventListener('click', async (e) => {
+    const ok = await dialog({ titel: t('Umzugspaket erstellen'), inhalt: `
+      <label for="umz-pw1">${t('Passwort für das Paket (mindestens 8 Zeichen)')}</label><input id="umz-pw1" type="password" name="paket_passwort" required minlength="8" autocomplete="new-password">
+      <label for="umz-pw2">${t('Passwort wiederholen')}</label><input id="umz-pw2" type="password" name="paket_passwort2" required minlength="8" autocomplete="new-password">
+      <label class="haken"><input type="checkbox" name="bilder" checked> ${t('Cover und Künstlerbilder mitnehmen (größer, dafür sofort vollständig)')}</label>
+      <label for="umz-login">${t('Zur Sicherheit: dein Anmelde-Passwort')}</label><input id="umz-login" type="password" name="passwort" required autocomplete="current-password">
+      <p class="einst-karten-hinweis">${t('Ohne das Paket-Passwort lässt sich das Paket nicht öffnen – auch nicht von uns. Gut aufheben, bis der Umzug fertig ist.')}</p>`,
+      knoepfe: [{ text: t('Abbrechen'), wert: 'abbrechen', art: 'zweit' }, { text: t('Erstellen'), wert: 'ok' }] });
+    if (!ok) return;
+    const p1 = ok.form.get('paket_passwort') || '', p2 = ok.form.get('paket_passwort2') || '';
+    if (p1.length < 8 || p1 !== p2) { toast(p1.length < 8 ? t('Bitte ein Passwort mit mindestens 8 Zeichen wählen.') : t('Die Passwörter stimmen nicht überein.'), 'fehler'); return; }
+    const b = e.currentTarget; b.disabled = true; b.textContent = t('Packe …');
+    const r = await versuche(() => api.post('/admin/umzug', { paket_passwort: p1, bilder: !!ok.form.get('bilder'), passwort: ok.form.get('passwort') || '' }));
+    b.disabled = false; b.textContent = t('Umzugspaket erstellen …');
+    if (!r) return;
+    toast(t('Umzugspaket fertig ({groesse}) – der Download startet.', { groesse: groesse(r.groesse) }), 'gut');
+    location.href = '/api/v1/admin/umzug/datei?name=' + encodeURIComponent(r.name);
   });
   inhalt.querySelectorAll('[data-s-weg]').forEach((b) => b.addEventListener('click', async () => {
     if (!(await bestaetigen(t('Sicherung löschen?'), t('Die Datei wird endgültig aus dem Backup-Ordner entfernt.'), t('Löschen'), true))) return;

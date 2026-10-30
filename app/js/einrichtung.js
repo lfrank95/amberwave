@@ -46,7 +46,8 @@ import { t, tn, locale } from './i18n.js';
   }
 
   // ---------- Seitenwechsel mit Übergang ----------
-  const REIHE = ['start', 'region', 'code', 'check', 'konto', 'server', 'lauf', 'fertig', 'scan', 'scanfertig'];
+  const REIHE = ['start', 'region', 'code', 'check', 'konto', 'umzug', 'server', 'lauf', 'fertig', 'scan', 'scanfertig'];
+  let umzug = false;   // „Von einer anderen Installation übernehmen“ statt Konto anlegen
   const OHNE_KOPF = ['start', 'fertig', 'scan', 'scanfertig'];
   const KURZ = ['code', 'lauf'];
   const ICON = {
@@ -77,9 +78,9 @@ import { t, tn, locale } from './i18n.js';
       b.insertAdjacentHTML('beforeend', '<div class="kopf"><img src="' + esc(wurzel.dataset.logo) + '" alt="" width="30" height="30">' + esc(appName) + '</div>');
     }
     b.appendChild(document.getElementById('t-' + name).content.cloneNode(true));
-    if (nach) {
-      // Schrittleiste: „Konto“ gibt es schon – an seiner Stelle steht „Server“
-      b.querySelectorAll('.schritte>div').forEach((d) => { if (d.textContent === t('Konto')) d.textContent = t('Server'); });
+    if (nach || umzug) {
+      // Schrittleiste: „Konto“ gibt es schon (Nachholen) bzw. kommt aus dem Paket (Umzug)
+      b.querySelectorAll('.schritte>div').forEach((d) => { if (d.textContent === t('Konto')) d.textContent = nach ? t('Server') : t('Übernehmen'); });
     }
     const f = fussText(name);
     if (f) b.insertAdjacentHTML('beforeend', '<p class="fuss">' + esc(f) + '</p>');
@@ -142,6 +143,13 @@ import { t, tn, locale } from './i18n.js';
 
   SETUP.start = (k) => {
     $('los').onclick = () => seite('region');
+    if (!nach) {
+      const u = document.createElement('button');
+      u.className = 'btn gross zweit'; u.type = 'button'; u.style.marginTop = '10px'; u.textContent = t('Von einer anderen Installation übernehmen');
+      u.onclick = () => { umzug = true; seite(ersterSchritt()); };
+      $('los').onclick = () => { umzug = false; seite('region'); };
+      $('los').insertAdjacentElement('afterend', u);
+    }
     if (nach) {
       k.querySelector('.text').textContent = t('Dein Konto steht schon. Jetzt noch kurz Region und Ordner prüfen und deinem Server einen Namen geben – dann liest {app} deine Musik ein.', { app: appName });
       const w = k.querySelectorAll('.weg li');
@@ -333,7 +341,7 @@ import { t, tn, locale } from './i18n.js';
       };
     });
     $('ck-schreiben').onchange = (e) => { musikSchreiben = e.target.checked; };
-    if ($('ck-weiter')) $('ck-weiter').onclick = () => seite(nach ? 'server' : 'konto');
+    if ($('ck-weiter')) $('ck-weiter').onclick = () => seite(nach ? 'server' : umzug ? 'umzug' : 'konto');
     $('ck-nochmal').onclick = () => pruefen();
   }
 
@@ -463,12 +471,48 @@ import { t, tn, locale } from './i18n.js';
     $('s-fertig').onclick = fertig;
   };
 
+  // --- Umzug: Paket hochladen (in Stücken), dann Datenbank anlegen und einspielen ---
+  SETUP.umzug = (k) => {
+    const los = $('u-los'), meldung = $('u-meldung');
+    const fehler = (text) => { meldung.hidden = false; meldung.innerHTML = '<span>⚠️</span><span>' + esc(text) + '</span>'; };
+    los.onclick = async () => {
+      meldung.hidden = true; feldFehler(k, {});
+      const datei = $('u-datei').files[0], pw = $('u-pw').value;
+      if (!datei) { fehler(t('Bitte zuerst das Umzugspaket auswählen.')); return; }
+      if (pw.length < 8) { feldFehler(k, { paket_passwort: t('Bitte das Passwort des Pakets eingeben.') }); return; }
+      los.disabled = true; $('u-fort').hidden = false;
+      const STUECK = 8 * 1024 * 1024;
+      for (let i = 0, nr = 0; i < datei.size; i += STUECK, nr++) {
+        let ok = false;
+        for (let versuch = 0; versuch < 3 && !ok; versuch++) {
+          try {
+            const r = await fetch('/einrichtung.php?schritt=umzug_teil', { method: 'POST', credentials: 'same-origin',
+              headers: { 'X-CSRF-Token': csrf, 'X-Teil': String(nr), 'X-Einrichtung-Code': code, 'Content-Type': 'application/octet-stream' }, body: datei.slice(i, i + STUECK) });
+            const d = await r.json().catch(() => ({}));
+            ok = r.ok && d.ok;
+            if (!ok && d.zugang === 'fenster') { location.reload(); return; }
+            if (!ok && d.fehler && versuch === 2) fehler(d.fehler);
+          } catch (e) { if (versuch === 2) fehler(t('Hochladen unterbrochen – bitte noch einmal versuchen.')); }
+        }
+        if (!ok) { los.disabled = false; return; }
+        const p = Math.min(100, Math.round(((i + STUECK) / datei.size) * 100));
+        $('u-bar').style.width = p + '%'; $('u-stand').textContent = t('Hochgeladen: {p} %', { p });
+      }
+      daten = { umzug: '1', paket_passwort: pw, db_name: 'amberwave', db_user: 'amberwave', db_passwort: wurzel.dataset.dbpw };
+      laufStart = 0;
+      seite('lauf');
+    };
+  };
+
   // --- Einrichten (Serverschritte) ---
+  const SCHRITTE_UMZUG = [['db', t('Datenbank und Benutzer anlegen')], ['umzug', t('Paket entschlüsseln und einspielen')], ['abschluss', t('Zugänge absichern')]];
   const SCHRITTE = [['db', t('Datenbank und Benutzer anlegen')], ['tabellen', t('Tabellen erstellen')], ['admin', t('Administrator-Konto anlegen, Zeitzone und Servername speichern')], ['abschluss', t('Zugänge absichern und anmelden')]];
   let laufStart = 0;
 
+  let umzugErgebnis = null;
+  const schritte = () => (umzug ? SCHRITTE_UMZUG : SCHRITTE);
   function liste(z) {
-    $('l-liste').innerHTML = SCHRITTE.map(([, bez], i) => '<li class="' + (z[i] || '') + '"><span class="punkt">' + (z[i] === 'ok' ? '✓' : z[i] === 'nein' ? '!' : '') + '</span>' + esc(bez) + '</li>').join('');
+    $('l-liste').innerHTML = schritte().map(([, bez], i) => '<li class="' + (z[i] || '') + '"><span class="punkt">' + (z[i] === 'ok' ? '✓' : z[i] === 'nein' ? '!' : '') + '</span>' + esc(bez) + '</li>').join('');
   }
 
   SETUP.lauf = () => {
@@ -480,10 +524,10 @@ import { t, tn, locale } from './i18n.js';
     $('l-fehler').hidden = true; $('l-nochmal').hidden = true;
     $('l-titel').textContent = t('Wird eingerichtet …');
     $('l-sub').textContent = t('Das dauert etwa eine halbe Minute. Bitte die Seite offen lassen.');
-    const z = SCHRITTE.map((_, i) => (i < laufStart ? 'ok' : ''));
-    for (; laufStart < SCHRITTE.length; laufStart++) {
+    const z = schritte().map((_, i) => (i < laufStart ? 'ok' : ''));
+    for (; laufStart < schritte().length; laufStart++) {
       z[laufStart] = 'lauf'; liste(z);
-      const d = await senden(SCHRITTE[laufStart][0], daten);
+      const d = await senden(schritte()[laufStart][0], daten);
       if (!d.ok) {
         if (d.fertig && laufStart < 3) { location.href = '/login.php'; return; }
         if (d.zugang === 'fenster') { location.reload(); return; }
@@ -492,11 +536,12 @@ import { t, tn, locale } from './i18n.js';
         $('l-sub').textContent = t('Nichts ist verloren – „Nochmal versuchen“ macht an dieser Stelle weiter.');
         $('l-fehler').hidden = false; $('l-fehler-text').textContent = d.fehler || t('Unbekannter Fehler.');
         $('l-nochmal').hidden = false;
-        if (d.felder) { $('l-nochmal').textContent = t('Zurück zu den Angaben'); $('l-nochmal').onclick = () => seite('konto'); }
+        if (d.felder) { $('l-nochmal').textContent = t('Zurück zu den Angaben'); $('l-nochmal').onclick = () => seite(umzug ? 'umzug' : 'konto'); }
         return;
       }
       z[laufStart] = 'ok';
-      if (SCHRITTE[laufStart][0] === 'abschluss') { fertigDaten = d; liste(z); laufStart++; await new Promise((x) => setTimeout(x, 450)); seite('fertig'); return; }
+      if (schritte()[laufStart][0] === 'umzug') umzugErgebnis = d;
+      if (schritte()[laufStart][0] === 'abschluss') { fertigDaten = d; liste(z); laufStart++; await new Promise((x) => setTimeout(x, 450)); seite('fertig'); return; }
     }
   }
 
@@ -508,6 +553,11 @@ import { t, tn, locale } from './i18n.js';
     $('f-db').textContent = t('MariaDB, Benutzer „{user}“', { user: d.db_user || 'amberwave' });
     $('f-konto').innerHTML = t('Konto „{name}“', { name: esc(d.benutzername || daten.benutzername || '') }) + '<small>' + t('Administrator') + '</small>';
     $('f-root').textContent = d.root_abgesichert ? t('Root-Zugang gesperrt') : t('Zugangsdaten aus der .env');
+    if (umzug && umzugErgebnis) {
+      $('f-titel').textContent = t('Umzug geschafft!');
+      $('f-sub').textContent = t('Melde dich jetzt mit deinem bisherigen Konto an.');
+      $('f-konto').innerHTML = tn(umzugErgebnis.konten, '1 Konto übernommen', '{n} Konten übernommen') + '<small>' + esc(tn(umzugErgebnis.titel, '1 Titel in der Bibliothek', '{n} Titel in der Bibliothek', { n: fmt(umzugErgebnis.titel) })) + '</small>';
+    }
     if (d.nachgeholt) $('f-db').textContent = 'MariaDB';
     const musik = sys && sys.ordner.find((o) => o.schluessel === 'musik');
     const dateien = musik ? musik.dateien || 0 : 0;

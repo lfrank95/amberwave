@@ -490,6 +490,46 @@ function api_admin_sicherung_datei(): never
     exit;
 }
 
+/** Umzugspaket erstellen (Passwort des Admins zur Bestätigung, eigenes Paket-Passwort) */
+function api_admin_umzug(array $admin): array
+{
+    require_once __DIR__ . '/einrichtung.php';
+    require_once __DIR__ . '/umzug.php';
+    datenbank_admin_bestaetigen($admin);
+    $pw = (string) api_wert('paket_passwort', '');
+    if (mb_strlen($pw) < 8) {
+        throw new ApiFehler(t('Bitte ein Passwort mit mindestens 8 Zeichen wählen.'));
+    }
+    set_time_limit(0);
+    ignore_user_abort(true);
+    try {
+        $p = umzug_erstellen($pw, (bool) api_wert('bilder', false));
+    } catch (Throwable $e) {
+        throw new ApiFehler(t('Umzugspaket fehlgeschlagen: {fehler}', ['fehler' => $e->getMessage()]), 500);
+    }
+    log_sicherheitsereignis((int) $admin['id'], 'umzug_erstellt', basename($p));
+    return ['name' => basename($p), 'groesse' => (int) filesize($p)];
+}
+
+function api_admin_umzug_datei(): never
+{
+    require_once __DIR__ . '/umzug.php';
+    $name = basename((string) ($_GET['name'] ?? ''));
+    $p = umzug_tmp() . '/' . $name;
+    if (!preg_match('/^amberwave-umzug_[0-9A-Za-z_-]+\.awumzug$/', $name) || !is_file($p)) {
+        throw new ApiFehler(t('Umzugspaket nicht gefunden – bitte neu erstellen.'), 404);
+    }
+    header('Content-Type: application/octet-stream');
+    header('Content-Length: ' . filesize($p));
+    header('Content-Disposition: attachment; filename="' . $name . '"');
+    header('Cache-Control: no-store');
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    readfile($p);
+    exit;
+}
+
 function api_admin_sicherung_wiederherstellen(array $admin): array
 {
     $name = (string) api_wert('name', '');

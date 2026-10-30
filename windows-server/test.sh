@@ -17,8 +17,9 @@ mk "Björk Ångström/2021 - Über Grenzen" "Wham! 100%" 550 2 "02 - Wham! 100%.
 starten() { ( cd "$PAKET" && ./"Amberwave Server.exe" --konsole --dauer 1200 --musik "$W\\musik" --daten "$W\\daten" > "$WU/konsole_$1.txt" 2>&1 ) & }
 warten() { for i in $(seq 1 120); do curl -s -o /dev/null http://127.0.0.1:9950/login.php && return 0; sleep 2; done; return 1; }
 stoppen() {
-    touch "$WU/daten/stopp"
-    for i in $(seq 1 90); do [ -f "$WU/daten/stopp" ] || break; sleep 1; done
+    local d="${1:-daten}"
+    touch "$WU/$d/stopp"
+    for i in $(seq 1 90); do [ -f "$WU/$d/stopp" ] || break; sleep 1; done
     for i in $(seq 1 90); do tasklist //FI "IMAGENAME eq Amberwave Server.exe" | grep -q "Amberwave" || return 0; sleep 1; done
     return 1
 }
@@ -65,6 +66,11 @@ sleep 1; T1=$(date +%s%N); curl -s --max-time 20 -o /dev/null -H "Authorization:
 wait $PARALLEL   # nur die beiden Ströme – ein bloßes „wait“ wartete auch auf den Server
 C="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9950/includes/config.php)"; [ "$C" = 403 ] || [ "$C" = 404 ] && ok "interne Ordner gesperrt ($C)" || fehler "includes/ erreichbar ($C)"
 C="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9950/)"; [ "$C" = 302 ] && ok "Startseite leitet zur Anmeldung" || fehler "Startseite: $C"
+# Umzugspaket für Teil 3 (andere Installation auf demselben PC)
+UR="$(curl -s --max-time 120 -X POST http://127.0.0.1:9950/api/v1/admin/umzug -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"passwort":"Test-Passwort-2026","paket_passwort":"Umzug-Passwort-1","bilder":true}')"
+UN="$(echo "$UR" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')"
+curl -s --max-time 120 -H "Authorization: Bearer $TOKEN" -o "$WU/umzug.awumzug" "http://127.0.0.1:9950/api/v1/admin/umzug/datei?name=$UN"
+[ -s "$WU/umzug.awumzug" ] && ok "Umzugspaket erstellt ($(wc -c < "$WU/umzug.awumzug") Bytes)" || fehler "Umzugspaket: $UR"
 sleep 70; [ -s "$WU/daten/logs/zeitplan.log" ] && ok "Zeitplan läuft: $(tail -1 "$WU/daten/logs/zeitplan.log")" || fehler "Zeitplan hat nichts geschrieben"
 if stoppen; then ok "beendet"; else fehler "Server beendet sich nicht"; fi
 log | grep -q "MariaDB sauber beendet" && ok "MariaDB sauber beendet" || fehler "MariaDB nicht sauber beendet"
@@ -75,6 +81,22 @@ if warten; then ok "zweiter Start"; else fehler "zweiter Start scheitert"; fi
 TOKEN="$(curl -s --max-time 30 -X POST http://127.0.0.1:9950/api/v1/auth/token -H 'Content-Type: application/json' -d '{"benutzername":"testadmin","passwort":"Test-Passwort-2026","geraet_name":"CI"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
 [ -n "$TOKEN" ] && ok "Anmeldung nach Neustart" || fehler "Anmeldung nach Neustart schlägt fehl"
 stoppen || fehler "zweites Beenden"
+
+echo "== 3. Umzug in eine neue Installation (eigene Datenbank, anderer Schlüssel)"
+( cd "$PAKET" && ./"Amberwave Server.exe" --konsole --dauer 900 --musik "$W\\musik" --daten "$W\\daten2" > "$WU/konsole_3.txt" 2>&1 ) &
+if warten; then ok "neue Installation läuft"; else fehler "neue Installation startet nicht"; fi
+JAR="$WU/jar2"; SEITE="$(curl -s -c "$JAR" http://127.0.0.1:9950/einrichtung.php)"
+CSRF="$(printf '%s' "$SEITE" | sed -n 's/.*data-csrf="\([^"]*\)".*/\1/p' | head -n1)"
+A="$(curl -s --max-time 120 -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:9950/einrichtung.php?schritt=umzug_teil" -H "X-CSRF-Token: $CSRF" -H 'X-Teil: 0' -H 'Content-Type: application/octet-stream' --data-binary @"$WU/umzug.awumzug")"
+echo "$A" | grep -q '"ok":true' && ok "Paket hochgeladen" || fehler "Hochladen: $A"
+for s in db umzug abschluss; do
+  A="$(curl -s --max-time 300 -b "$JAR" -c "$JAR" -X POST "http://127.0.0.1:9950/einrichtung.php?schritt=$s" -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" -d '{"umzug":"1","paket_passwort":"Umzug-Passwort-1"}')"
+  echo "$A" | grep -q '"ok":true' && ok "Umzug-Schritt $s ${A:0:160}" || fehler "Umzug-Schritt $s: $(echo "$A" | head -c 300)"
+done
+TOKEN="$(curl -s --max-time 30 -X POST http://127.0.0.1:9950/api/v1/auth/token -H 'Content-Type: application/json' -d '{"benutzername":"testadmin","passwort":"Test-Passwort-2026","geraet_name":"CI"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')"
+[ -n "$TOKEN" ] && ok "Anmeldung mit dem übernommenen Konto" || fehler "Anmeldung nach Umzug schlägt fehl"
+curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" http://127.0.0.1:9950/api/v1/alben | grep -q 'Über Grenzen' && ok "Bibliothek übernommen" || fehler "Bibliothek fehlt nach Umzug"
+stoppen daten2 || fehler "drittes Beenden"
 echo "--- PHP-Fehler"; tail -c 3000 "$WU/daten/logs/php-fehler.log" 2>/dev/null
 echo "--- server.log"; log | tail -40
 [ "$FEHLER" = 0 ] || melden "$WU/daten/logs/"*.log "$WU/daten/nginx/logs/error.log"

@@ -677,5 +677,17 @@
  "Lautsprecher-Anordnung {layout}": "Speaker layout {layout}",
  "Playlist · Familie": "Playlist · Family",
  "Einrichtungsassistent erneut öffnen": "Open the setup assistant again",
- "Region, Ordner und Servername Schritt für Schritt – dein Konto und deine Daten bleiben.": "Region, folders and server name step by step – your account and your data stay as they are."
+ "Region, Ordner und Servername Schritt für Schritt – dein Konto und deine Daten bleiben.": "Region, folders and server name step by step – your account and your data stay as they are.",
+ "Cover und Künstlerbilder mitnehmen (größer, dafür sofort vollständig)": "Include covers and artist images (larger, but complete right away)",
+ "Der Windows-Server sucht täglich selbst nach neuen Versionen. Gibt es eine, steht im Menü des Amberwave-Symbols im Infobereich „Update installieren“ – Bibliothek, Konten und Einstellungen bleiben.": "The Windows server looks for new versions once a day. When there is one, the menu of the Amberwave icon in the notification area shows “Install update” – library, accounts and settings are kept.",
+ "Ein Paket mit Bibliothek, Konten, Playlists, Verlauf und Einstellungen – für einen neuen Server, egal ob Docker-Stack, All-in-One oder Windows. Dort in der Einrichtung „Von einer anderen Installation übernehmen“ wählen. Das Paket ist mit einem Passwort verschlüsselt, das du hier festlegst. Deine Musik selbst ist nicht enthalten.": "A package with library, accounts, playlists, history and settings – for a new server, whether Docker stack, all-in-one or Windows. There, choose “Take over from another installation” during setup. The package is encrypted with a password you set here. Your music itself is not included.",
+ "Erstellen": "Create",
+ "Ohne das Paket-Passwort lässt sich das Paket nicht öffnen – auch nicht von uns. Gut aufheben, bis der Umzug fertig ist.": "Without the package password nobody can open the package – not even us. Keep it safe until the migration is done.",
+ "Packe …": "Packing …",
+ "Passwort für das Paket (mindestens 8 Zeichen)": "Password for the package (at least 8 characters)",
+ "Umzug auf einen anderen Server": "Move to another server",
+ "Umzugspaket erstellen": "Create migration package",
+ "Umzugspaket erstellen …": "Create migration package …",
+ "Umzugspaket fertig ({groesse}) – der Download startet.": "Migration package ready ({groesse}) – the download starts.",
+ "Bitte ein Passwort mit mindestens 8 Zeichen wählen.": "Please choose a password with at least 8 characters."
 }

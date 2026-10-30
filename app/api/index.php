@@ -760,6 +760,11 @@ $routen = [
     }],
     ['POST', '/admin/sicherungen', fn() => api_admin_sicherung_jetzt(api_user(true))],
     ['DELETE', '/admin/sicherungen', fn() => api_admin_sicherung_loeschen(api_user(true))],
+    ['POST', '/admin/umzug', fn() => api_admin_umzug(api_user(true))],
+    ['GET', '/admin/umzug/datei', function () {
+        api_user(true);
+        api_admin_umzug_datei();
+    }],
     ['GET', '/admin/sicherungen/datei', function () {
         api_user(true);
         api_admin_sicherung_datei();
