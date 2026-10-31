@@ -501,5 +501,9 @@
  "Wird in der neuen Qualität geladen": "Downloading in the new quality",
  "Original (verlustfrei)": "Original (lossless)",
  "Kein Netz – Amberwave zeigt jetzt, was auf diesem Gerät gespeichert ist.": "No network – Amberwave now shows what's saved on this device.",
- "Wieder online": "Back online"
+ "Wieder online": "Back online",
+ "Datei wählen …": "Choose file …",
+ "Dateien wählen …": "Choose files …",
+ "Keine Datei gewählt": "No file chosen",
+ "{n} Dateien": "{n} files"
 }

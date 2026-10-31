@@ -56,7 +56,6 @@
  "Beim Aufräumen in Tags und Ordnern, z. B. „JAŸ-Z“ → „JAY-Z“. Nachteil: auch gewollte wie „P!nk“ werden vereinheitlicht. In Amberwave bleibt die Schreibweise wie bei MusicBrainz.": "When tidying up tags and folders, e.g. “JAŸ-Z” → “JAY-Z”. Downside: deliberate spellings like “P!nk” are normalised too. In Amberwave the spelling stays as in MusicBrainz.",
  "MusicBrainz-Kennung": "MusicBrainz identifier",
  "Nur für MusicBrainz, ersetzt die gemeinsame Amberwave-Kennung (siehe „Anfragen an Dienste“). Normalerweise leer lassen.": "For MusicBrainz only; replaces the shared Amberwave identifier (see “Requests to services”). Normally leave empty.",
- "Amberwave/0.2 ( deine Adresse )": "Amberwave/0.2 ( your address )",
  "Künstlerbilder.": "Artist images.",
  "Alben am Klang erkennen. Kostenlos: acoustid.org → „Register an application“.": "Identify albums by sound. Free: acoustid.org → “Register an application”.",
  "Weitere": "More",
@@ -715,5 +714,6 @@
  "Jetzt nachsehen": "Check now",
  "Anderen Server wählen?": "Choose another server?",
  "Die Offline-Musik auf diesem Handy gehört zu diesem Server und wird beim Wechsel gelöscht.": "The offline music on this phone belongs to this server and is deleted when you switch.",
- "Server wählen": "Choose server"
+ "Server wählen": "Choose server",
+ "Amberwave/Version ( deine Adresse )": "Amberwave/version ( your address )"
 }

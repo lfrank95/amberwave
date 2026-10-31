@@ -4021,12 +4021,22 @@ dialog.dialog.eqf:not([open]) { display: none; }
 /* Laufschrift (js/laufschrift.js): Titel und Künstler im Player immer einzeilig; zu Langes läuft hin und her */
 .lauf { white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
 .lauf > .lauf-innen { display: inline-block; white-space: nowrap; }
+/* Läuft der Text, blendet die Seite weich aus, auf der gerade etwas abgeschnitten ist: am Anfang nur rechts, am Ende nur
+   links (die Ränder wandern im selben Takt wie der Text) */
+@property --lauf-l { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --lauf-r { syntax: '<length>'; inherits: false; initial-value: 14px; }
+.lauf.laeuft {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--lauf-l), #000 calc(100% - var(--lauf-r)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 var(--lauf-l), #000 calc(100% - var(--lauf-r)), transparent);
+  animation: lauf-rand var(--lauf-zeit, 8s) ease-in-out infinite alternate;
+}
+@keyframes lauf-rand { 0%, 18% { --lauf-l: 0px; --lauf-r: 14px; } 82%, 100% { --lauf-l: 14px; --lauf-r: 0px; } }
 .lauf.laeuft { text-align: left; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 14px), transparent); }
 .lauf.laeuft > .lauf-innen { padding: 0 10px 0 2px; animation: lauf-hin var(--lauf-zeit, 8s) ease-in-out infinite alternate; }
 @keyframes lauf-hin { 0%, 18% { transform: translateX(0); } 82%, 100% { transform: translateX(calc(var(--lauf-weg, 0px) - 12px)); } }
 .jetzt-titel h1.lauf, .jetzt-titel .k.lauf { overflow-wrap: normal; }
 @media (max-width: 1099px) { .jetzt-titel-text { flex: 1 1 auto; } }
-@media (prefers-reduced-motion: reduce) { .lauf.laeuft > .lauf-innen { animation: none; } .lauf { text-overflow: ellipsis; } }
+@media (prefers-reduced-motion: reduce) { .lauf.laeuft > .lauf-innen, .lauf.laeuft { animation: none; } .lauf.laeuft { -webkit-mask-image: none; mask-image: none; } .lauf { text-overflow: ellipsis; } }
 
 /* Initialen in Profilbildern und Künstlerbildern genau mittig: Großbuchstaben ohne Ober- und Unterlänge der Schrift
    (die WebView auf Android setzt die Zeile sonst je nach Schrift etwas zu tief) */
@@ -4034,3 +4044,10 @@ dialog.dialog.eqf:not([open]) { display: none; }
 
 /* Android-App: am Scroll-Ende nichts dehnen oder federn – Kopf- und Fußleiste bleiben stehen */
 html.aw-android, html.aw-android body { overscroll-behavior: none; }
+
+/* Dateifelder (js/dateifeld.js): eigener Knopf statt des Browser-Knopfs, Dateiname daneben */
+.datei-feld { display: flex; align-items: center; gap: 10px; min-width: 0; margin-top: 6px; }
+.datei-feld input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.datei-feld .btn { flex: none; }
+.datei-feld-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .88rem; color: var(--text-primary); }
+.datei-feld-name.leer { color: var(--text-muted); }

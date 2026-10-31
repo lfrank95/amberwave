@@ -67,7 +67,7 @@ const SERVER = {
   ],
   dienste: [
     { karte: t('Metadaten'), felder: [
-      { k: 'musicbrainz_user_agent', name: t('MusicBrainz-Kennung'), hinweis: t('Nur für MusicBrainz, ersetzt die gemeinsame Amberwave-Kennung (siehe „Anfragen an Dienste“). Normalerweise leer lassen.'), typ: 'text', platzhalter: t('Amberwave/0.2 ( deine Adresse )'), breit: true },
+      { k: 'musicbrainz_user_agent', name: t('MusicBrainz-Kennung'), hinweis: t('Nur für MusicBrainz, ersetzt die gemeinsame Amberwave-Kennung (siehe „Anfragen an Dienste“). Normalerweise leer lassen.'), typ: 'text', platzhalter: t('Amberwave/Version ( deine Adresse )'), breit: true },
       { k: 'fanart_api_key', name: 'fanart.tv', hinweis: t('Künstlerbilder.'), typ: 'geheim' },
       { k: 'acoustid_api_key', name: 'AcoustID', hinweis: t('Alben am Klang erkennen. Kostenlos: acoustid.org → „Register an application“.'), typ: 'geheim' },
     ] },

@@ -9,6 +9,10 @@
 - Effects for devices in the home network (Docker): the effects calculator `aw-render` is now compiled from source
   while building the image. The previously shipped program dated from 0.9.0 and did not yet include the reworked
   Glow and Silk of 0.9.1 – devices in the home network now sound like the Windows client and the browser again.
+- Polish: file fields (room impulses, cover and artist pictures) use an Amberwave button with the chosen file name
+  instead of the browser's own control, which showed "Choose File / No file chosen" in the browser's language.
+- Polish: scrolling titles in the player fade out softly on the side where text is cut off instead of ending hard.
+- Settings › Services: the example for the MusicBrainz identifier no longer shows an outdated version number.
 
 ## 0.9.1-beta.5 – Windows server, Android app
 

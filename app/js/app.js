@@ -20,6 +20,7 @@ import { netzweg } from './netzweg.js';
 import { scrollSetzen, gemerkt } from './merker.js';
 import { falzBeobachten } from './falz.js';
 import { zoomSperren } from './zoomsperre.js';
+import { dateifelderBeobachten } from './dateifeld.js';
 import { nativ, ausgabeWeg } from './nativ.js';
 import { android, androidRufen, androidVersion } from './android.js';
 
@@ -53,6 +54,7 @@ function naturBereich(pfad) {
 // Falt-Handys und Phablets: Kopf, Player und Reiter in zwei Hälften (CSS: html.zwei-haelften) – siehe falz.js
 falzBeobachten();
 zoomSperren();
+dateifelderBeobachten();
 
 // Große, selten gebrauchte Teile (Verwaltung 240 KB, Einstellungen 100 KB samt Anhang) erst laden, wenn sie aufgerufen werden –
 // der Start lädt und übersetzt dann ein Drittel weniger Skript
