@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en" data-sprache="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amberwave</title>
+<meta name="description" content="Amberwave – der Musikserver für deine eigene Sammlung. Bitgenau am PC, offline am Handy, auf deinem eigenen Server.">
+<meta name="theme-color" content="#120d0a">
+<link rel="icon" href="bilder/logo.svg" type="image/svg+xml">
+<style>
+@font-face { font-family: "Space Grotesk"; src: url(fonts/spacegrotesk-latin-v1.woff2) format("woff2"); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: "Space Grotesk"; src: url(fonts/spacegrotesk-latin-ext-v1.woff2) format("woff2"); font-weight: 300 700; font-display: swap; unicode-range: U+0100-024F, U+1E00-1EFF; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-v1.woff2) format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-ext-v1.woff2) format("woff2"); font-weight: 200 800; font-display: swap; unicode-range: U+0100-024F, U+1E00-1EFF; }
+
+/* Amberwave-Welt: ein dunkler, warmer Raum wie die App selbst – einzige Theme-Welt, bewusst.
+   Layout: Startbereich mit Signalweg und Pegeln, danach Bilder, Funktionen, Wahl der Variante, Apps, Fragen. */
+:root {
+  --grund: #120d0a;
+  --flaeche: #1c1510;
+  --linie: rgba(255, 195, 90, .14);
+  --text: #f6efe7;
+  --leise: #b9a999;
+  --bernstein: #ffa94d;
+  --verlauf: linear-gradient(135deg, #ffc35a, #ff6a3d);
+  --anzeige: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --fliess: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --breite: 1160px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--grund); color: var(--text); font: 17px/1.6 var(--fliess); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+img { max-width: 100%; display: block; }
+a { color: var(--bernstein); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2, h3 { font-family: var(--anzeige); line-height: 1.08; margin: 0; text-wrap: balance; letter-spacing: -.02em; }
+p { margin: 0; }
+:focus-visible { outline: 2px solid var(--bernstein); outline-offset: 3px; border-radius: 6px; }
+html[data-sprache="de"] [lang="en"], html[data-sprache="en"] [lang="de"] { display: none !important; }
+.innen { max-width: var(--breite); margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.ueber { font: 600 .74rem/1 var(--anzeige); letter-spacing: .18em; text-transform: uppercase; color: var(--bernstein); }
+.knopf { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 999px; font: 700 1rem/1 var(--fliess); border: 1px solid transparent; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.knopf.voll { background: var(--verlauf); color: #1a120c; box-shadow: 0 10px 30px -10px rgba(255, 120, 60, .6); }
+.knopf.voll:hover { transform: translateY(-1px); text-decoration: none; box-shadow: 0 14px 34px -10px rgba(255, 120, 60, .75); }
+.knopf.rand { border-color: var(--linie); color: var(--text); background: rgba(255, 255, 255, .03); }
+.knopf.rand:hover { border-color: rgba(255, 195, 90, .4); text-decoration: none; }
+.knopf svg { width: 18px; height: 18px; flex: none; }
+
+/* ---------- Kopf ---------- */
+.kopf { position: sticky; top: 0; z-index: 20; background: rgba(18, 13, 10, .78); backdrop-filter: blur(14px); border-bottom: 1px solid var(--linie); }
+.kopf .innen { display: flex; align-items: center; gap: 12px 28px; height: 66px; }
+.marke { display: flex; align-items: center; gap: 10px; font: 700 1.15rem var(--anzeige); color: var(--text); }
+.marke:hover { text-decoration: none; }
+.marke img { width: 32px; height: 32px; }
+.kopf .innen > nav { display: flex; gap: 22px; margin-left: auto; }
+.kopf .innen > nav a { color: var(--leise); font-weight: 600; font-size: .95rem; }
+.kopf .innen > nav a:hover { color: var(--text); text-decoration: none; }
+.sprache { display: flex; border: 1px solid var(--linie); border-radius: 999px; padding: 3px; }
+.menue-knopf { display: none; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--linie); background: rgba(255, 255, 255, .03); flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; padding: 0; }
+.menue-knopf i { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--text); transition: transform .3s, opacity .2s; }
+.menue-knopf[aria-expanded="true"] i:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menue-knopf[aria-expanded="true"] i:nth-child(2) { opacity: 0; }
+.menue-knopf[aria-expanded="true"] i:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+.handymenue { display: none; }
+@media (max-width: 920px) {
+  .menue-knopf { display: flex; }
+  .handymenue { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .38s cubic-bezier(.2, .8, .2, 1); border-top: 1px solid transparent; }
+  .handymenue-innen { overflow: hidden; min-height: 0; display: flex; flex-direction: column; }
+  .handymenue.offen { grid-template-rows: 1fr; border-top-color: var(--linie); }
+  .handymenue a { padding: 0 max(20px, env(safe-area-inset-left)); color: var(--text); font: 600 1.1rem var(--anzeige); opacity: 0; transform: translateY(-8px); transition: opacity .3s, transform .3s, padding .38s; }
+  .handymenue.offen a { padding-top: 13px; padding-bottom: 13px; opacity: 1; transform: none; }
+  .handymenue.offen a:nth-child(2) { transition-delay: .04s; } .handymenue.offen a:nth-child(3) { transition-delay: .08s; }
+  .handymenue.offen a:nth-child(4) { transition-delay: .12s; } .handymenue.offen a:nth-child(5) { transition-delay: .16s; } .handymenue.offen a:nth-child(6) { transition-delay: .2s; }
+}
+.sprache button { background: none; border: 0; color: var(--leise); font: 700 .78rem var(--fliess); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.sprache button[aria-pressed="true"] { background: rgba(255, 169, 77, .16); color: var(--bernstein); }
+
+/* ---------- Start ---------- */
+.start { position: relative; padding: 76px 0 40px; background: radial-gradient(circle at 12% -10%, #3d2512 0%, transparent 52%), radial-gradient(circle at 90% 30%, rgba(255, 106, 61, .09), transparent 40%); }
+.start .innen { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+.start h1 { font-size: clamp(2.6rem, 5.6vw, 4.6rem); font-weight: 700; }
+.start h1 em { font-style: normal; background: var(--verlauf); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.start .lead { margin-top: 22px; font-size: 1.18rem; color: var(--leise); max-width: 34em; }
+.start .knoepfe { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.start .stand { margin-top: 18px; font-size: .88rem; color: var(--leise); }
+.start .stand b { color: var(--text); font-weight: 600; }
+
+/* Signalweg mit Pegeln – das Herzstück: vom Album bis zum Lautsprecher, bitgenau */
+.kette { background: linear-gradient(180deg, #221812, #17110d); border: 1px solid var(--linie); border-radius: 22px; padding: 22px; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .8); }
+.kette-kopf { display: flex; align-items: center; gap: 14px; }
+.kette-kopf b { display: block; font: 700 1.1rem var(--anzeige); }
+.kette-kopf div > span { color: var(--leise); font-size: .9rem; }
+.kette-kopf .zeit { margin-left: auto; white-space: nowrap; font: 500 .9rem var(--anzeige); color: var(--leise); font-variant-numeric: tabular-nums; }
+.pegel { display: grid; grid-template-columns: 18px 1fr; gap: 8px 10px; align-items: center; margin: 22px 0 6px; }
+.pegel span { font: 700 .72rem var(--anzeige); color: var(--leise); }
+.pegel canvas { width: 100%; height: 12px; display: block; }
+.skala { display: flex; justify-content: space-between; margin-left: 28px; font: 500 .66rem var(--anzeige); color: #7d6e60; font-variant-numeric: tabular-nums; }
+.weg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px; border: 1px solid var(--linie); border-radius: 14px; overflow: hidden; }
+.weg div { padding: 12px 12px 13px; min-width: 0; }
+.weg div + div { border-left: 1px solid var(--linie); }
+.weg small { display: block; font: 600 .66rem var(--anzeige); letter-spacing: .12em; text-transform: uppercase; color: #8d7d6d; }
+.weg b { display: block; margin-top: 4px; font: 600 .9rem var(--anzeige); overflow-wrap: anywhere; }
+.weg .gut b { color: #6fdc8c; }
+.weg .gut b::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #6fdc8c; box-shadow: 0 0 0 3px rgba(111, 220, 140, .18); vertical-align: 1px; }
+
+/* Coverflow mit drehender CD – wie „Läuft gerade“ in der App */
+.kette-kopf .titel { min-width: 0; transition: opacity .35s; }
+.kette-kopf .titel.weg-blenden { opacity: 0; }
+.flow { position: relative; height: 196px; margin: 16px -8px 0; perspective: 900px; transform-style: preserve-3d; overflow: hidden; -webkit-mask: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
+.flow-teil { position: absolute; left: 50%; top: 14px; width: 140px; height: 140px; margin-left: -70px; border-radius: 9px; overflow: hidden; cursor: pointer; border: 0; padding: 0;
+  transition: transform .75s cubic-bezier(.2, .8, .2, 1), opacity .75s, filter .75s; box-shadow: 0 18px 30px -12px rgba(0, 0, 0, .9);
+  -webkit-box-reflect: below 4px linear-gradient(transparent 62%, rgba(255, 255, 255, .22)); }
+.flow-teil small, .flow-teil strong { position: absolute; left: 10px; right: 10px; color: rgba(255, 255, 255, .88); text-align: left; text-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+.flow-teil small { top: 9px; font: 700 .5rem var(--anzeige); letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+.flow-teil strong { bottom: 9px; font: 700 .82rem/1.1 var(--anzeige); }
+.flow-cd { position: absolute; left: 50%; top: 20px; width: 128px; height: 128px; margin-left: -64px; border-radius: 50%; transition: transform .6s cubic-bezier(.3, .7, .2, 1); transform: translateX(0) translateZ(-20px); }
+.flow-cd.raus { transform: translateX(52%) translateZ(-20px); }
+.flow-cd i { position: absolute; inset: 0; border-radius: 50%; animation: cd-dreht 3.2s linear infinite;
+  background:
+    radial-gradient(circle, #120d0a 0 8%, rgba(220, 220, 228, .95) 8.5% 14%, rgba(150, 150, 160, .6) 14.5% 16%, transparent 16.5%),
+    repeating-radial-gradient(circle, rgba(255, 255, 255, .06) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #d6d6dc, #b9ecff, #e9cfff, #fff1b8, #d6d6dc, #c8ffe2, #ffd3e8, #d6d6dc);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5), 0 10px 24px -8px rgba(0, 0, 0, .8); }
+@keyframes cd-dreht { to { transform: rotate(360deg); } }
+/* Cover-Motive (im Stil der Beispielalben der App) */
+.a1 { background: radial-gradient(circle at 70% 70%, rgba(255, 255, 255, .08), transparent 40%), linear-gradient(160deg, #6a58bd, #3a2c78 60%, #241a52); }
+.a2 { background: repeating-linear-gradient(180deg, transparent 0 5px, #2a1450 5px 8px) 50% 62% / 46% 22% no-repeat, radial-gradient(circle at 50% 62%, #ffbe55 0 22%, transparent 22.5%), linear-gradient(180deg, #2b1453, #4a1f6e); }
+.a3 { background: radial-gradient(circle at 50% 62%, #ffbb4a 0 15%, transparent 15.5%), repeating-conic-gradient(from 0deg at 50% 62%, rgba(255, 220, 160, .35) 0 2deg, transparent 2deg 9deg), linear-gradient(180deg, #154f6b 0 62%, #0d3346 62%); }
+.a4 { background: radial-gradient(circle at 68% 28%, #f08a52 0 9%, transparent 9.5%), linear-gradient(160deg, transparent 52%, #9a3a24 52.5% 66%, transparent 66.5%), linear-gradient(200deg, transparent 58%, #c4502c 58.5% 72%, #4a1810 72.5%), #3a160f; }
+.a5 { background: radial-gradient(circle at 70% 26%, #e9d9b0 0 9%, transparent 9.5%), radial-gradient(ellipse 80% 40% at 30% 92%, #3d5a52 0 60%, transparent 61%), radial-gradient(ellipse 90% 40% at 80% 88%, #4f6f63 0 60%, transparent 61%), linear-gradient(180deg, #2c4148, #3c5a5e); }
+.a6 { background: radial-gradient(circle at 50% 50%, #e9c6a0 0 7%, transparent 7.5%), repeating-radial-gradient(circle at 50% 50%, rgba(255, 190, 150, .38) 0 2px, transparent 2px 9px), linear-gradient(160deg, #6a2a33, #3c1218); }
+
+/* ---------- Fakten-Leiste ---------- */
+.fakten { border-top: 1px solid var(--linie); border-bottom: 1px solid var(--linie); margin-top: 56px; }
+.fakten .innen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fakt { padding: 22px 18px 22px 0; }
+.fakt + .fakt { padding-left: 22px; border-left: 1px solid var(--linie); }
+.fakt b { display: block; font: 700 1.5rem var(--anzeige); }
+.fakt > span { color: var(--leise); font-size: .9rem; }
+
+/* ---------- Abschnitte ---------- */
+section.teil { padding: 96px 0 0; }
+.teil-kopf { display: flex; flex-direction: column; gap: 14px; max-width: 46em; margin-bottom: 40px; }
+.teil-kopf h2 { font-size: clamp(2rem, 3.6vw, 2.9rem); }
+.teil-kopf p { color: var(--leise); font-size: 1.08rem; }
+
+/* Bilder der App */
+.bilder-reiter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.bilder-reiter button { background: rgba(255, 255, 255, .03); border: 1px solid var(--linie); color: var(--leise); font: 600 .92rem var(--fliess); padding: 9px 16px; border-radius: 999px; cursor: pointer; }
+.bilder-reiter button[aria-selected="true"] { background: rgba(255, 169, 77, .14); border-color: rgba(255, 169, 77, .45); color: var(--bernstein); }
+.buehne { position: relative; border-radius: 18px; border: 1px solid var(--linie); background: #0d0907; box-shadow: 0 50px 100px -40px rgba(0, 0, 0, .9); overflow: hidden; }
+.buehne img { width: 100%; height: auto; }
+.buehne .handy { display: flex; justify-content: center; padding: 34px 20px; background: radial-gradient(circle at 50% 0, #2e1d10, #0d0907 70%); }
+.buehne .handy img { width: min(320px, 80%); border-radius: 34px; border: 8px solid #241a14; box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .9); }
+.bild-text { margin-top: 14px; color: var(--leise); font-size: .95rem; min-height: 3.2em; }
+
+/* Funktionen: ungleiche Kacheln, die große zuerst */
+.funktionen { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+.fn { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 18px; padding: 26px; display: flex; flex-direction: column; gap: 10px; grid-column: span 2; min-width: 0; }
+.fn.gross { grid-column: span 3; }
+.fn h3 { font-size: 1.28rem; }
+.fn p { color: var(--leise); font-size: .97rem; }
+.fn .daten { margin-top: auto; padding-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.fn .daten span { font: 600 .74rem var(--anzeige); color: var(--bernstein); border: 1px solid rgba(255, 169, 77, .3); border-radius: 999px; padding: 4px 10px; }
+.fn svg { width: 26px; height: 26px; color: var(--bernstein); }
+
+/* Variante wählen */
+.wahl { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px; }
+.wahl-liste { display: flex; flex-direction: column; gap: 10px; }
+.wahl-liste button { text-align: left; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 16px; padding: 16px 18px; color: var(--text); cursor: pointer; font: inherit; }
+.wahl-liste button b { display: block; font: 700 1.05rem var(--anzeige); }
+.wahl-liste button span { color: var(--leise); font-size: .88rem; }
+.wahl-liste button[aria-selected="true"] { border-color: rgba(255, 169, 77, .55); background: linear-gradient(135deg, rgba(255, 195, 90, .12), rgba(255, 106, 61, .06)); }
+.wahl-inhalt { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 20px; padding: 30px; min-width: 0; }
+.wahl-inhalt h3 { font-size: 1.6rem; }
+.wahl-inhalt ol { margin: 18px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; color: var(--leise); }
+.wahl-inhalt ol b { color: var(--text); }
+.code { position: relative; margin-top: 20px; }
+.code pre { margin: 0; background: #0d0907; border: 1px solid var(--linie); border-radius: 14px; padding: 18px 20px; overflow-x: auto; font: 500 .86rem/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace; color: #f1e3d2; }
+.code button { position: absolute; top: 10px; right: 10px; background: #241a14; border: 1px solid var(--linie); color: var(--leise); border-radius: 8px; padding: 6px 10px; font: 600 .78rem var(--fliess); cursor: pointer; }
+.wahl-inhalt .knoepfe { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+
+/* Apps */
+.apps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.app { border: 1px solid var(--linie); border-radius: 20px; padding: 28px; background: linear-gradient(180deg, #1f1712, #16110d); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.app h3 { font-size: 1.35rem; }
+.app ul { margin: 0; padding-left: 18px; color: var(--leise); font-size: .95rem; display: flex; flex-direction: column; gap: 4px; }
+.app .knopf { margin-top: auto; align-self: flex-start; }
+.app small { color: #8d7d6d; font-size: .8rem; }
+.beta-link { font-size: .85rem; align-self: flex-start; }
+
+/* Fragen */
+.fragen { display: flex; flex-direction: column; border-top: 1px solid var(--linie); max-width: 860px; }
+.fragen details { border-bottom: 1px solid var(--linie); }
+.fragen summary { cursor: pointer; list-style: none; padding: 20px 0; font: 600 1.12rem var(--anzeige); display: flex; justify-content: space-between; gap: 20px; }
+.fragen summary::-webkit-details-marker { display: none; }
+.fragen summary::after { content: "+"; color: var(--bernstein); font-size: 1.4rem; line-height: 1; transition: transform .2s; }
+.fragen details[open] summary::after { transform: rotate(45deg); }
+.fragen details { overflow: hidden; }
+.fragen details p { color: var(--leise); padding: 0 0 22px; max-width: 65ch; }
+.fragen summary:hover { color: var(--bernstein); }
+
+/* Fuß */
+.fuss { margin-top: 110px; border-top: 1px solid var(--linie); padding: 36px 0 48px; color: var(--leise); font-size: .9rem; }
+.fuss .innen { display: flex; flex-wrap: wrap; gap: 18px 36px; align-items: center; }
+.fuss nav { display: flex; flex-wrap: wrap; gap: 22px; margin-left: auto; }
+.fuss a { color: var(--leise); }
+.beta { display: inline-flex; align-items: center; gap: 8px; font: 600 .78rem var(--anzeige); color: var(--bernstein); border: 1px solid rgba(255, 169, 77, .35); border-radius: 999px; padding: 5px 12px; }
+
+@media (max-width: 920px) {
+  .kopf .innen > nav { display: none; }
+  .sprache { margin-left: auto; }
+  .start { padding-top: 44px; }
+  .start .innen { grid-template-columns: 1fr; gap: 40px; }
+  .fakten .innen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fakt:nth-child(3) { padding-left: 0; border-left: 0; }
+  .fakt:nth-child(n+3) { border-top: 1px solid var(--linie); }
+  .funktionen { grid-template-columns: 1fr; }
+  .fn, .fn.gross { grid-column: auto; }
+  .wahl { grid-template-columns: 1fr; }
+  .wahl-liste { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+  .wahl-liste button { flex: 0 0 auto; }
+  .apps { grid-template-columns: 1fr; }
+  section.teil { padding-top: 72px; }
+}
+@media (max-width: 480px) {
+  .weg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .weg div:nth-child(3) { border-left: 0; }
+  .weg div:nth-child(n+3) { border-top: 1px solid var(--linie); }
+  .wahl-inhalt { padding: 22px; }
+}
+@media (max-width: 480px) { .flow { height: 168px; } .flow-teil { width: 116px; height: 116px; margin-left: -58px; } .flow-cd { width: 106px; height: 106px; margin-left: -53px; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .knopf, .flow-teil, .flow-cd, .handymenue, .handymenue a { transition: none; } .flow-cd i { animation: none; } }
+</style>
+</head>
+<body>
+
+<header class="kopf">
+  <div class="innen">
+    <a class="marke" href="#"><img src="bilder/logo.svg" alt="" width="32" height="32">Amberwave</a>
+    <nav aria-label="Seite">
+      <a href="#bilder"><span lang="de">Ansehen</span><span lang="en">Tour</span></a>
+      <a href="#funktionen"><span lang="de">Funktionen</span><span lang="en">Features</span></a>
+      <a href="#installieren"><span lang="de">Installieren</span><span lang="en">Install</span></a>
+      <a href="#apps">Apps</a>
+      <a href="#fragen"><span lang="de">Fragen</span><span lang="en">FAQ</span></a>
+      <a href="https://github.com/lfrank95/amberwave">GitHub</a>
+    </nav>
+    <div class="sprache" role="group" aria-label="Sprache / Language">
+      <button type="button" data-sprache="en" aria-pressed="true">EN</button>
+      <button type="button" data-sprache="de" aria-pressed="false">DE</button>
+    </div>
+    <button type="button" class="menue-knopf" data-menue aria-expanded="false" aria-controls="handymenue" aria-label="Menü"><i></i><i></i><i></i></button>
+  </div>
+  <nav class="handymenue" id="handymenue" data-handymenue aria-label="Menü"><div class="handymenue-innen">
+    <a href="#bilder"><span lang="de">Ansehen</span><span lang="en">Tour</span></a>
+    <a href="#funktionen"><span lang="de">Funktionen</span><span lang="en">Features</span></a>
+    <a href="#installieren"><span lang="de">Installieren</span><span lang="en">Install</span></a>
+    <a href="#apps">Apps</a>
+    <a href="#fragen"><span lang="de">Fragen</span><span lang="en">FAQ</span></a>
+    <a href="https://github.com/lfrank95/amberwave">GitHub</a>
+  </div></nav>
+</header>
+
+<main>
+<section class="start">
+  <div class="innen">
+    <div>
+      <div class="ueber"><span lang="de">Musikserver für Sammler</span><span lang="en">A music server for collectors</span></div>
+      <h1 style="margin-top:18px"><span lang="de">Deine Sammlung. Dein Server. <em>Bitgenau.</em></span><span lang="en">Your collection. Your server. <em>Bit-perfect.</em></span></h1>
+      <p class="lead"><span lang="de">Amberwave macht aus deinem Musikordner eine Bibliothek, die sich wie ein Streamingdienst anfühlt, nur ohne Abo, ohne Algorithmus und ohne dass ein Byte deine Wohnung verlässt, das du nicht schicken willst. Zuhause hörst du die Originaldatei, unterwegs einen sauberen Stream, im Flieger das, was auf dem Handy liegt.</span><span lang="en">Amberwave turns your music folder into a library that feels like a streaming service, without a subscription, without an algorithm, and without a single byte leaving your home that you didn't send. At home you hear the original file, on the go a clean stream, on the plane whatever is on your phone.</span></p>
+      <div class="knoepfe">
+        <a class="knopf voll" href="#installieren"><span lang="de">Jetzt installieren</span><span lang="en">Install now</span></a>
+        <a class="knopf rand" href="https://github.com/lfrank95/amberwave"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg><span lang="de">Quellcode auf GitHub</span><span lang="en">Source on GitHub</span></a>
+      </div>
+      <p class="stand"><span class="beta">Public Beta</span> &nbsp;<span lang="de">Aktuell <b data-version>0.9.1-beta.5</b> · kostenlos · Open Source (AGPL-3.0)</span><span lang="en">Currently <b data-version>0.9.1-beta.5</b> · free · open source (AGPL-3.0)</span></p>
+    </div>
+
+    <div class="kette" aria-label="Signalweg">
+      <div class="kette-kopf">
+        <div class="titel" data-titel><b>Afterglow</b><span>Static Bloom · Feedback Garden</span></div>
+        <div class="zeit" data-zeit>1:24 / 4:56</div>
+      </div>
+      <div class="pegel" aria-hidden="true">
+        <span>L</span><canvas data-pegel="0"></canvas>
+        <span>R</span><canvas data-pegel="1"></canvas>
+      </div>
+      <div class="skala" aria-hidden="true"><span>−60</span><span>−40</span><span>−20</span><span>−10</span><span>−3</span><span>0 dBFS</span></div>
+      <div class="flow" data-flow aria-label="Coverflow"><div class="flow-cd" data-cd aria-hidden="true"><i></i></div></div>
+      <div class="weg">
+        <div><small><span lang="de">Datei</span><span lang="en">File</span></small><b data-format>FLAC 24/96</b></div>
+        <div><small>Engine</small><b>64-bit float</b></div>
+        <div><small><span lang="de">Ausgabe</span><span lang="en">Output</span></small><b>WASAPI <span lang="de">exklusiv</span><span lang="en">exclusive</span></b></div>
+        <div class="gut"><small>Signal</small><b><span lang="de">bitgenau</span><span lang="en">bit-perfect</span></b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fakten">
+    <div class="innen">
+      <div class="fakt"><b>5</b><span lang="de">Wege: Docker, All-in-One, Windows, Android, Browser</span><span lang="en">ways to run it: Docker, all-in-one, Windows, Android, browser</span></div>
+      <div class="fakt"><b>−23 … −14 LUFS</b><span lang="de">Lautstärke angleichen nach EBU R128</span><span lang="en">loudness levelling per EBU R128</span></div>
+      <div class="fakt"><b><span lang="de">sample-genau</span><span lang="en">sample-accurate</span></b><span lang="de">lückenlos, auch Live-Alben</span><span lang="en">gapless, live albums too</span></div>
+      <div class="fakt"><b>0</b><span lang="de">Abos, Tracker, Werbung</span><span lang="en">subscriptions, trackers, ads</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="teil" id="bilder">
+  <div class="innen">
+    <div class="teil-kopf">
+      <div class="ueber"><span lang="de">Ansehen</span><span lang="en">Take a look</span></div>
+      <h2><span lang="de">Sieht aus wie ein Streamingdienst. Gehört dir.</span><span lang="en">Looks like a streaming service. Belongs to you.</span></h2>
+    </div>
+    <div class="bilder-reiter" role="tablist" aria-label="Bilder">
+      <button type="button" role="tab" aria-selected="true" data-bild="0"><span lang="de">Läuft gerade</span><span lang="en">Now playing</span></button>
+      <button type="button" role="tab" aria-selected="false" data-bild="1">Start</button>
+      <button type="button" role="tab" aria-selected="false" data-bild="2"><span lang="de">Album</span><span lang="en">Album</span></button>
+      <button type="button" role="tab" aria-selected="false" data-bild="3"><span lang="de">Alben</span><span lang="en">Albums</span></button>
+      <button type="button" role="tab" aria-selected="false" data-bild="4"><span lang="de">Effektrack</span><span lang="en">Effects rack</span></button>
+      <button type="button" role="tab" aria-selected="false" data-bild="5"><span lang="de">Handy</span><span lang="en">Phone</span></button>
+    </div>
+    <div class="buehne" data-buehne><img src="bilder/now-playing.png" alt="Amberwave: Läuft gerade" width="1440" height="900"></div>
+    <p class="bild-text" data-bild-text></p>
+  </div>
+</section>
+
+<section class="teil" id="funktionen">
+  <div class="innen">
+    <div class="teil-kopf">
+      <div class="ueber"><span lang="de">Funktionen</span><span lang="en">Features</span></div>
+      <h2><span lang="de">Gebaut von einem, der Musik hortet, für alle, die es auch tun.</span><span lang="en">Built by a music hoarder, for everyone who is one.</span></h2>
+    </div>
+    <div class="funktionen">
+      <div class="fn gross">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v3"/></svg>
+        <h3><span lang="de">Deine Bibliothek, richtig sortiert</span><span lang="en">Your library, properly sorted</span></h3>
+        <p><span lang="de">Amberwave erkennt Alben über ihre Tags und am Klang, gleicht sie mit MusicBrainz ab und kennt Editionen, Mitwirkende und Künstlerbilder. Aufräumen und Tags schreiben geht nur nach deiner Freigabe, standardmäßig wird nur gelesen.</span><span lang="en">Amberwave identifies albums by their tags and by sound, matches them with MusicBrainz and knows editions, credits and artist pictures. Tidying up and writing tags only happens after you approve it; by default it only reads.</span></p>
+        <div class="daten"><span>MusicBrainz</span><span>AcoustID</span><span>fanart.tv</span><span>FLAC · ALAC · MP3 · DSD</span></div>
+      </div>
+      <div class="fn gross">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 12h3l2-6 4 12 3-8 2 2h4"/></svg>
+        <h3><span lang="de">Klang ohne Kompromisse</span><span lang="en">Sound without compromise</span></h3>
+        <p><span lang="de">Lückenlose Wiedergabe auf das Sample genau, Lautstärke-Angleich ohne Limiter und im Windows-Client die Originaldatei unverändert ans Interface, exklusiv über WASAPI oder ASIO, mit VST3-Plug-ins wenn du willst.</span><span lang="en">Gapless playback to the sample, loudness levelling without a limiter, and in the Windows client the original file goes to your interface untouched, exclusive via WASAPI or ASIO, with VST3 plug-ins if you like.</span></p>
+        <div class="daten"><span>EBU R128</span><span>WASAPI</span><span>ASIO</span><span>VST3</span></div>
+      </div>
+      <div class="fn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 18v-6a8 8 0 0 1 16 0v6"/><rect x="2" y="14" width="4" height="6" rx="1.5"/><rect x="18" y="14" width="4" height="6" rx="1.5"/></svg>
+        <h3><span lang="de">Raumklang und Effekte</span><span lang="en">Surround and effects</span></h3>
+        <p><span lang="de">Space macht aus Stereo einen Raum, dazu Glow, Iron, Silk und ein parametrischer EQ, alles im Effektrack mit A/B-Vergleich.</span><span lang="en">Space turns stereo into a room, plus Glow, Iron, Silk and a parametric EQ, all in the effects rack with A/B comparison.</span></p>
+      </div>
+      <div class="fn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="13" height="10" rx="2"/><rect x="15" y="9" width="6" height="11" rx="1.5"/><path d="M7 18h6"/></svg>
+        <h3><span lang="de">Alles steuert alles</span><span lang="en">Everything controls everything</span></h3>
+        <p><span lang="de">Mit dem Handy den PC fernsteuern, mit dem PC den AV-Receiver. Geräte im Heimnetz spielen per DLNA, Denon, Marantz, Yamaha und Onkyo schaltet Amberwave selbst ein.</span><span lang="en">Control the PC from your phone, the AV receiver from your PC. Devices in your home network play via DLNA; Amberwave turns on Denon, Marantz, Yamaha and Onkyo by itself.</span></p>
+      </div>
+      <div class="fn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+        <h3><span lang="de">Offline, wirklich</span><span lang="en">Offline, for real</span></h3>
+        <p><span lang="de">Alben und Playlists aufs Handy, als Datei im Speicher der App, bis zur Originalqualität. Ohne Netz startet die App direkt in deine Musik.</span><span lang="en">Albums and playlists on your phone, as files in the app's storage, up to original quality. Without a network the app opens straight into your music.</span></p>
+      </div>
+      <div class="fn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16 14.5a5 5 0 0 1 6 5"/></svg>
+        <h3><span lang="de">Für die ganze Familie</span><span lang="en">For the whole family</span></h3>
+        <p><span lang="de">Eigene Konten mit eigenem Verlauf, eigenen Favoriten und Mein Radio, das mit der Zeit lernt, was jeder gern hört.</span><span lang="en">Separate accounts with their own history, favourites and My Radio, which learns over time what everyone likes.</span></p>
+      </div>
+      <div class="fn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6z"/><path d="m8.8 12.2 2.2 2.2 4.3-4.6"/></svg>
+        <h3><span lang="de">Sicher erreichbar</span><span lang="en">Safely reachable</span></h3>
+        <p><span lang="de">Unterwegs über einen Cloudflare-Tunnel ohne offene Ports, zuhause automatisch über den schnellen Direktweg mit eigenem Zertifikat.</span><span lang="en">On the go via a Cloudflare tunnel without open ports, at home automatically over the fast direct route with its own certificate.</span></p>
+      </div>
+      <div class="fn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h11M4 7l3-3M4 7l3 3M20 17H9m11 0-3-3m3 3-3 3"/></svg>
+        <h3><span lang="de">Umziehen in einem Rutsch</span><span lang="en">Move in one go</span></h3>
+        <p><span lang="de">Von Docker zu Windows oder zurück: ein verschlüsseltes Umzugspaket mit Bibliothek, Konten, Playlists und Verlauf.</span><span lang="en">From Docker to Windows or back: one encrypted migration package with library, accounts, playlists and history.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="teil" id="installieren">
+  <div class="innen">
+    <div class="teil-kopf">
+      <div class="ueber"><span lang="de">Installieren</span><span lang="en">Install</span></div>
+      <h2><span lang="de">Wo soll Amberwave laufen?</span><span lang="en">Where should Amberwave run?</span></h2>
+      <p><span lang="de">Der Server läuft dort, wo deine Musik liegt. Hören kannst du danach überall: im Browser, mit dem Windows-Client und mit der Android-App.</span><span lang="en">The server runs where your music lives. After that you can listen anywhere: in the browser, with the Windows client and with the Android app.</span></p>
+    </div>
+    <div class="wahl">
+      <div class="wahl-liste" role="tablist" aria-label="Variante">
+        <button type="button" role="tab" aria-selected="true" data-wahl="unraid"><b>Unraid</b><span lang="de">aus dem App-Store, ein Container</span><span lang="en">from the app store, one container</span></button>
+        <button type="button" role="tab" aria-selected="false" data-wahl="docker"><b>Docker · NAS</b><span lang="de">Synology, QNAP, Linux-Server</span><span lang="en">Synology, QNAP, Linux server</span></button>
+        <button type="button" role="tab" aria-selected="false" data-wahl="windows"><b>Windows-PC</b><span lang="de">ohne Docker, mit Installer</span><span lang="en">no Docker, with installer</span></button>
+      </div>
+
+      <div class="wahl-inhalt" role="tabpanel" data-wahl-inhalt="unraid">
+        <h3>Unraid</h3>
+        <ol>
+          <li><span lang="de">In <b>Apps</b> (Community Applications) nach <b>Amberwave</b> suchen und installieren.</span><span lang="en">In <b>Apps</b> (Community Applications) search for <b>Amberwave</b> and install.</span></li>
+          <li><span lang="de">Musikordner und Appdata-Ordner wählen, optional gleich Benutzername und Passwort für den Admin.</span><span lang="en">Pick your music and appdata folders, optionally a user name and password for the admin.</span></li>
+          <li><span lang="de">WebUI öffnen, fertig. Der erste Scan läuft von selbst.</span><span lang="en">Open the WebUI, done. The first scan starts by itself.</span></li>
+        </ol>
+        <div class="knoepfe"><a class="knopf rand" href="https://github.com/lfrank95/amberwave/blob/main/templates/amberwave.xml"><span lang="de">Vorlage ansehen</span><span lang="en">View template</span></a></div>
+      </div>
+
+      <div class="wahl-inhalt" role="tabpanel" data-wahl-inhalt="docker" hidden>
+        <h3>Docker</h3>
+        <ol>
+          <li><span lang="de"><b>All-in-One:</b> ein Container mit Datenbank und Fernzugang, ideal für den Anfang.</span><span lang="en"><b>All-in-one:</b> one container with database and remote access, ideal to start with.</span></li>
+          <li><span lang="de">Pfade anpassen, starten, im Browser <b>http://dein-server:9950</b> öffnen.</span><span lang="en">Adjust the paths, start, open <b>http://your-server:9950</b> in the browser.</span></li>
+          <li><span lang="de">Lieber mit eigenem Datenbank-Container? Die Compose-Datei liegt im Repository.</span><span lang="en">Prefer a separate database container? The Compose file is in the repository.</span></li>
+        </ol>
+        <div class="code"><pre data-code>docker run -d --name amberwave --stop-timeout 60 -p 9950:80 \
+  -e ADMIN_BENUTZER=admin -e ADMIN_PASSWORT='choose-a-good-one' \
+  -v /path/to/appdata:/appdata -v /path/to/music:/musik \
+  ghcr.io/lfrank95/amberwave-aio:beta</pre><button type="button" data-kopieren><span lang="de">Kopieren</span><span lang="en">Copy</span></button></div>
+        <div class="knoepfe"><a class="knopf rand" href="https://github.com/lfrank95/amberwave/blob/main/docker-compose.yml"><span lang="de">Compose-Datei</span><span lang="en">Compose file</span></a></div>
+      </div>
+
+      <div class="wahl-inhalt" role="tabpanel" data-wahl-inhalt="windows" hidden>
+        <h3><span lang="de">Windows-Server</span><span lang="en">Windows server</span></h3>
+        <ol>
+          <li><span lang="de">Installer laden und starten, Adminrechte brauchst du nicht.</span><span lang="en">Download and run the installer, no admin rights needed.</span></li>
+          <li><span lang="de">Musikordner wählen, Netzlaufwerke gehen auch.</span><span lang="en">Pick your music folder, network drives work too.</span></li>
+          <li><span lang="de">Im Browser einrichten. Amberwave sitzt danach im Infobereich neben der Uhr und holt sich Updates auf Nachfrage.</span><span lang="en">Set up in the browser. Afterwards Amberwave sits in the notification area next to the clock and fetches updates on request.</span></li>
+        </ol>
+        <div class="knoepfe"><a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-Windows-Server"><span lang="de">Windows-Server laden</span><span lang="en">Download Windows server</span></a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="teil" id="apps">
+  <div class="innen">
+    <div class="teil-kopf">
+      <div class="ueber">Apps</div>
+      <h2><span lang="de">Hören, wo du gerade bist</span><span lang="en">Listen wherever you are</span></h2>
+    </div>
+    <div class="apps">
+      <div class="app">
+        <h3><span lang="de">Windows-Client</span><span lang="en">Windows client</span></h3>
+        <ul>
+          <li lang="de">bitgenau über WASAPI exklusiv oder ASIO</li><li lang="en">bit-perfect via WASAPI exclusive or ASIO</li>
+          <li lang="de">Abtastrate folgt der Datei</li><li lang="en">sample rate follows the file</li>
+          <li lang="de">VST3-Plug-ins im Effektrack</li><li lang="en">VST3 plug-ins in the effects rack</li>
+          <li lang="de">findet den Server im Heimnetz selbst</li><li lang="en">finds the server on your network by itself</li>
+        </ul>
+        <a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-Windows-Client"><span lang="de">Für Windows laden</span><span lang="en">Download for Windows</span></a>
+        <small>Windows 10 / 11 · x64</small>
+      </div>
+      <div class="app">
+        <h3><span lang="de">Android-App</span><span lang="en">Android app</span></h3>
+        <ul>
+          <li lang="de">Musik offline als Datei auf dem Handy</li><li lang="en">music offline as files on your phone</li>
+          <li lang="de">läuft im Hintergrund, Sperrbildschirm, Bluetooth-Tasten</li><li lang="en">plays in the background, lock screen, Bluetooth buttons</li>
+          <li lang="de">wechselt ohne Netz selbst in den Offline-Modus</li><li lang="en">switches to offline mode by itself</li>
+          <li lang="de">unterstützt Faltgeräte</li><li lang="en">supports foldables</li>
+        </ul>
+        <a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-Android"><span lang="de">APK laden</span><span lang="en">Download APK</span></a>
+        <small><span lang="de">Android 10 oder neuer · Play Store folgt</span><span lang="en">Android 10 or newer · Play Store to follow</span></small>
+      </div>
+      <div class="app">
+        <h3>Browser</h3>
+        <ul>
+          <li lang="de">läuft in jedem aktuellen Browser</li><li lang="en">runs in any current browser</li>
+          <li lang="de">als App installierbar, auch am iPhone</li><li lang="en">installable as an app, iPhone too</li>
+          <li lang="de">offline speichern bis Opus 256</li><li lang="en">save offline up to Opus 256</li>
+          <li lang="de">Raumklang und Effekte inklusive</li><li lang="en">surround and effects included</li>
+        </ul>
+        <a class="knopf rand" href="#installieren"><span lang="de">Erst den Server einrichten</span><span lang="en">Set up the server first</span></a>
+        <small><span lang="de">Chrome, Edge, Firefox, Safari</span><span lang="en">Chrome, Edge, Firefox, Safari</span></small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="teil" id="fragen">
+  <div class="innen">
+    <div class="teil-kopf">
+      <div class="ueber"><span lang="de">Fragen</span><span lang="en">FAQ</span></div>
+      <h2><span lang="de">Häufig gefragt</span><span lang="en">Frequently asked</span></h2>
+    </div>
+    <div class="fragen">
+      <details open>
+        <summary><span lang="de">Was kostet Amberwave?</span><span lang="en">What does Amberwave cost?</span></summary>
+        <p><span lang="de">Nichts. Amberwave ist Open Source. Einige Funktionen wie ASIO, VST3 und die Effekte sind später als Pro-Funktionen geplant und während der Beta für alle frei.</span><span lang="en">Nothing. Amberwave is open source. Some features such as ASIO, VST3 and the effects are planned as Pro features later and free for everyone during the beta.</span></p>
+      </details>
+      <details>
+        <summary><span lang="de">Verändert Amberwave meine Dateien?</span><span lang="en">Does Amberwave change my files?</span></summary>
+        <p><span lang="de">Nein, solange du es nicht erlaubst. Neu eingerichtet liest Amberwave nur. Tags schreiben und Aufräumen schaltest du ausdrücklich frei, und jede Änderung siehst du vorher als Vorschau.</span><span lang="en">Not unless you allow it. A fresh install only reads. Writing tags and tidying up have to be switched on explicitly, and you see every change as a preview first.</span></p>
+      </details>
+      <details>
+        <summary><span lang="de">Brauche ich einen Cloudflare-Account?</span><span lang="en">Do I need a Cloudflare account?</span></summary>
+        <p><span lang="de">Nur für den Zugriff von unterwegs, und auch dann nur das kostenlose Konto. Zuhause läuft alles ohne. Wer schon Tailscale, WireGuard oder einen eigenen Reverse Proxy nutzt, nimmt einfach den.</span><span lang="en">Only for access on the go, and then just the free account. At home everything works without it. If you already use Tailscale, WireGuard or your own reverse proxy, just use that.</span></p>
+      </details>
+      <details>
+        <summary><span lang="de">Welche Formate spielt Amberwave?</span><span lang="en">Which formats does Amberwave play?</span></summary>
+        <p><span lang="de">FLAC, ALAC, WAV, AIFF, MP3, AAC, Ogg Vorbis, Opus, WavPack, APE und DSD. Was ein Gerät nicht selbst abspielen kann, wandelt der Server unterwegs passend um.</span><span lang="en">FLAC, ALAC, WAV, AIFF, MP3, AAC, Ogg Vorbis, Opus, WavPack, APE and DSD. Whatever a device can't play itself, the server converts on the fly.</span></p>
+      </details>
+      <details>
+        <summary><span lang="de">Sammelt Amberwave Daten über mich?</span><span lang="en">Does Amberwave collect data about me?</span></summary>
+        <p><span lang="de">Nein. Es gibt keine Telemetrie und kein Konto bei uns. Amberwave fragt nur die Dienste, die du einschaltest, etwa MusicBrainz für Albumangaben.</span><span lang="en">No. There is no telemetry and no account with us. Amberwave only asks the services you switch on, such as MusicBrainz for album details.</span></p>
+      </details>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="fuss">
+  <div class="innen">
+    <a class="marke" href="#"><img src="bilder/logo.svg" alt="" width="28" height="28">Amberwave</a>
+    <span>AGPL-3.0 · <span lang="de">ohne Tracking, ohne Cookies</span><span lang="en">no tracking, no cookies</span></span>
+    <nav aria-label="Fuß">
+      <a href="https://github.com/lfrank95/amberwave">GitHub</a>
+      <a href="https://github.com/lfrank95/amberwave/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="#impressum"><span lang="de">Impressum</span><span lang="en">Legal notice</span></a>
+      <a href="#datenschutz"><span lang="de">Datenschutz</span><span lang="en">Privacy</span></a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const ruhig = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // ---------- Sprache: Browser-Sprache, umschaltbar, gemerkt ----------
+  const html = document.documentElement;
+  const setzen = (s) => {
+    html.dataset.sprache = s; html.lang = s;
+    document.querySelectorAll('.sprache button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sprache === s)));
+    try { localStorage.setItem('aw-sprache', s); } catch (e) { /* egal */ }
+    bildText();
+  };
+  // Englisch ist Standard; Deutsch, wenn der Browser Deutsch meldet oder jemand es gewählt hat
+  const browserDeutsch = (navigator.languages?.length ? navigator.languages : [navigator.language || '']).some((l) => /^de\b/i.test(l || ''));
+  let start = browserDeutsch ? 'de' : 'en';
+  try { start = localStorage.getItem('aw-sprache') || start; } catch (e) { /* egal */ }
+  document.querySelectorAll('.sprache button').forEach((b) => b.addEventListener('click', () => setzen(b.dataset.sprache)));
+
+  // ---------- Bilder der App ----------
+  const BILDER = [
+    { src: 'now-playing.png', de: 'Läuft gerade: Cover-Wand, Warteschlange und Mitwirkende. Die Qualitätsanzeige unten rechts sagt ehrlich, ob das Signal bitgenau ist.', en: 'Now playing: cover wall, queue and credits. The quality chip in the corner tells you honestly whether the signal is bit-perfect.' },
+    { src: 'home.png', de: 'Startseite mit Mein Radio, Jahrzehnten, Genres und dem, was du zuletzt gehört hast.', en: 'Home with My Radio, decades, genres and what you listened to last.' },
+    { src: 'album.png', de: 'Album mit Edition, Laufzeit, Mitwirkenden und Beschreibung, sortiert nach MusicBrainz.', en: 'Album with edition, running time, credits and description, sorted by MusicBrainz.' },
+    { src: 'albums.png', de: 'Die ganze Sammlung als Albenwand, filterbar nach Genre, Jahr und Format.', en: 'The whole collection as an album wall, filterable by genre, year and format.' },
+    { src: 'effects-rack.png', de: 'Das Effektrack: Space, Glow, Iron, Silk und EQ in beliebiger Reihenfolge, jeder mit Bypass.', en: 'The effects rack: Space, Glow, Iron, Silk and EQ in any order, each with bypass.' },
+    { src: 'phone.png', de: 'Am Handy mit Mini-Player, Offline-Musik und Wiedergabe im Hintergrund.', en: 'On the phone with mini player, offline music and background playback.', handy: true },
+  ];
+  let aktuell = 0;
+  const buehne = document.querySelector('[data-buehne]');
+  function bildText() { const t = document.querySelector('[data-bild-text]'); if (t) t.textContent = BILDER[aktuell][html.dataset.sprache] || BILDER[aktuell].de; }
+  function zeigen(i) {
+    aktuell = i;
+    const b = BILDER[i];
+    buehne.innerHTML = b.handy
+      ? `<div class="handy"><img src="bilder/${b.src}" alt="" width="390" height="844"></div>`
+      : `<img src="bilder/${b.src}" alt="" width="1440" height="900">`;
+    document.querySelectorAll('[data-bild]').forEach((x) => x.setAttribute('aria-selected', String(Number(x.dataset.bild) === i)));
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) buehne.firstElementChild.animate([{ opacity: 0, transform: 'scale(.985)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'ease-out' });
+    bildText();
+  }
+  document.querySelectorAll('[data-bild]').forEach((x) => x.addEventListener('click', () => zeigen(Number(x.dataset.bild))));
+
+  // ---------- Variante wählen ----------
+  document.querySelectorAll('[data-wahl]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-wahl]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    document.querySelectorAll('[data-wahl-inhalt]').forEach((p) => {
+      const zeigen = p.dataset.wahlInhalt === b.dataset.wahl;
+      if (zeigen && p.hidden && !ruhig) p.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+      p.hidden = !zeigen;
+    });
+  }));
+  document.querySelectorAll('[data-kopieren]').forEach((b) => b.addEventListener('click', async () => {
+    const pre = b.parentElement.querySelector('pre');
+    try { await navigator.clipboard.writeText(pre.textContent); b.textContent = html.dataset.sprache === 'de' ? 'Kopiert' : 'Copied'; }
+    catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  }));
+
+  // ---------- Downloads: direkt auf die Dateien des neuesten Releases (geht nur auf der echten Seite) ----------
+  // Angeboten wird die neueste fertige Version; gibt es noch keine (Beta-Zeit), die neueste Beta. Ist eine Beta neuer als
+  // die fertige Version, steht sie als zusätzlicher Link daneben.
+  fetch('https://api.github.com/repos/lfrank95/amberwave/releases?per_page=20').then((r) => r.json()).then((liste) => {
+    const alle = (Array.isArray(liste) ? liste : []).filter((x) => !x.draft);
+    const fertig = alle.find((x) => !x.prerelease);
+    const rel = fertig || alle[0];
+    if (!rel) return;
+    const beta = fertig && alle[0] !== fertig && alle[0].prerelease ? alle[0] : null;
+    const nummer = (x) => x.tag_name.replace(/^v/, '');
+    document.querySelectorAll('[data-version]').forEach((e) => { e.textContent = nummer(rel); });
+    if (fertig) document.querySelectorAll('.beta').forEach((e) => { e.hidden = true; });
+    document.querySelectorAll('[data-datei]').forEach((a) => {
+      const f = (rel.assets || []).find((x) => x.name.startsWith(a.dataset.datei + '-'));
+      if (f) a.href = f.browser_download_url;
+      const fb = beta && (beta.assets || []).find((x) => x.name.startsWith(a.dataset.datei + '-'));
+      if (fb && !a.parentElement.querySelector('.beta-link')) {
+        const l = document.createElement('a');
+        l.className = 'beta-link';
+        l.href = fb.browser_download_url;
+        l.innerHTML = `<span lang="de">oder die Beta ${nummer(beta)}</span><span lang="en">or try beta ${nummer(beta)}</span>`;
+        a.insertAdjacentElement('afterend', l);
+      }
+    });
+  }).catch(() => {});
+
+  // ---------- Pegel: ruhig atmende Stereo-Anzeige mit Spitzenhaltung ----------
+  const leinwaende = [...document.querySelectorAll('[data-pegel]')];
+  const spitzen = [0, 0], halt = [0, 0];
+  const dbZuX = (db) => Math.max(0, Math.min(1, (db + 60) / 60));
+  function zeichnen(t) {
+    leinwaende.forEach((c, k) => {
+      const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+      const g = c.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      // Musik-ähnlicher Verlauf: Grundpegel um −14 dBFS, Schläge, leichte Unterschiede links/rechts
+      const s = t / 1000;
+      const db = ruhig ? -12 : -15 + 5.5 * Math.sin(s * 2.1 + k) * Math.sin(s * 0.7) + 4 * Math.max(0, Math.sin(s * 7.9 + k * 0.6)) ** 6 - 2 * Math.abs(Math.sin(s * 13 + k));
+      const x = dbZuX(db);
+      if (x > spitzen[k]) { spitzen[k] = x; halt[k] = t; } else if (t - halt[k] > 900) spitzen[k] = Math.max(x, spitzen[k] - 0.006);
+      g.fillStyle = 'rgba(255, 195, 90, .08)';
+      g.beginPath(); g.roundRect(0, 0, w, h, 4); g.fill();
+      const v = g.createLinearGradient(0, 0, w, 0);
+      v.addColorStop(0, '#ffc35a'); v.addColorStop(0.82, '#ff8a3d'); v.addColorStop(1, '#ff5a3d');
+      g.fillStyle = v;
+      // Segmente wie ein echtes Meter
+      const seg = 3.5, luecke = 1.5;
+      for (let px = 0; px < w * x; px += seg + luecke) g.fillRect(px, 1, Math.min(seg, w * x - px), h - 2);
+      g.fillStyle = '#ffe2b0';
+      g.fillRect(Math.min(w - 2, w * spitzen[k]), 0, 2, h);
+    });
+    if (!ruhig) requestAnimationFrame(zeichnen);
+  }
+  requestAnimationFrame(zeichnen);
+  // ---------- Coverflow mit drehender CD: alle paar Sekunden das nächste Album ----------
+  const ALBEN = [
+    { a: 'a1', titel: 'Afterglow', kuenstler: 'Static Bloom', album: 'Feedback Garden', dauer: 296, format: 'FLAC 24/96' },
+    { a: 'a2', titel: 'Golden', kuenstler: 'Neon Atlas', album: 'Midnight Transit', dauer: 228, format: 'FLAC 16/44.1' },
+    { a: 'a3', titel: 'Mareas', kuenstler: 'Marisol Vega', album: 'Cartas al Mar', dauer: 312, format: 'ALAC 24/48' },
+    { a: 'a4', titel: 'Cinder', kuenstler: 'Hollow Pines', album: 'Embers', dauer: 245, format: 'FLAC 24/192' },
+    { a: 'a5', titel: 'Northbound', kuenstler: 'Kestrel & Ash', album: 'Northern Roads', dauer: 217, format: 'WAV 24/96' },
+    { a: 'a6', titel: 'Slow Bloom', kuenstler: 'The Velvet Orchard', album: 'Slow Bloom', dauer: 381, format: 'FLAC 24/88.2' },
+  ];
+  const flow = document.querySelector('[data-flow]');
+  const cd = document.querySelector('[data-cd]');
+  const titelEl = document.querySelector('[data-titel]');
+  const zeit = document.querySelector('[data-zeit]');
+  const formatEl = document.querySelector('[data-format]');
+  const teile = ALBEN.map((x, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `flow-teil ${x.a}`;
+    b.setAttribute('aria-label', `${x.album} – ${x.kuenstler}`);
+    b.innerHTML = `<small></small><strong></strong>`;
+    b.querySelector('small').textContent = x.kuenstler;
+    b.querySelector('strong').textContent = x.album;
+    b.addEventListener('click', () => { wechseln(i); neuStarten(); });
+    flow.appendChild(b);
+    return b;
+  });
+  let jetzt = 0, sek = 84;
+  const mmss = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+  function anordnen() {
+    const n = ALBEN.length;
+    teile.forEach((b, i) => {
+      let d = i - jetzt;
+      if (d > n / 2) d -= n;
+      if (d < -n / 2) d += n;
+      const ad = Math.abs(d);
+      b.style.transform = d === 0 ? 'translateX(0) translateZ(40px)' : `translateX(${d * 46 + Math.sign(d) * 26}%) translateZ(${-60 - ad * 30}px) rotateY(${-Math.sign(d) * 52}deg)`;
+      b.style.opacity = ad > 2 ? '0' : '1';
+      b.style.filter = d === 0 ? 'none' : `brightness(${0.62 - ad * 0.08})`;
+      b.style.zIndex = String(10 - ad * 2);
+      b.tabIndex = ad > 2 ? -1 : 0;
+    });
+    cd.style.zIndex = '9';
+  }
+  function anzeigen() {
+    const x = ALBEN[jetzt];
+    titelEl.innerHTML = '<b></b><span></span>';
+    titelEl.querySelector('b').textContent = x.titel;
+    titelEl.querySelector('span').textContent = `${x.kuenstler} · ${x.album}`;
+    formatEl.textContent = x.format;
+    zeit.textContent = `${mmss(sek)} / ${mmss(x.dauer)}`;
+  }
+  function wechseln(i) {
+    if (i === jetzt) return;
+    cd.classList.remove('raus');             // CD zurück in die Hülle …
+    titelEl.classList.add('weg-blenden');
+    setTimeout(() => {
+      jetzt = (i + ALBEN.length) % ALBEN.length;
+      sek = 0;
+      anordnen();                            // … Cover wandern …
+      anzeigen();
+      titelEl.classList.remove('weg-blenden');
+      setTimeout(() => cd.classList.add('raus'), ruhig ? 0 : 650);   // … und die neue CD fährt heraus
+    }, ruhig ? 0 : 380);
+  }
+  let uhr = null;
+  function neuStarten() { clearInterval(uhr); if (!ruhig) uhr = setInterval(() => wechseln(jetzt + 1), 7000); }
+  anordnen();
+  anzeigen();
+  setTimeout(() => cd.classList.add('raus'), ruhig ? 0 : 600);
+  neuStarten();
+  if (!ruhig) setInterval(() => { sek = Math.min(ALBEN[jetzt].dauer, sek + 1); zeit.textContent = `${mmss(sek)} / ${mmss(ALBEN[jetzt].dauer)}`; }, 1000);
+
+  // ---------- Aufklappen mit Bewegung: Fragen, Handymenü, Reiter ----------
+  document.querySelectorAll('.fragen details').forEach((d) => {
+    const kopf = d.querySelector('summary');
+    kopf.addEventListener('click', (e) => {
+      if (ruhig) return;
+      e.preventDefault();
+      if (d._anim) d._anim.cancel();
+      const zu = kopf.offsetHeight;
+      if (!d.open) {
+        d.open = true;
+        const auf = d.scrollHeight;
+        d._anim = d.animate([{ height: `${zu}px` }, { height: `${auf}px` }], { duration: 320, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+        d.querySelector('p')?.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'ease-out' });
+      } else {
+        d._anim = d.animate([{ height: `${d.offsetHeight}px` }, { height: `${zu}px` }], { duration: 260, easing: 'cubic-bezier(.4, 0, .2, 1)' });
+        d._anim.onfinish = () => { d.open = false; };
+      }
+    });
+  });
+  const menueKnopf = document.querySelector('[data-menue]');
+  const handymenue = document.querySelector('[data-handymenue]');
+  menueKnopf.addEventListener('click', () => {
+    const auf = !handymenue.classList.contains('offen');
+    handymenue.classList.toggle('offen', auf);
+    menueKnopf.setAttribute('aria-expanded', String(auf));
+  });
+  handymenue.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { handymenue.classList.remove('offen'); menueKnopf.setAttribute('aria-expanded', 'false'); }));
+
+  setzen(start === 'en' ? 'en' : 'de');
+})();
+</script>
+</body>
+</html>

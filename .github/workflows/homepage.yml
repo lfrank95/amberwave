@@ -1,0 +1,51 @@
+# Homepage (site/) auf den IONOS-Webspace bringen – per SFTP, bei jedem veröffentlichten Release und bei Änderungen an
+# der Seite. Vorher wird die Versionsnummer, die die Seite ohne Verbindung zu GitHub zeigt, auf das neueste Release gesetzt
+# (die Seite selbst holt Version und Download-Links beim Aufruf frisch von GitHub).
+#
+# Secrets (Settings › Secrets and variables › Actions):
+#   IONOS_SFTP_HOST      z. B. access-5012345678.webspace-host.com
+#   IONOS_SFTP_BENUTZER  z. B. a1234567
+#   IONOS_SFTP_PASSWORT
+#   IONOS_SFTP_ORDNER    Zielordner auf dem Webspace, z. B. /amberwave (leer = Hauptordner)
+name: Homepage
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/homepage.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: homepage
+jobs:
+  ausrollen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versionsnummer einsetzen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # neueste fertige Version, sonst die neueste Beta (wie die Seite selbst)
+          V="$(gh api "repos/${{ github.repository }}/releases?per_page=20" --jq '[.[] | select(.draft | not)] as $a | ([$a[] | select(.prerelease | not)][0] // $a[0]) | .tag_name' 2>/dev/null | sed 's/^v//')"
+          [ -n "$V" ] || V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          sed -i -E "s#(<b data-version>)[^<]*(</b>)#\1${V}\2#g" site/index.html
+          echo "::notice title=Homepage::Version $V"
+      - name: Per SFTP hochladen
+        env:
+          HOST: ${{ secrets.IONOS_SFTP_HOST }}
+          BENUTZER: ${{ secrets.IONOS_SFTP_BENUTZER }}
+          PASSWORT: ${{ secrets.IONOS_SFTP_PASSWORT }}
+          ORDNER: ${{ secrets.IONOS_SFTP_ORDNER }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$BENUTZER" ] || [ -z "$PASSWORT" ]; then
+            echo "::warning title=Homepage::Keine IONOS-Zugangsdaten in den Secrets – nichts hochgeladen."
+            exit 0
+          fi
+          sudo apt-get install -y -qq lftp >/dev/null
+          ZIEL="${ORDNER:-/}"
+          # nur die Seite spiegeln; Dateien, die es in site/ nicht mehr gibt, werden auf dem Webspace gelöscht
+          lftp -u "$BENUTZER,$PASSWORT" "sftp://$HOST" -e "set sftp:auto-confirm yes; set net:max-retries 3; set net:timeout 20; mkdir -p -f $ZIEL; mirror -R --delete --verbose=1 --exclude-glob .DS_Store site $ZIEL; bye"
+          echo "::notice title=Homepage::hochgeladen nach $HOST:$ZIEL"
