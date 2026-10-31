@@ -4031,3 +4031,6 @@ dialog.dialog.eqf:not([open]) { display: none; }
 /* Initialen in Profilbildern und Künstlerbildern genau mittig: Großbuchstaben ohne Ober- und Unterlänge der Schrift
    (die WebView auf Android setzt die Zeile sonst je nach Schrift etwas zu tief) */
 .avatar, .kuenstler-bild { line-height: 1; text-box: trim-both cap alphabetic; }
+
+/* Android-App: am Scroll-Ende nichts dehnen oder federn – Kopf- und Fußleiste bleiben stehen */
+html.aw-android, html.aw-android body { overscroll-behavior: none; }

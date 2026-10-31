@@ -126,6 +126,8 @@ class MainActivity : ComponentActivity() {
     private fun webBauen(k: Context): WebView {
         val w = WebView(k)
         w.setBackgroundColor(Color.parseColor("#120d0a"))
+        // Kein Dehnen am Scroll-Ende (Android 12+): sonst federn Kopf- und Fußleiste mit, obwohl sie feststehen sollen
+        w.overScrollMode = android.view.View.OVER_SCROLL_NEVER
         w.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
