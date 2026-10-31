@@ -1013,7 +1013,9 @@ function hn_stream_token_pruefen(string $t): ?array
 
 function hn_render_pfad(): ?string
 {
-    $p = hn_konfig()['render'] ?: aw_realpath(__DIR__ . '/../bin/aw-render' . (aw_windows() ? '.exe' : ''));
+    // eigener Pfad aus der Konfiguration, sonst neben dem Code (Windows-Server) oder im Docker-Image (aus dem Quellcode gebaut)
+    $p = hn_konfig()['render'] ?: (aw_windows() ? aw_realpath(__DIR__ . '/../bin/aw-render.exe')
+        : (aw_realpath(__DIR__ . '/../bin/aw-render') ?: (is_file('/usr/local/bin/aw-render') ? '/usr/local/bin/aw-render' : null)));
     if (!$p || !is_file($p)) {
         return null;
     }

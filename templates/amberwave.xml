@@ -29,7 +29,6 @@ All-in-one: MariaDB 11.8 LTS is included, no second container needed. Set your m
   <Screenshot>https://raw.githubusercontent.com/lfrank95/amberwave/main/docs/screenshots/phone.png</Screenshot>
   <ExtraParams>--stop-timeout=60 --security-opt no-new-privileges:true</ExtraParams>
   <PostArgs/>
-  <Requires>The image is amd64 (x86-64) only.</Requires>
   <Config Name="Web UI port" Target="80" Default="9950" Mode="tcp" Description="Port for the web app, the Windows client and the phones." Type="Port" Display="always" Required="true" Mask="false">9950</Config>
   <Config Name="Music" Target="/musik" Default="/mnt/user/music" Mode="rw" Description="Your music collection. Amberwave only reads it until you allow writing under Settings › Library (for renaming and tagging). Set the access mode to read-only for hard protection." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/music</Config>
   <Config Name="Appdata" Target="/appdata" Default="/mnt/user/appdata/amberwave" Mode="rw" Description="Database, covers, artist images and backups. Keep it on the cache SSD." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/amberwave</Config>

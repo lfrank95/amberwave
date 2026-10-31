@@ -22,3 +22,6 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+
+# Effects calculator: built from source (Docker image, Windows server package), never committed
+app/bin/

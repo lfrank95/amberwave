@@ -1,5 +1,14 @@
 # Amberwave – ready-made image (GitHub Container Registry). Contains the code; updates via `docker compose pull`.
 # The runtime steps are the same as in docker/Dockerfile (local build with mounted code) – make changes in both.
+# Effects calculator aw-render (sound chain for devices in the home network), built from source for the target platform
+FROM debian:trixie-slim AS render
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+COPY dsp /src/dsp
+COPY windows-client/engine /src/engine
+RUN gcc -O2 -static -I/src/dsp -o /aw-render /src/engine/aw_render.c /src/engine/klang.c /src/dsp/*.c -lm -lpthread \
+    && printf '{"c":"kette"}\n' > /tmp/k.jsonl \
+    && head -c 384000 /dev/zero | /aw-render 48000 2 24 /tmp/k.jsonl 0 2>/dev/null | wc -c | grep -qx 288000
+
 FROM php:8.3-apache
 
 LABEL org.opencontainers.image.title="Amberwave" \
@@ -63,6 +72,7 @@ RUN printf '<Directory /var/www/html>\n    AllowOverride All\n</Directory>\n' > 
 
 # Code into the image (local installations mount it as a folder instead)
 COPY app /var/www/html
+COPY --from=render /aw-render /usr/local/bin/aw-render
 ENV AMBERWAVE_IMAGE=1
 HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
     CMD php -r '$c = @file_get_contents("http://127.0.0.1/api/v1/ping"); exit($c !== false && str_contains($c, "amberwave") ? 0 : 1);'

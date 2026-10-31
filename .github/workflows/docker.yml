@@ -38,6 +38,10 @@ jobs:
         uses: oven-sh/setup-bun@v2
       - run: bash app/scripts/buendeln.sh
 
+      # arm64 (Raspberry Pi, ARM NAS) is built under emulation next to amd64
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -67,12 +71,12 @@ jobs:
             type=raw,value=latest,enable=${{ (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'schedule' && !contains(steps.neueste.outputs.tag, '-')) }}
             type=ref,event=branch,enable=${{ github.event_name != 'schedule' }}
 
-      # Only amd64: the effects calculator bin/aw-render is so far only shipped as an x86-64 program.
+      # amd64 and arm64 – aw-render is compiled from source for each platform inside the Dockerfile
       - uses: docker/build-push-action@v6
         if: github.event_name != 'schedule'
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -97,12 +101,21 @@ jobs:
       - name: Test all-in-one
         run: bash tests/aio_test.sh amberwave-aio:test
 
+      # all-in-one for the platforms its app image has (older release images are amd64 only)
+      - name: Platforms of the app image
+        id: plattformen
+        run: |
+          BILD="ghcr.io/${{ github.repository_owner }}/amberwave:${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}"
+          if docker buildx imagetools inspect "$BILD" | grep -q 'linux/arm64'; then P=linux/amd64,linux/arm64; else P=linux/amd64; fi
+          echo "liste=$P" >> "$GITHUB_OUTPUT"
+          echo "::notice title=All-in-one::$P"
+
       - name: Push all-in-one
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.aio
-          platforms: linux/amd64
+          platforms: ${{ steps.plattformen.outputs.liste }}
           push: true
           tags: ${{ steps.meta_aio.outputs.tags }}
           labels: ${{ steps.meta_aio.outputs.labels }}

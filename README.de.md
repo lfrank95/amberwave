@@ -147,7 +147,6 @@ Play Store.
 
 - **Die Oberfläche braucht noch Feinschliff** – die Balance zwischen einfach, schön und detailliert ist noch nicht
   überall gefunden. Rückmeldungen dazu sind sehr willkommen.
-- Docker-Image nur für x86-64 (ARM/Raspberry Pi folgt).
 - Der Windows-Client ist nicht signiert und aktualisiert sich nicht selbst (er meldet aber neue Versionen).
 - Noch keine Subsonic-Schnittstelle – Subsonic-Apps funktionieren nicht; dafür gibt es die installierbare Web-App.
 - Keine Telemetrie, keine Installations-Kennung: Amberwave meldet nichts nach außen.
@@ -158,7 +157,7 @@ Ohne Termine, nur die Richtung:
 
 - **Langfristig:** eine eigenständige Windows-Version (Server und Player in einem), die Android-App im Play Store.
 - **In weiterer Ferne, aber nicht ausgeschlossen:** Versionen für macOS, iPhone und Linux.
-- Unterwegs: Feinschliff der Oberfläche, ARM-Image, mehr Werkzeuge – je nach euren Rückmeldungen.
+- Unterwegs: Feinschliff der Oberfläche, mehr Werkzeuge – je nach euren Rückmeldungen.
 
 ## Häufige Fragen
 

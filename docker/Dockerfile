@@ -1,3 +1,8 @@
+# Effects calculator aw-render (sound chain for devices in the home network) comes from the published image for this
+# platform – this build only sees the docker/ folder, not the C sources. AW_RENDER_BILD can point to another tag.
+ARG AW_RENDER_BILD=ghcr.io/lfrank95/amberwave:beta
+FROM ${AW_RENDER_BILD} AS render
+
 FROM php:8.3-apache
 
 # ffmpeg: live conversion (Opus/AAC) and reading tags/covers for non-FLAC files
@@ -54,3 +59,6 @@ RUN printf '<Directory /var/www/html>\n    AllowOverride All\n</Directory>\n' > 
     && a2enconf haertung
 
 # Covers and images live outside the web root (/cache) and are served through PHP.
+
+
+COPY --from=render /usr/local/bin/aw-render /usr/local/bin/aw-render

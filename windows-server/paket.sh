@@ -78,7 +78,7 @@ printf 'python312.zip\r\n.\r\nLib\\site-packages\r\nimport site\r\n' > "$PTH"
 # Amberwave selbst + Programm für den Infobereich
 cp -r "$HIER/../app" "$ZIEL/app"
 rm -rf "$ZIEL/app/bin" && mkdir -p "$ZIEL/app/bin"   # statt des Linux-Effekt-Rechners die Windows-Fassung
-cp "$WERK/aw-render.exe" "$ZIEL/app/bin/"
+mkdir -p "$ZIEL/app/bin" && cp "$WERK/aw-render.exe" "$ZIEL/app/bin/"
 cp "$WERK/Amberwave Server.exe" "$WERK/Amberwave Server deinstallieren.exe" "$ZIEL/"
 cp "$HIER/../LICENSE" "$ZIEL/LICENSE.txt"
 cp "$HIER/../COPYRIGHT" "$ZIEL/COPYRIGHT.txt"

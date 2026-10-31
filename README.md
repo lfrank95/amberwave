@@ -73,8 +73,8 @@ docker run -d --name amberwave --stop-timeout 60 -p 9950:80 \
 
 **Docker Compose (separate database container):**
 
-You need Docker with Compose on a Linux host or NAS with an x86-64 CPU (Unraid, Synology, TrueNAS, a plain Linux box).
-ARM devices such as a Raspberry Pi are not supported yet.
+You need Docker with Compose on a Linux host or NAS (Unraid, Synology, TrueNAS, a plain Linux box). Images exist for
+x86-64 and arm64 (e.g. Raspberry Pi 4/5, ARM-based NAS) from the next release on.
 
 1. Create a folder, e.g. `/opt/amberwave`, and put [`docker-compose.yml`](docker-compose.yml) and
    [`.env.example`](.env.example) into it.
@@ -158,7 +158,6 @@ controls. The app looks for updates on GitHub and asks before installing. Not in
 
 - **The interface still needs polish.** Finding the right balance between simple, good-looking and detailed is ongoing
   work – feedback on what feels cluttered or missing is very welcome.
-- Docker image for amd64 only (arm64 needs the effects renderer ported).
 - Code comments and parts of the documentation are German; the app itself is German and English.
 - The Windows client is unsigned, has no auto-update yet (it tells you when a new version is out) and VST3 support is
   experimental.
@@ -171,7 +170,7 @@ No dates, just direction:
 
 - **Long-term:** a standalone Windows version (server and player in one), the Android app in the Play Store.
 - **Further out, not ruled out:** versions for macOS, iPhone and Linux desktops.
-- Along the way: UI polish, arm64 image, more import and tidy-up tools – shaped by your feedback.
+- Along the way: UI polish, more import and tidy-up tools – shaped by your feedback.
 
 ## FAQ
 
@@ -182,7 +181,7 @@ then every change (tags, renaming, tidy-up) is shown as a preview first and only
 MusicBrainz editions and full credits, bit-perfect playback in its own Windows client, remote control between all your
 devices and a family setup with accounts that need approval and can expire. It does not do video.
 
-**What hardware do I need?** Any x86-64 machine that runs Docker. The first scan of a large library takes a while
+**What hardware do I need?** Any x86-64 or arm64 machine that runs Docker. The first scan of a large library takes a while
 (every file is read once – about 100 files per second in our load test). Keep the app data on an SSD if you can.
 With 100,000 tracks, lists, album pages and search answer in well under a second; a search with a typo takes about a
 second (load test on MariaDB 11.4).

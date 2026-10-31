@@ -5,6 +5,10 @@
 - Windows: every program file (client, engine, VST3 host, server, renderer, installers) now carries complete file
   details – publisher, description, version, licence and amberwave.app. Umlauts and special characters in these details
   are no longer garbled.
+- **Docker image for ARM:** the app and all-in-one images are now also built for arm64 (Raspberry Pi, ARM-based NAS).
+- Effects for devices in the home network (Docker): the effects calculator `aw-render` is now compiled from source
+  while building the image. The previously shipped program dated from 0.9.0 and did not yet include the reworked
+  Glow and Silk of 0.9.1 – devices in the home network now sound like the Windows client and the browser again.
 
 ## 0.9.1-beta.5 – Windows server, Android app
 
