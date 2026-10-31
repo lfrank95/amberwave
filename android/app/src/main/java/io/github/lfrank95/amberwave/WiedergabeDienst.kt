@@ -12,8 +12,6 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.net.Uri
 import android.net.wifi.WifiManager
@@ -110,8 +108,6 @@ class WiedergabeDienst : Service() {
 
     private lateinit var sitzung: MediaSessionCompat
     private lateinit var audio: AudioManager
-    private var fokus: AudioFocusRequest? = null
-    private var vonFokusPausiert = false
     private var vordergrund = false
     private var wach: PowerManager.WakeLock? = null
     private var wlan: WifiManager.WifiLock? = null
@@ -185,7 +181,6 @@ class WiedergabeDienst : Service() {
         val n = benachrichtigung()
         if (Medien.spielt) {
             haupt.removeCallbacks(aufhoeren)
-            fokusHolen()
             wach?.acquire(6 * 60 * 60 * 1000L)
             wlan?.acquire()
             laermAn()
@@ -233,24 +228,8 @@ class WiedergabeDienst : Service() {
         return b.build()
     }
 
-    // ---------- Audiofokus: Anrufe, Navigationsansagen, andere Musik-Apps ----------
-    private val fokusHoerer = AudioManager.OnAudioFocusChangeListener { f ->
-        when (f) {
-            AudioManager.AUDIOFOCUS_LOSS -> { vonFokusPausiert = false; WebHalter.aktion("pause"); fokus = null }
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> if (Medien.spielt) { vonFokusPausiert = true; WebHalter.aktion("pause") }
-            AudioManager.AUDIOFOCUS_GAIN -> if (vonFokusPausiert) { vonFokusPausiert = false; WebHalter.aktion("play") }
-        }
-    }
-
-    private fun fokusHolen() {
-        if (fokus != null) return
-        val r = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-            .setOnAudioFocusChangeListener(fokusHoerer)
-            .setWillPauseWhenDucked(false)
-            .build()
-        if (audio.requestAudioFocus(r) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) fokus = r
-    }
+    // Audiofokus (Anrufe, Navigationsansagen, andere Musik-Apps) holt und verwaltet die WebView selbst. Ein eigener Antrag
+    // der App nähme ihn der WebView wieder weg – sie pausiert dann nach einer halben Sekunde.
 
     // ---------- Kopfhörer abgezogen / Bluetooth weg: Pause ----------
     private fun laermAn() {
@@ -274,7 +253,6 @@ class WiedergabeDienst : Service() {
     override fun onDestroy() {
         haupt.removeCallbacks(aufhoeren)
         laermAus()
-        fokus?.let { audio.abandonAudioFocusRequest(it) }
         wach?.let { if (it.isHeld) it.release() }
         wlan?.let { if (it.isHeld) it.release() }
         sitzung.isActive = false
