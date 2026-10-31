@@ -118,7 +118,7 @@ export class PlayerLeiste {
       <div class="player-zeit-mini"><i style="width:0"></i></div>
       <div class="player-titel">
         <button type="button" class="mini-cover" data-jetzt aria-label="${t('Läuft gerade öffnen')}"></button>
-        <div class="texte" data-jetzt-text style="cursor:pointer"><div class="t">${t('Nichts ausgewählt')}</div><div class="k">${t('Wähle ein Album oder einen Titel')}</div></div>
+        <div class="texte" data-jetzt-text style="cursor:pointer"><div class="t">${t('Nichts ausgewählt')}</div><div class="k">${t('Such dir etwas aus')}</div></div>
       </div>
       <div class="player-mitte">
         <div class="player-knoepfe">
@@ -291,7 +291,7 @@ export class PlayerLeiste {
     this.el.classList.toggle('leer-player', !trk);
     $('[data-jetzt]').innerHTML = trk?.album?.cover ? `<img src="${h(trk.album.cover)}" alt="">` : '';
     $('.player-titel .t').innerHTML = trk ? h(trk.titel) + eBadge(trk.explizit) : t('Nichts ausgewählt');
-    $('.player-titel .k').innerHTML = trk ? kuenstlerLinks(trk.kuenstler) : t('Wähle ein Album oder einen Titel');
+    $('.player-titel .k').innerHTML = trk ? kuenstlerLinks(trk.kuenstler) : t('Such dir etwas aus');
     laufschrift($('.player-titel .t'));
     laufschrift($('.player-titel .k'));
     const spielt = p.spielt;

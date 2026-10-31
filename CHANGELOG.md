@@ -13,6 +13,13 @@
   instead of the browser's own control, which showed "Choose File / No file chosen" in the browser's language.
 - Polish: scrolling titles in the player fade out softly on the side where text is cut off instead of ending hard.
 - Settings › Services: the example for the MusicBrainz identifier no longer shows an outdated version number.
+- Polish (phone): accounts and the security log in Administration show each row as a card instead of a table cut off
+  at the side.
+- Polish: swipeable bars (administration tabs, start page chips, letter bar, library views) fade out at the edge where
+  more is hidden, and the active tab scrolls into view.
+- Polish: the empty player bar says "Pick something to play" – short enough to stand still on a phone.
+- Settings: an area that isn't available here (e.g. Windows output in the browser) now also changes the address to the
+  page that is shown.
 
 ## 0.9.1-beta.5 – Windows server, Android app
 

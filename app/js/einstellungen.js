@@ -1134,6 +1134,8 @@ export async function einstellungenAnsicht({ app, ziel, param, signal }) {
   const sichtbar = BEREICHE.filter((b) => (b.gruppe === 'persoenlich' || admin) && (b.id !== 'ausgabe' || nativ));
   const gewaehlt = param?.[0] || '';
   const b = bereichVon(gewaehlt) && sichtbar.includes(bereichVon(gewaehlt)) ? bereichVon(gewaehlt) : bereichVon('wiedergabe');
+  // Bereich hier nicht verfügbar (z. B. Windows-Ausgabe im Browser, Server-Bereich ohne Admin): Adresse passend zur Seite
+  if (gewaehlt && b.id !== gewaehlt) history.replaceState(history.state, '', '/einstellungen/' + b.id);
   const punkt = (x) => `<a href="/einstellungen/${x.id}" data-link class="einst-punkt" data-b="${x.id}" ${x === b && gewaehlt ? 'aria-current="page"' : x === b ? 'data-standard' : ''}>${icon(x.icon, 18)}<span>${h(x.titel)}</span>${x.zusatz ? `<small>${h(x.zusatz)}</small>` : ''}<i class="einst-pfeil">${icon('rechts', 16)}</i></a>`;
   const gruppe = (g, titel) => { const xs = sichtbar.filter((x) => x.gruppe === g); return xs.length ? `<div class="einst-gruppe">${titel}</div>${xs.map(punkt).join('')}` : ''; };
   const text = b.id === 'wiedergabe'

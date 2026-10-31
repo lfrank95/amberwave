@@ -21,6 +21,7 @@ import { scrollSetzen, gemerkt } from './merker.js';
 import { falzBeobachten } from './falz.js';
 import { zoomSperren } from './zoomsperre.js';
 import { dateifelderBeobachten } from './dateifeld.js';
+import { feinschliffBeobachten } from './feinschliff.js';
 import { nativ, ausgabeWeg } from './nativ.js';
 import { android, androidRufen, androidVersion } from './android.js';
 
@@ -55,6 +56,7 @@ function naturBereich(pfad) {
 falzBeobachten();
 zoomSperren();
 dateifelderBeobachten();
+feinschliffBeobachten();
 
 // Große, selten gebrauchte Teile (Verwaltung 240 KB, Einstellungen 100 KB samt Anhang) erst laden, wenn sie aufgerufen werden –
 // der Start lädt und übersetzt dann ein Drittel weniger Skript

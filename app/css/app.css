@@ -4051,3 +4051,25 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .datei-feld .btn { flex: none; }
 .datei-feld-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .88rem; color: var(--text-primary); }
 .datei-feld-name.leer { color: var(--text-muted); }
+
+/* Wischleisten (js/feinschliff.js): weicher Rand auf der Seite, auf der noch etwas verborgen ist */
+.wisch.wisch-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+.wisch.wisch-l { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px); mask-image: linear-gradient(90deg, transparent, #000 28px); }
+.wisch.wisch-l.wisch-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+
+/* Tabellen als Karten auf dem Handy (table.karten, Spaltennamen kommen aus js/feinschliff.js) */
+@media (max-width: 640px) {
+  table.karten thead { display: none; }
+  table.karten tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 6px; border-bottom: 1px solid var(--glass-border); }
+  table.karten tr:last-child { border-bottom: 0; }
+  table.karten td { display: block; padding: 0; border: 0; min-width: 0; overflow-wrap: anywhere; grid-column: 1 / -1; }
+  table.karten td[data-k]:not(:first-child)::before { content: attr(data-k) " "; color: var(--text-muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-right: 6px; }
+  table.karten td:empty, table.karten td:has(> small:empty:only-child) { display: none; }
+  /* Konten: Name links, Knöpfe rechts daneben */
+  table.konten-karten td:first-child { grid-column: 1; }
+  table.konten-karten td:last-child { grid-column: 2; grid-row: 1; align-self: start; }
+  /* Protokoll: Zeit und Ereignis in einer Zeile */
+  table.protokoll-karten td:first-child { grid-column: 1 / -1; }
+  table.protokoll-karten td:nth-child(2) { font-weight: 700; }
+  table.protokoll-karten td[data-k]:nth-child(2)::before { content: none; }
+}

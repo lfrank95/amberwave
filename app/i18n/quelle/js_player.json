@@ -300,7 +300,6 @@
  "Wiederholen: aus": "Repeat: off",
  "Wiederholen: diesen Titel": "Repeat: this track",
  "Windows rechnet {von} → {nach} um (geteilt)": "Windows converts {von} → {nach} (shared)",
- "Wähle ein Album oder einen Titel": "Pick an album or a track",
  "Zielwert": "Target level",
  "Zufallswiedergabe": "Shuffle",
  "Zuhause im Heimnetz": "At home on the home network",
@@ -418,5 +417,6 @@
  "Vor einem Titel": "1 track ago",
  "Vor {n} Titeln": "{n} tracks ago",
  "Für den besten Klang am PC gibt es den Windows-Client (bitgenau, ASIO, VST) – Download im Profilmenü oben rechts.": "For the best sound on your PC there is the Windows client (bit-perfect, ASIO, VST) – download it from the profile menu at the top right.",
- "Windows-Client herunterladen": "Download Windows client"
+ "Windows-Client herunterladen": "Download Windows client",
+ "Such dir etwas aus": "Pick something to play"
 }

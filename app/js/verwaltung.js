@@ -627,7 +627,7 @@ export const verwaltungsAnsichten = {
       const n = (f) => r.konten.filter((k) => (f === 'wartend' ? k.status === 'pending' : f === 'bald' ? k.bald_ablaufend : k.status === 'gesperrt' || k.status === 'abgelaufen')).length;
       ziel.innerHTML = tabs('/verwaltung/konten') + kopf(t('Konten'), tn(r.konten.length, '1 Konto', '{n} Konten'), `<button type="button" class="btn" data-neu>${icon('plus', 18)}<span>${t('Konto anlegen')}</span></button>`) + `
         <div class="reiter">${[['alle', t('Alle')], ['wartend', t('Wartend ({n})', { n: n('wartend') })], ['bald', t('Läuft bald ab ({n})', { n: n('bald') })], ['gesperrt', t('Gesperrt/abgelaufen ({n})', { n: n('gesperrt') })]].map(([w, bez]) => `<button type="button" class="pille${filter === w ? ' an' : ''}" data-f="${w}">${bez}</button>`).join('')}</div>
-        <div class="glass-panel" style="padding:8px 8px 4px"><div class="tabelle-scroll"><table>
+        <div class="glass-panel" style="padding:8px 8px 4px"><div class="tabelle-scroll"><table class="karten konten-karten">
           <thead><tr><th>${t('Name')}</th><th>${t('Status')}</th><th>${t('Gültig bis')}</th><th>${t('Geräte')}</th><th>${t('Zuletzt aktiv')}</th><th></th></tr></thead>
           <tbody>${liste.map((k) => `<tr>
             <td><b>${h(k.vorname)} ${h(k.nachname)}</b>${k.rolle === 'admin' ? ' <span class="marke marke-akzent">Admin</span>' : ''}<br><small>@${h(k.benutzername)} · ${h(k.email)}</small></td>
@@ -1135,7 +1135,7 @@ export const verwaltungsAnsichten = {
   async protokoll({ app, ziel, signal }) {
     const log = await api.get('/admin/sicherheitslog', { signal });
     ziel.innerHTML = tabs('/verwaltung/protokoll') + kopf(t('Sicherheitsprotokoll'), `${h(app.ich.app.name)} ${h(app.ich.app.version)} · ${t('Anmeldungen, Sperren, Passwort- und Rechteänderungen')}`) + `
-      <div class="glass-panel" style="padding:8px"><div class="tabelle-scroll"><table><thead><tr><th>${t('Zeit')}</th><th>${t('Ereignis')}</th><th>${t('Nutzer')}</th><th>Details</th><th>IP</th></tr></thead>
+      <div class="glass-panel" style="padding:8px"><div class="tabelle-scroll"><table class="karten protokoll-karten"><thead><tr><th>${t('Zeit')}</th><th>${t('Ereignis')}</th><th>${t('Nutzer')}</th><th>Details</th><th>IP</th></tr></thead>
       <tbody>${log.eintraege.map((z) => `<tr><td><small>${datumZeit(z.zeit)}</small></td><td>${h(ereignisText(z.ereignis))}</td><td>${h(z.nutzer || '–')}</td><td><small>${h(z.details || '')}</small></td><td><small>${h(z.ip || '')}</small></td></tr>`).join('')}</tbody></table></div></div>`;
   },
 
