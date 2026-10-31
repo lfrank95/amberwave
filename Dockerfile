@@ -4,8 +4,8 @@
 FROM debian:trixie-slim AS render
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 COPY dsp /src/dsp
-COPY windows-client/engine /src/engine
-RUN gcc -O2 -static -I/src/dsp -o /aw-render /src/engine/aw_render.c /src/engine/klang.c /src/dsp/*.c -lm -lpthread \
+COPY windows-client/engine /src/windows-client/engine
+RUN gcc -O2 -static -I/src/dsp -o /aw-render /src/windows-client/engine/aw_render.c /src/windows-client/engine/klang.c /src/dsp/*.c -lm -lpthread \
     && printf '{"c":"kette"}\n' > /tmp/k.jsonl \
     && head -c 384000 /dev/zero | /aw-render 48000 2 24 /tmp/k.jsonl 0 2>/dev/null | wc -c | grep -qx 288000
 
