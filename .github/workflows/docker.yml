@@ -4,6 +4,9 @@
 # Trigger: a tag like v0.9.0-beta.1 (release) – or manually under Actions → Docker image → Run workflow.
 # Monthly: the all-in-one image of the latest release is rebuilt (MariaDB and Debian security updates) – only if its test passes.
 # Tags: exact version, plus "beta" for pre-releases or "latest" for stable ones.
+#
+# amd64 and arm64 are built at the same time on their own native runners (no emulation), each pushed by digest and
+# then joined into one multi-platform tag – so both are ready about as fast as a single-platform build.
 name: Docker image
 
 on:
@@ -17,43 +20,43 @@ permissions:
   contents: read
   packages: write
 
+env:
+  APP: ghcr.io/${{ github.repository_owner }}/amberwave
+  AIO: ghcr.io/${{ github.repository_owner }}/amberwave-aio
+
 jobs:
-  image:
+  # Tags, labels and the platforms to build – computed once for all jobs
+  vorbereiten:
     runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.quelle.outputs.ref }}
+      app_tags: ${{ steps.meta.outputs.tags }}
+      app_labels: ${{ steps.meta.outputs.labels }}
+      app_version: ${{ steps.meta.outputs.version }}
+      aio_tags: ${{ steps.meta_aio.outputs.tags }}
+      aio_labels: ${{ steps.meta_aio.outputs.labels }}
+      basis: ${{ steps.basis.outputs.bild }}
+      aio_matrix: ${{ steps.basis.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       # Monthly run: build from the latest release tag, not from main
-      - name: Latest release (monthly run)
-        if: github.event_name == 'schedule'
-        id: neueste
+      - name: Source
+        id: quelle
         run: |
-          TAG="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          git checkout -q "$TAG"
-
-      - name: Bundle the web app
-        uses: oven-sh/setup-bun@v2
-      - run: bash app/scripts/buendeln.sh
-
-      # arm64 (Raspberry Pi, ARM NAS) is built under emulation next to amd64
-      - uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          if [ "${{ github.event_name }}" = schedule ]; then
+            TAG="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"; echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/amberwave
+          images: ${{ env.APP }}
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=beta,enable=${{ contains(github.ref_name, '-') }}
@@ -63,62 +66,171 @@ jobs:
       - id: meta_aio
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/amberwave-aio
+          images: ${{ env.AIO }}
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{version}},value=${{ steps.neueste.outputs.tag }},enable=${{ github.event_name == 'schedule' }}
-            type=raw,value=beta,enable=${{ contains(github.ref_name, '-') || contains(steps.neueste.outputs.tag, '-') }}
-            type=raw,value=latest,enable=${{ (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'schedule' && !contains(steps.neueste.outputs.tag, '-')) }}
+            type=semver,pattern={{version}},value=${{ steps.quelle.outputs.tag }},enable=${{ github.event_name == 'schedule' }}
+            type=raw,value=beta,enable=${{ contains(github.ref_name, '-') || contains(steps.quelle.outputs.tag, '-') }}
+            type=raw,value=latest,enable=${{ (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')) || (github.event_name == 'schedule' && !contains(steps.quelle.outputs.tag, '-')) }}
             type=ref,event=branch,enable=${{ github.event_name != 'schedule' }}
 
-      # amd64 and arm64 – aw-render is compiled from source for each platform inside the Dockerfile
-      - uses: docker/build-push-action@v6
-        if: github.event_name != 'schedule'
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # All-in-one is built on the app image of the same version; the monthly run only gets arm64 if that image has it
+      - name: Base image and platforms
+        id: basis
+        run: |
+          V="${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}"
+          BILD="$APP:$V"
+          echo "bild=$BILD" >> "$GITHUB_OUTPUT"
+          AMD='{"plattform":"linux/amd64","runner":"ubuntu-latest","kurz":"amd64"}'
+          ARM='{"plattform":"linux/arm64","runner":"ubuntu-24.04-arm","kurz":"arm64"}'
+          if [ "${{ github.event_name }}" != schedule ] || docker buildx imagetools inspect "$BILD" | grep -q 'linux/arm64'; then
+            echo "matrix={\"include\":[$AMD,$ARM]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix={\"include\":[$AMD]}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # App image: one native build per platform, pushed by digest
+  app:
+    needs: vorbereiten
+    if: github.event_name != 'schedule'
+    strategy:
+      matrix:
+        include:
+          - { plattform: linux/amd64, runner: ubuntu-latest, kurz: amd64 }
+          - { plattform: linux/arm64, runner: ubuntu-24.04-arm, kurz: arm64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.vorbereiten.outputs.ref }}
+      - uses: oven-sh/setup-bun@v2
+      - run: bash app/scripts/buendeln.sh
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # aw-render is compiled from source for the platform inside the Dockerfile
+      - id: bau
+        uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.plattform }}
+          labels: ${{ needs.vorbereiten.outputs.app_labels }}
+          outputs: type=image,name=${{ env.APP }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=app-${{ matrix.kurz }}
+          cache-to: type=gha,mode=max,scope=app-${{ matrix.kurz }}
+      - run: mkdir -p "$RUNNER_TEMP/d" && touch "$RUNNER_TEMP/d/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.bau.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.kurz }}
+          path: ${{ runner.temp }}/d/*
+          retention-days: 1
 
-      # All-in-one: built on top of the app image of the same version, tested, and only then pushed
+  app_tags:
+    needs: [vorbereiten, app]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: app-*
+          path: ${{ runner.temp }}/d
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Join platforms into the tags
+        env:
+          TAGS: ${{ needs.vorbereiten.outputs.app_tags }}
+        run: |
+          cd "$RUNNER_TEMP/d"
+          docker buildx imagetools create $(printf -- '-t %s ' $TAGS) $(printf "$APP@sha256:%s " *)
+          docker buildx imagetools inspect "$(echo "$TAGS" | head -1)" | grep Platform
+
+  # All-in-one: per platform on the app image, tested natively on each platform, only then pushed
+  aio:
+    needs: [vorbereiten, app_tags]
+    if: always() && needs.vorbereiten.result == 'success' && (needs.app_tags.result == 'success' || github.event_name == 'schedule')
+    strategy:
+      matrix: ${{ fromJSON(needs.vorbereiten.outputs.aio_matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.vorbereiten.outputs.ref }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build all-in-one (for the test)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.aio
-          platforms: linux/amd64
+          platforms: ${{ matrix.plattform }}
           load: true
           pull: true
           no-cache: ${{ github.event_name == 'schedule' }}
           tags: amberwave-aio:test
-          build-args: |
-            BASIS=ghcr.io/${{ github.repository_owner }}/amberwave:${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}
-          cache-to: type=gha,mode=max,scope=aio
-
+          build-args: BASIS=${{ needs.vorbereiten.outputs.basis }}
+          cache-to: type=gha,mode=max,scope=aio-${{ matrix.kurz }}
       - name: Test all-in-one
         run: bash tests/aio_test.sh amberwave-aio:test
-
-      # all-in-one for the platforms its app image has (older release images are amd64 only)
-      - name: Platforms of the app image
-        id: plattformen
-        run: |
-          BILD="ghcr.io/${{ github.repository_owner }}/amberwave:${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}"
-          if docker buildx imagetools inspect "$BILD" | grep -q 'linux/arm64'; then P=linux/amd64,linux/arm64; else P=linux/amd64; fi
-          echo "liste=$P" >> "$GITHUB_OUTPUT"
-          echo "::notice title=All-in-one::$P"
-
-      - name: Push all-in-one
+      - id: bau
+        name: Push all-in-one
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.aio
-          platforms: ${{ steps.plattformen.outputs.liste }}
-          push: true
-          tags: ${{ steps.meta_aio.outputs.tags }}
-          labels: ${{ steps.meta_aio.outputs.labels }}
-          build-args: |
-            BASIS=ghcr.io/${{ github.repository_owner }}/amberwave:${{ github.event_name == 'schedule' && steps.meta_aio.outputs.version || steps.meta.outputs.version }}
-          cache-from: type=gha,scope=aio
+          platforms: ${{ matrix.plattform }}
+          labels: ${{ needs.vorbereiten.outputs.aio_labels }}
+          build-args: BASIS=${{ needs.vorbereiten.outputs.basis }}
+          outputs: type=image,name=${{ env.AIO }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=aio-${{ matrix.kurz }}
+      - run: mkdir -p "$RUNNER_TEMP/d" && touch "$RUNNER_TEMP/d/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.bau.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aio-${{ matrix.kurz }}
+          path: ${{ runner.temp }}/d/*
+          retention-days: 1
+
+  aio_tags:
+    needs: [vorbereiten, aio]
+    if: always() && needs.aio.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: aio-*
+          path: ${{ runner.temp }}/d
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Join platforms into the tags
+        env:
+          TAGS: ${{ needs.vorbereiten.outputs.aio_tags }}
+        run: |
+          cd "$RUNNER_TEMP/d"
+          docker buildx imagetools create $(printf -- '-t %s ' $TAGS) $(printf "$AIO@sha256:%s " *)
+          docker buildx imagetools inspect "$(echo "$TAGS" | head -1)" | grep Platform
+          echo "::notice title=All-in-one::$(ls | wc -l) platform(s)"
