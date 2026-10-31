@@ -1,0 +1,84 @@
+# Baut den Amberwave Windows Client (Engine, VST3-Host, Electron, Installer) aus dem Quellcode und hängt den Installer als
+# Testversion an den Lauf (kein Release). Gleiches Ergebnis wie windows-client/bauen.sh lokal – nur nachvollziehbar aus
+# dem Repository gebaut (Voraussetzung für eine spätere Code-Signierung).
+# Nur von Hand: Actions → Windows client → Run workflow.
+name: Windows client
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  ELECTRON_VERSION: 44.9.3          # Electron-Laufzeit (win32-x64)
+  VST3_TAG: v3.8.1_build_84         # VST3-SDK (MIT): nur Schnittstellen
+jobs:
+  bauen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Werkzeuge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/werkzeug"; mkdir -p "$W"
+          URL="$(gh api repos/mstorsjo/llvm-mingw/releases/latest --jq '.assets[].browser_download_url' | grep -E 'ucrt-ubuntu-[0-9.]+-x86_64\.tar\.xz$' | head -1)"
+          curl -fsSL "$URL" | tar -xJ -C "$W"
+          echo "LLVM_MINGW=$(ls -d "$W"/llvm-mingw-*)" >> "$GITHUB_ENV"
+          curl -fsSL -o "$W/electron.zip" "https://github.com/electron/electron/releases/download/v$ELECTRON_VERSION/electron-v$ELECTRON_VERSION-win32-x64.zip"
+          echo "ELECTRON_ZIP=$W/electron.zip" >> "$GITHUB_ENV"
+          mkdir -p "$W/vst3sdk"
+          for r in base:base pluginterfaces:pluginterfaces public_sdk:public.sdk; do
+            git clone -q --depth 1 --branch "$VST3_TAG" "https://github.com/steinbergmedia/vst3_${r%%:*}.git" "$W/vst3sdk/${r##*:}"
+          done
+          echo "VST3_SDK=$W/vst3sdk" >> "$GITHUB_ENV"
+          pip install --quiet pillow fonttools brotli
+      - name: Client bauen
+        run: |
+          AUS="$RUNNER_TEMP/aus" BROTLI_SHIM= bash windows-client/bauen.sh
+          V="$(node -p "require('./windows-client/client/package.json').version")"
+          echo "V=$V" >> "$GITHUB_ENV"
+          ls -la "$RUNNER_TEMP/aus"
+          sha256sum "$RUNNER_TEMP/aus/Amberwave-Windows-Client-$V.exe" | tee "$RUNNER_TEMP/aus/Amberwave-Windows-Client-$V.exe.sha256"
+          echo "::notice title=Windows client::Amberwave-Windows-Client-$V.exe, SHA-256 $(cut -d' ' -f1 "$RUNNER_TEMP/aus/Amberwave-Windows-Client-$V.exe.sha256")"
+      # Nur als Anhang am Lauf (Actions → Lauf → Artifacts), 14 Tage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Amberwave-Windows-Client-${{ env.V }}
+          path: |
+            ${{ runner.temp }}/aus/Amberwave-Windows-Client-${{ env.V }}.exe
+            ${{ runner.temp }}/aus/Amberwave-Windows-Client-${{ env.V }}.exe.sha256
+          retention-days: 14
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ordner
+          path: ${{ runner.temp }}/aus/Amberwave Windows Client
+          retention-days: 1
+  pruefen:
+    # Auf echtem Windows: tragen Installer und alle eigenen Programmdateien Hersteller, Beschreibung und Version?
+    needs: bauen
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ordner
+          path: ${{ runner.temp }}/ordner
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Amberwave-Windows-Client-*
+          path: ${{ runner.temp }}/a
+          merge-multiple: true
+      - name: Dateiangaben
+        shell: pwsh
+        run: |
+          $dateien = @(Get-ChildItem "$env:RUNNER_TEMP\a\*.exe") + @(Get-ChildItem "$env:RUNNER_TEMP\ordner" -Recurse -Include 'Amberwave*.exe','amberwave-*.exe')
+          $fehlt = @()
+          foreach ($f in $dateien) {
+            $i = $f.VersionInfo
+            Write-Host ("{0}: {1} | {2} | {3} | {4}" -f $f.Name, $i.CompanyName, $i.FileDescription, $i.ProductVersion, $i.LegalCopyright)
+            if (-not $i.CompanyName -or -not $i.FileDescription -or -not $i.ProductVersion -or $i.LegalCopyright -notmatch '©') { $fehlt += $f.Name }
+          }
+          if ($dateien.Count -lt 5) { Write-Host "::error title=Windows client::nur $($dateien.Count) Programmdateien gefunden"; exit 1 }
+          if ($fehlt) { Write-Host "::error title=Windows client::unvollständige Dateiangaben: $($fehlt -join ', ')"; exit 1 }
+          Write-Host "::notice title=Windows client::$($dateien.Count) Programmdateien vollständig beschriftet"
