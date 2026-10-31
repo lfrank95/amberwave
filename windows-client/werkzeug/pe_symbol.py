@@ -32,7 +32,8 @@ def versionsinfo(version, name, datei):
     ms, ls = (v[0] << 16) | v[1], (v[2] << 16) | v[3]
     fest = struct.pack('<13I', 0xFEEF04BD, 0x00010000, ms, ls, ms, ls, 0x3F, 0, 0x40004, 1, 0, 0, 0)
     texte = {'CompanyName': 'Amberwave', 'FileDescription': name, 'FileVersion': version, 'InternalName': name,
-             'LegalCopyright': 'Amberwave', 'OriginalFilename': datei, 'ProductName': name, 'ProductVersion': version}
+             'LegalCopyright': '© Amberwave contributors · AGPL-3.0', 'OriginalFilename': datei, 'ProductName': name, 'ProductVersion': version,
+             'Comments': 'https://amberwave.app'}
     strings = b''.join(_block(k, (w + '\0').encode('utf-16-le')) for k, w in texte.items())
     tabelle = _block('040904b0', kinder=strings, wert_laenge=0)
     sfi = _block('StringFileInfo', kinder=tabelle, wert_laenge=0)

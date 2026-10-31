@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Windows: every program file (client, engine, VST3 host, server, renderer, installers) now carries complete file
+  details – publisher, description, version, licence and amberwave.app. Umlauts and special characters in these details
+  are no longer garbled.
+
 ## 0.9.1-beta.5 – Windows server, Android app
 
 - **Windows client download in the web app:** on a Windows PC the profile menu offers "Download Windows client" – the

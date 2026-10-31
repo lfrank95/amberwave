@@ -13,7 +13,7 @@ V1="$(echo "$VNUM" | cut -d. -f1)"; V2="$(echo "$VNUM" | cut -d. -f2)"; V3="$(ec
 rc_bauen() {   # Ressourcen mit Versionsnummern: rc_bauen quelle.rc ziel.o (symbol.ico liegt in build/)
   sed "s/@V1@/$V1/g; s/@V2@/$V2/g; s/@V3@/$V3/g; s/@VERSION@/$VERSION/g" "$1" > "$HIER/build/$(basename "$1")"
   cp "$(dirname "$1")"/*.manifest "$HIER/build/" 2>/dev/null || true
-  (cd "$HIER/build" && "$LLVM_MINGW/bin/x86_64-w64-mingw32-windres" "$(basename "$1")" -O coff -o "$2")
+  (cd "$HIER/build" && "$LLVM_MINGW/bin/x86_64-w64-mingw32-windres" --codepage=65001 "$(basename "$1")" -O coff -o "$2")
 }
 mkdir -p "$HIER/build"
 # Symbol (bis 48 px als BMP, darüber PNG)
@@ -33,8 +33,9 @@ rc_bauen "$HIER/engine/engine.rc" "$HIER/build/engine_res.o"
 echo "VST3-Host …"
 # VST3-SDK (MIT, Steinberg): nur die Schnittstellen (pluginterfaces + IID-Definitionen); Pfad per VST3_SDK, darin pluginterfaces/ und public.sdk/
 VST3_SDK="${VST3_SDK:-/home/claude/werkzeug/vst3sdk}"
+rc_bauen "$HIER/vsthost/vsthost.rc" "$HIER/build/vsthost_res.o"
 "$LLVM_MINGW/bin/x86_64-w64-mingw32-clang++" -O2 -std=c++17 -static -Wall -Wno-unused -Wno-pragma-pack -Wno-format -I"$VST3_SDK" \
-  -o "$HIER/build/amberwave-vsthost.exe" "$HIER/vsthost/vsthost.cpp" \
+  -o "$HIER/build/amberwave-vsthost.exe" "$HIER/vsthost/vsthost.cpp" "$HIER/build/vsthost_res.o" \
   "$VST3_SDK/pluginterfaces/base/funknown.cpp" "$VST3_SDK/pluginterfaces/base/coreiids.cpp" \
   "$VST3_SDK/public.sdk/source/vst/vstinitiids.cpp" "$VST3_SDK/public.sdk/source/common/commoniids.cpp" \
   -Wl,--subsystem,windows -lole32 -luuid -luser32 -lgdi32 2>&1 | grep -E "warning|error" || true

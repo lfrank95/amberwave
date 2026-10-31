@@ -1,25 +1,30 @@
+#pragma code_page(65001)
 #include <winver.h>
 1 ICON "amberwave.ico"
 1 24 "server.manifest"
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,9,1,0
-PRODUCTVERSION 0,9,1,0
+FILEVERSION AW_V1,AW_V2,AW_V3,0
+PRODUCTVERSION AW_V1,AW_V2,AW_V3,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
-    BLOCK "040704B0"
+    BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "The Amberwave contributors"
+      VALUE "CompanyName", "Amberwave"
       VALUE "FileDescription", "Amberwave Server"
-      VALUE "ProductName", "Amberwave"
+      VALUE "FileVersion", AW_VERSION_A
+      VALUE "InternalName", "Amberwave Server"
+      VALUE "OriginalFilename", "Amberwave Server.exe"
+      VALUE "ProductName", "Amberwave Server"
       VALUE "ProductVersion", AW_VERSION_A
-      VALUE "LegalCopyright", "AGPL-3.0"
+      VALUE "LegalCopyright", "© Amberwave contributors · AGPL-3.0"
+      VALUE "Comments", "https://amberwave.app"
     END
   END
   BLOCK "VarFileInfo"
   BEGIN
-    VALUE "Translation", 0x407, 1200
+    VALUE "Translation", 0x409, 1200
   END
 END

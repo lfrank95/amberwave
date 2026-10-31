@@ -16,6 +16,9 @@ BEGIN
       VALUE "FileVersion", "@VERSION@"
       VALUE "ProductName", "Amberwave Windows Client"
       VALUE "ProductVersion", "@VERSION@"
+      VALUE "InternalName", "Amberwave Engine"
+      VALUE "LegalCopyright", "© Amberwave contributors · AGPL-3.0"
+      VALUE "Comments", "https://amberwave.app"
       VALUE "OriginalFilename", "amberwave-engine.exe"
     END
   END

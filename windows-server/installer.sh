@@ -14,7 +14,7 @@ VNUM="${VERSION%%-*}"; V1="$(echo "$VNUM" | cut -d. -f1)"; V2="$(echo "$VNUM" | 
 rc_bauen() {
   sed "s/@V1@/$V1/g; s/@V2@/$V2/g; s/@V3@/$V3/g; s/@VERSION@/$VERSION/g; s/Amberwave Windows Client/Amberwave Server/g; s/Amberwave-Windows-Client/Amberwave-Windows-Server/g" "$1" > "$B/$(basename "$1")"
   cp "$(dirname "$1")"/*.manifest "$B/" 2>/dev/null || true
-  (cd "$B" && "$LLVM_MINGW/bin/x86_64-w64-mingw32-windres" "$(basename "$1")" -O coff -o "$2")
+  (cd "$B" && "$LLVM_MINGW/bin/x86_64-w64-mingw32-windres" --codepage=65001 "$(basename "$1")" -O coff -o "$2")
 }
 python3 "$CL/werkzeug/assistent_bilder.py" "$HIER/../templates/amberwave.png" "$B"
 PYTHONPATH="${BROTLI_SHIM:-}" python3 "$CL/werkzeug/schriften.py" "$HIER/../app/fonts" "$B"
