@@ -142,6 +142,7 @@ class Offline extends EventTarget {
       for (const k of d.in) { const l = this.laufend.get(k); if (l) l.fehler = null; }
       this.laufendAufraeumen();
       this.melden(d.in[0] || null);
+      if (d.track?.album?.cover) this.coverSpeichern([d.track.album.cover]);
       return;
     }
     if (e.art === 'fehler' && d) {

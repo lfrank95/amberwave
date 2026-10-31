@@ -14,6 +14,8 @@ import { offline } from './offline.js';
 import { androidPlayer } from './android.js';
 import { t } from './i18n.js';
 
+const ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
 const SPEICHER = 'aw-warteschlange';
 const EINST = 'aw-player';
 
@@ -819,7 +821,22 @@ export class Player extends EventTarget {
   }
 
   /** Track laden (ohne Format-Infos werden sie bei Bedarf nachgeladen). */
+  /**
+   * Android (App und Browser): vor einem Wechsel mitten im Spielen kurz ausblenden und anhalten. Sonst gibt die Ausgabe
+   * nach dem Umschalten noch einen Rest des alten Titels aus – ein kurzer Knackser. Der neue Titel blendet dann ein.
+   */
+  async wechselVorbereiten() {
+    if (nativ || !ANDROID || this.audio.paused || !this.audio.src) return;
+    if (!document.hidden) await new Promise((fertig) => this.fadeZu(0, 40, fertig));
+    this._fadeEinAktiv = true;   // die Pause unten soll die Lautstärke nicht zurücksetzen
+    this.audio.pause();
+    this.fadeEinVorbereiten();
+    if (!document.hidden) await new Promise((fertig) => setTimeout(fertig, 60));
+  }
+
   async laden(ab = 0, abspielen = true, erzwingen = null) {
+    if (!this.track) return;
+    await this.wechselVorbereiten();
     let trk = this.track;
     if (!trk) return;
     if (this.nurLokal && !offline.hat(trk.id)) {

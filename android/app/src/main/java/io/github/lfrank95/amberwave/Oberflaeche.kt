@@ -31,7 +31,9 @@ object Oberflaeche {
                 pfad.startsWith("/__aw/offline/") -> offlineTon(pfad.removePrefix("/__aw/offline/").toLongOrNull() ?: 0, r.requestHeaders["Range"] ?: r.requestHeaders["range"])
                 r.isForMainFrame -> if (appSeite(pfad)) hauptseite() else null
                 statisch(u) -> Speicher.statisch(schluessel(u))?.let { (f, typ) -> antwort(f, typ, unveraenderlich = true) }
-                pfad.startsWith("/api/v1/bild/cover/") -> Speicher.bild(schluessel(u))?.let { (f, typ) -> antwort(f, typ, unveraenderlich = true) }
+                // Cover: genau diese Größe aus dem Speicher; ohne Netz auch eine andere gespeicherte Größe desselben Bilds
+                pfad.startsWith("/api/v1/bild/") -> (Speicher.bild(schluessel(u)) ?: if (!Netz.verbunden() || Oberflaeche.offline) Speicher.bildAehnlich(pfad) else null)
+                    ?.let { (f, typ) -> antwort(f, typ, unveraenderlich = true) }
                 else -> null
             }
         } catch (e: Exception) {
@@ -53,8 +55,13 @@ object Oberflaeche {
     }
 
     /** Startseite: Server da → normal laden; sonst die gemerkte Hülle (offline starten) */
+    /** Gerade mit der gemerkten Hülle gestartet (Server nicht erreichbar) */
+    @Volatile var offline = false
+
     private fun hauptseite(): WebResourceResponse? {
+        offline = false
         if (Netz.serverErreichbar()) return null
+        offline = true
         val f = Speicher.huelleDatei
         if (!f.exists()) return null
         val html = f.readText().replaceFirst("<html", "<html data-aw-huelle=\"1\"")

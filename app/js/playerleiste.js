@@ -1,4 +1,5 @@
 // Player-Leiste unten und die Vollbild-Ansicht „Läuft gerade“ (mit „Wer spielt hier?“, Signalweg und Warteschlange).
+import { laufschrift } from './laufschrift.js';
 import { api } from './api.js';
 import { nativ, ausgabeWeg, istAsio, titelFarbe } from './nativ.js';
 import { h, icon, dauer, kuenstlerLinks, kuenstlerText, menue, initialen } from './ui.js';
@@ -291,6 +292,8 @@ export class PlayerLeiste {
     $('[data-jetzt]').innerHTML = trk?.album?.cover ? `<img src="${h(trk.album.cover)}" alt="">` : '';
     $('.player-titel .t').innerHTML = trk ? h(trk.titel) + eBadge(trk.explizit) : t('Nichts ausgewählt');
     $('.player-titel .k').innerHTML = trk ? kuenstlerLinks(trk.kuenstler) : t('Wähle ein Album oder einen Titel');
+    laufschrift($('.player-titel .t'));
+    laufschrift($('.player-titel .k'));
     const spielt = p.spielt;
     const play = $('[data-play]');
     play.innerHTML = icon(spielt ? 'pause' : 'play', 22);
@@ -1170,6 +1173,8 @@ export class PlayerLeiste {
     const erster = p.liste[ti[0]];
     j.querySelector('[data-titel]').innerHTML = mehrere ? h(erster.album?.titel || erster.titel) : h(trk.titel) + eBadge(trk.explizit);
     j.querySelector('[data-kuenstler]').innerHTML = kuenstlerLinks(mehrere ? erster.kuenstler : trk.kuenstler);
+    laufschrift(j.querySelector('[data-titel]'));
+    laufschrift(j.querySelector('[data-kuenstler]'));
     const bis = ti[0] - p.index;
     const rolle = d === 0 ? '' : d === 1 ? t('Als Nächstes') : d > 1 ? tn(bis, 'In einem Titel', 'In {n} Titeln') : d === -1 ? t('Gerade gespielt') : tn(-(ti[ti.length - 1] - p.index), 'Vor einem Titel', 'Vor {n} Titeln');
     j.querySelector('[data-pk-rolle]').textContent = rolle;

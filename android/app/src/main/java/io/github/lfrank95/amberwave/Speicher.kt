@@ -175,6 +175,15 @@ object Speicher {
         if (!c.moveToFirst()) null else File(bilderOrdner, c.getString(0)).takeIf { it.exists() }?.let { it to c.getString(1) }
     }
 
+    /** Dasselbe Bild in irgendeiner gespeicherten Größe (die Oberfläche fragt je nach Stelle 200, 300, 600 px an) */
+    @Synchronized
+    fun bildAehnlich(pfad: String): Pair<File, String>? = db.rawQuery(
+        "SELECT datei, typ FROM bilder WHERE schluessel = ? OR substr(schluessel, 1, ?) = ? ORDER BY schluessel DESC", arrayOf(pfad, (pfad.length + 1).toString(), "$pfad?"),
+    ).use { c ->
+        while (c.moveToNext()) File(bilderOrdner, c.getString(0)).takeIf { it.exists() }?.let { return@use it to c.getString(1) }
+        null
+    }
+
     @Synchronized
     fun bildEintragen(schluessel: String, datei: String, typ: String) {
         db.insertWithOnConflict("bilder", null, ContentValues().apply { put("schluessel", schluessel); put("datei", datei); put("typ", typ) }, SQLiteDatabase.CONFLICT_REPLACE)
