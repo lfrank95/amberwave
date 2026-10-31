@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datenschutz der Software · Amberwave</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#120d0a">
+<link rel="icon" href="bilder/logo.svg" type="image/svg+xml">
+<style>
+@font-face { font-family: "Space Grotesk"; src: url(fonts/spacegrotesk-latin-v1.woff2) format("woff2"); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-v1.woff2) format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-ext-v1.woff2) format("woff2"); font-weight: 200 800; font-display: swap; unicode-range: U+0100-024F, U+1E00-1EFF; }
+/* Rechtliche Seiten im Stil der Homepage: ruhig, gut lesbar, eine Spalte */
+:root { --grund: #120d0a; --linie: rgba(255, 195, 90, .14); --text: #f6efe7; --leise: #b9a999; --bernstein: #ffa94d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--grund); color: var(--text); font: 16px/1.65 "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--bernstein); }
+.kopf { border-bottom: 1px solid var(--linie); }
+.innen { max-width: 760px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.kopf .innen { display: flex; align-items: center; height: 64px; gap: 10px; }
+.marke { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font: 700 1.1rem "Space Grotesk", system-ui, sans-serif; }
+.marke img { width: 30px; height: 30px; }
+.kopf .zurueck { margin-left: auto; color: var(--leise); text-decoration: none; font-weight: 600; font-size: .92rem; }
+main { padding-block: 56px 80px; }
+h1, h2 { font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -.01em; line-height: 1.15; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 5vw, 2.6rem); margin: 0 0 8px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; }
+p, li { color: var(--leise); max-width: 68ch; }
+p { margin: 0 0 12px; }
+ul { padding-left: 20px; margin: 0 0 12px; }
+address { font-style: normal; color: var(--text); line-height: 1.7; }
+.en { border: 1px solid var(--linie); border-radius: 14px; padding: 16px 18px; margin: 22px 0 8px; font-size: .92rem; }
+.en p { margin: 0; }
+.stand { font-size: .85rem; color: #8d7d6d; margin-top: 40px; }
+.tabelle { overflow-x: auto; margin: 14px 0 8px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-top: 1px solid var(--linie); }
+th { font: 600 .74rem "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--bernstein); border-top: 0; }
+td { color: var(--leise); }
+td:first-child { color: var(--text); font-weight: 600; }
+@media (max-width: 640px) {
+  table { min-width: 0; }
+  thead { display: none; }
+  tr { display: block; border-top: 1px solid var(--linie); padding: 12px 0; }
+  td { display: block; border: 0; padding: 2px 0; }
+  td:first-child { font: 600 1rem "Space Grotesk", system-ui, sans-serif; padding-bottom: 6px; }
+  td[data-k]::before { content: attr(data-k); display: block; font: 600 .7rem "Space Grotesk", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #8d7d6d; margin-top: 6px; }
+}
+.sprung { display: flex; gap: 14px; margin: 6px 0 0; font-weight: 600; font-size: .92rem; }
+hr { border: 0; border-top: 1px solid var(--linie); margin: 64px 0 0; }
+</style>
+</head>
+<body>
+<header class="kopf"><div class="innen"><a class="marke" href="index.html"><img src="bilder/logo.svg" alt="" width="30" height="30">Amberwave</a><a class="zurueck" href="index.html">← Startseite / Home</a></div></header>
+<main class="innen">
+<h1 id="de">Datenschutz der Software</h1>
+<p class="sprung"><a href="#en">English version ↓</a><a href="datenschutz.html">Datenschutz dieser Website</a></p>
+
+<h2>Das Wichtigste</h2>
+<ul>
+<li>Amberwave läuft auf deinem eigenen Server. Deine Musik, Konten, Playlists und Hördaten bleiben dort.</li>
+<li>An mich als Entwickler schickt die Software nichts: keine Telemetrie, keine Nutzungsstatistik, keine Absturzberichte, keine Zählung von Installationen.</li>
+<li>Es gibt keine Werbung, keine Analyse-Bibliotheken und keine Amberwave-Konten bei mir.</li>
+<li>Verantwortlich für die Daten auf einem Amberwave-Server ist, wer ihn betreibt.</li>
+</ul>
+
+<h2>Wohin sich der Server verbindet</h2>
+<p>Für einige Funktionen fragt der Amberwave-Server öffentliche Dienste an. Er meldet sich dabei mit „Amberwave/Version“ und der Projektadresse auf GitHub, ohne Kennung deiner Installation. Wie viele Anfragen an welchen Dienst gingen, siehst du unter Einstellungen › Dienste &amp; Schlüssel.</p>
+<div class="tabelle"><table><thead><tr><th>Dienst</th><th>Wann</th><th>Was übertragen wird</th><th>Abschalten</th></tr></thead><tbody>
+<tr><td>MusicBrainz, Cover Art Archive</td><td data-k="Wann">Beim Erkennen und Ergänzen deiner Musik</td><td data-k="Was übertragen wird">Namen von Künstlern, Alben und Titeln oder MusicBrainz-Kennungen</td><td data-k="Abschalten">Automatische Metadaten ausschalten; dann nur noch, wenn du selbst suchst</td></tr>
+<tr><td>Deezer</td><td data-k="Wann">Beim Suchen von Covern und Künstlerbildern</td><td data-k="Was übertragen wird">Namen von Künstlern und Alben</td><td data-k="Abschalten">Wie bei MusicBrainz</td></tr>
+<tr><td>ListenBrainz</td><td data-k="Wann">Für Genres und Beliebtheit</td><td data-k="Was übertragen wird">MusicBrainz-Kennungen. Deine Hörgewohnheiten werden nicht übertragen.</td><td data-k="Abschalten">Wie bei MusicBrainz</td></tr>
+<tr><td>fanart.tv</td><td data-k="Wann">Nur mit eigenem API-Schlüssel</td><td data-k="Was übertragen wird">MusicBrainz-Kennungen von Künstlern</td><td data-k="Abschalten">Schlüssel entfernen</td></tr>
+<tr><td>AcoustID</td><td data-k="Wann">Nur mit eigenem API-Schlüssel, beim Erkennen unbekannter Titel</td><td data-k="Was übertragen wird">Akustischer Fingerabdruck und Länge des Titels</td><td data-k="Abschalten">Schlüssel entfernen</td></tr>
+<tr><td>Claude (Anthropic)</td><td data-k="Wann">Nur mit eigenem API-Schlüssel</td><td data-k="Was übertragen wird">Albumbeschreibungen zum Übersetzen</td><td data-k="Abschalten">Schlüssel entfernen</td></tr>
+<tr><td>GitHub</td><td data-k="Wann">Update-Prüfung von Server, Windows-Client, Windows-Server und Android-App</td><td data-k="Was übertragen wird">Nur die Abfrage der neuesten Version</td><td data-k="Abschalten">Beim Server: Update-Hinweis in den Einstellungen</td></tr>
+<tr><td>Cloudflare</td><td data-k="Wann">Nur wenn du den Fernzugriff einrichtest</td><td data-k="Was übertragen wird">Der Datenverkehr des Fernzugriffs läuft über Cloudflare; mit API-Token auch DNS-Einträge deiner Domain</td><td data-k="Abschalten">Fernzugriff ausschalten</td></tr>
+<tr><td>Let's Encrypt</td><td data-k="Wann">Nur beim direkten Zugriff mit eigener Domain</td><td data-k="Was übertragen wird">Domainname, optional eine E-Mail-Adresse für Ablaufhinweise</td><td data-k="Abschalten">Direkten Zugriff ausschalten</td></tr>
+<tr><td>Google Cast</td><td data-k="Wann">Nur beim Abspielen auf einem Chromecast</td><td data-k="Was übertragen wird">Der Chromecast lädt die Empfänger-Software von Google</td><td data-k="Abschalten">Kein Cast nutzen</td></tr>
+<tr><td>Music Technology Group, Hugging Face, Voxengo</td><td data-k="Wann">Nur auf Klick eines Admins</td><td data-k="Was übertragen wird">Download von Analysemodellen oder Raumimpulsen; übertragen wird nur die IP-Adresse</td><td data-k="Abschalten">Nicht herunterladen</td></tr>
+<tr><td>Eigene Dienste</td><td data-k="Wann">Nur wenn du sie einträgst (z. B. Lidarr, Prowlarr, SABnzbd, Mailserver)</td><td data-k="Was übertragen wird">Was der jeweilige Dienst für seine Aufgabe braucht</td><td data-k="Abschalten">Eintrag entfernen</td></tr>
+</tbody></table></div>
+<p>Bei jeder dieser Verbindungen erfährt der jeweilige Dienst die IP-Adresse deines Servers. Es gelten die Datenschutzbestimmungen des jeweiligen Anbieters.</p>
+
+<h2>Apps auf deinen Geräten</h2>
+<ul>
+<li><b>Android-App und Windows-Client</b> verbinden sich nur mit dem Server, den du einträgst. Zum Finden des Servers fragen sie Geräte im eigenen Heimnetz an. Außerdem prüfen sie bei GitHub, ob es eine neue Version gibt.</li>
+<li>Offline gespeicherte Musik, Cover und Einstellungen liegen nur auf dem Gerät und werden beim Deinstallieren gelöscht.</li>
+<li><b>Web-App:</b> Sie wird von deinem Server geladen. Sie setzt nur die für die Anmeldung nötigen Cookies und speichert Einstellungen im Browser.</li>
+<li>Nutzt du den Fernzugriff, laufen die Verbindungen der Apps über Cloudflare (siehe oben).</li>
+</ul>
+
+<h2>Kontakt</h2>
+<p>Fragen zum Datenschutz der Software: <a href="mailto:lorenzo@adrenalin-arena.eu">lorenzo@adrenalin-arena.eu</a>. Anbieterangaben im <a href="impressum.html">Impressum</a>.</p>
+
+<hr>
+<h1 id="en">Software privacy</h1>
+<p class="sprung"><a href="#de">Deutsche Fassung ↑</a><a href="datenschutz.html">Website privacy (German)</a></p>
+
+<h2>In short</h2>
+<ul>
+<li>Amberwave runs on your own server. Your music, accounts, playlists and listening data stay there.</li>
+<li>The software sends nothing to me as the developer: no telemetry, no usage statistics, no crash reports, no install counting.</li>
+<li>There are no ads, no analytics libraries and no Amberwave accounts with me.</li>
+<li>Whoever runs an Amberwave server is responsible for the data on it.</li>
+</ul>
+
+<h2>Where the server connects</h2>
+<p>For some features the Amberwave server queries public services. It identifies itself as “Amberwave/version” with the project address on GitHub, without any identifier of your installation. Settings › Services &amp; keys shows how many requests went to which service.</p>
+<div class="tabelle"><table><thead><tr><th>Service</th><th>When</th><th>What is sent</th><th>Turn off</th></tr></thead><tbody>
+<tr><td>MusicBrainz, Cover Art Archive</td><td data-k="When">When identifying and completing your music</td><td data-k="What is sent">Artist, album and track names or MusicBrainz IDs</td><td data-k="Turn off">Turn off automatic metadata; then only when you search yourself</td></tr>
+<tr><td>Deezer</td><td data-k="When">When looking up covers and artist pictures</td><td data-k="What is sent">Artist and album names</td><td data-k="Turn off">As for MusicBrainz</td></tr>
+<tr><td>ListenBrainz</td><td data-k="When">For genres and popularity</td><td data-k="What is sent">MusicBrainz IDs. Your listening history is not sent.</td><td data-k="Turn off">As for MusicBrainz</td></tr>
+<tr><td>fanart.tv</td><td data-k="When">Only with your own API key</td><td data-k="What is sent">MusicBrainz artist IDs</td><td data-k="Turn off">Remove the key</td></tr>
+<tr><td>AcoustID</td><td data-k="When">Only with your own API key, when identifying unknown tracks</td><td data-k="What is sent">Acoustic fingerprint and track length</td><td data-k="Turn off">Remove the key</td></tr>
+<tr><td>Claude (Anthropic)</td><td data-k="When">Only with your own API key</td><td data-k="What is sent">Album descriptions to translate</td><td data-k="Turn off">Remove the key</td></tr>
+<tr><td>GitHub</td><td data-k="When">Update check of the server, Windows client, Windows server and Android app</td><td data-k="What is sent">Only the request for the latest version</td><td data-k="Turn off">Server: update notice in the settings</td></tr>
+<tr><td>Cloudflare</td><td data-k="When">Only if you set up remote access</td><td data-k="What is sent">Remote-access traffic passes through Cloudflare; with an API token also your domain's DNS records</td><td data-k="Turn off">Turn off remote access</td></tr>
+<tr><td>Let's Encrypt</td><td data-k="When">Only for direct access with your own domain</td><td data-k="What is sent">Domain name, optionally an e-mail address for expiry notices</td><td data-k="Turn off">Turn off direct access</td></tr>
+<tr><td>Google Cast</td><td data-k="When">Only when playing on a Chromecast</td><td data-k="What is sent">The Chromecast loads the receiver software from Google</td><td data-k="Turn off">Don't use Cast</td></tr>
+<tr><td>Music Technology Group, Hugging Face, Voxengo</td><td data-k="When">Only when an admin clicks download</td><td data-k="What is sent">Download of analysis models or room impulses; only your IP address is sent</td><td data-k="Turn off">Don't download</td></tr>
+<tr><td>Your own services</td><td data-k="When">Only if you add them (e.g. Lidarr, Prowlarr, SABnzbd, mail server)</td><td data-k="What is sent">Whatever the service needs for its job</td><td data-k="Turn off">Remove the entry</td></tr>
+</tbody></table></div>
+<p>With each of these connections the service learns your server's IP address. The provider's own privacy policy applies.</p>
+
+<h2>Apps on your devices</h2>
+<ul>
+<li><b>The Android app and the Windows client</b> only connect to the server you enter. To find it they query devices on your own home network. They also check GitHub for a new version.</li>
+<li>Music, covers and settings saved for offline use stay on the device and are deleted when you uninstall.</li>
+<li><b>Web app:</b> it is loaded from your server. It only sets the cookies needed to sign in and keeps settings in the browser.</li>
+<li>If you use remote access, the apps' connections pass through Cloudflare (see above).</li>
+</ul>
+
+<h2>Contact</h2>
+<p>Questions about the software's privacy: <a href="mailto:lorenzo@adrenalin-arena.eu">lorenzo@adrenalin-arena.eu</a>. Provider details in the <a href="impressum.html">legal notice</a>.</p>
+
+<p class="stand">Stand / last updated: Oktober / October 2026</p>
+
+</main>
+</body>
+</html>
