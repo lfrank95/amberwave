@@ -1,10 +1,17 @@
-# Only app/ belongs in the image
+# Only app/ belongs in the image – plus the C sources of the effects calculator aw-render (built in its own stage)
 .git
 .github
 .env
 windows-client
-dsp
+!windows-client/engine
+windows-client/engine/ausgabe_test.c
+dsp/tests
+dsp/wasm
 docs
 **/__pycache__
 **/*.pyc
 app/js/_b/*.map
+android
+site
+windows-server
+tests
