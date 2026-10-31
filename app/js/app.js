@@ -222,6 +222,7 @@ class App {
     androidRufen('offlineMelden', '1');
     toast(t('Kein Netz – Amberwave zeigt jetzt, was auf diesem Gerät gespeichert ist.'));
     const pfad = location.pathname;
+    this._vorOffline = pfad + location.search;
     this.navigieren(/^\/(alben|playlists)\/\d+$/.test(pfad) ? pfad : '/offline');
     clearInterval(this.offlineUhr);
     this.offlineUhr = setInterval(() => { if (!document.hidden) this.wiederOnline(); }, 20000);
@@ -241,7 +242,10 @@ class App {
       clearInterval(this.offlineUhr);
       this.offlineUhr = null;
       toast(t('Wieder online'));
-      this.navigieren(location.pathname + location.search, false);
+      // zurück dahin, wo man vor dem Netzausfall war (sonst die Seite, auf der man gerade ist)
+      const ziel = location.pathname === '/offline' && this._vorOffline ? this._vorOffline : location.pathname + location.search;
+      if (ziel !== location.pathname + location.search) history.pushState({}, '', ziel);
+      this.navigieren(ziel, false);
       offline.verlaufNachreichen();
       offline.abgleichen();
       return;
