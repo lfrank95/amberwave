@@ -716,7 +716,8 @@ fieldset legend { font-family: var(--font-body); }
     .track-dauer { display: none; }
     .track-nr { width: 30px; }
     .kuenstler-kopf { flex-direction: column; align-items: center; text-align: center; gap: 18px; }
-    .kuenstler-info { align-items: center; }
+    .kuenstler-info { align-items: center; flex: none; width: 100%; }   /* sonst wird die Grundbreite 380px hier zur Höhe */
+    .kuenstler-kopf { margin-bottom: 22px; }
     .glass-panel { padding: 18px; }
     .player { left: 8px; right: 8px; bottom: calc(var(--tabs-hoehe) + 6px); height: var(--player-hoehe); padding: 0 8px 0 6px; border-radius: 14px; border: 1px solid var(--glass-border);
         box-shadow: 0 10px 30px rgba(0,0,0,.45); gap: 8px; overflow: hidden; }
@@ -4026,3 +4027,7 @@ dialog.dialog.eqf:not([open]) { display: none; }
 .jetzt-titel h1.lauf, .jetzt-titel .k.lauf { overflow-wrap: normal; }
 @media (max-width: 1099px) { .jetzt-titel-text { flex: 1 1 auto; } }
 @media (prefers-reduced-motion: reduce) { .lauf.laeuft > .lauf-innen { animation: none; } .lauf { text-overflow: ellipsis; } }
+
+/* Initialen in Profilbildern und Künstlerbildern genau mittig: Großbuchstaben ohne Ober- und Unterlänge der Schrift
+   (die WebView auf Android setzt die Zeile sonst je nach Schrift etwas zu tief) */
+.avatar, .kuenstler-bild { line-height: 1; text-box: trim-both cap alphabetic; }

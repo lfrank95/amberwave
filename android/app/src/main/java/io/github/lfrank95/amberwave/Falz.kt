@@ -1,6 +1,7 @@
 package io.github.lfrank95.amberwave
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.view.View
 import androidx.core.util.Consumer
 import androidx.window.java.layout.WindowInfoTrackerCallbackAdapter
@@ -38,6 +39,10 @@ object Falz {
 
     private fun setzen(a: Activity, web: View, info: WindowLayoutInfo) {
         val f = info.displayFeatures.filterIsInstance<FoldingFeature>().firstOrNull()
+        // Halb aufgeklappt: Drehen nach dem Lagesensor erlauben, auch wenn die Drehung gesperrt ist – sonst bleibt die App
+        // hochkant, obwohl das Gerät wie ein Laptop aufgestellt ist. Flach oder zugeklappt gilt wieder die Sperre.
+        val gewuenscht = if (f?.state == FoldingFeature.State.HALF_OPENED) ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        if (a.requestedOrientation != gewuenscht) a.requestedOrientation = gewuenscht
         json = if (f == null) "null" else {
             val d = a.resources.displayMetrics.density
             val ort = IntArray(2)
