@@ -13,7 +13,7 @@ crate for your queue, VU meters, tubes and tape machines in the effects rack. An
 several programs and sketchy driver routing – library, bit-perfect playback, effects, plug-ins, multi-channel routing
 and remote control – in one place.
 
-> **Public beta – 0.9.1-beta.4.** Please back up your music before you try it. Amberwave only **reads** your music
+> **Public beta – 0.9.1-beta.5.** Please back up your music before you try it. Amberwave only **reads** your music
 > by default; it writes nothing until you allow it. *Deutsche Anleitung: [README.de.md](README.de.md)*
 
 ![Home](docs/screenshots/home.png)
@@ -140,6 +140,13 @@ VST3 plug-in support is **experimental** in the beta: each plug-in runs in its o
 stop the music – but third-party plug-ins are the most likely source of trouble. Please report problems with the plug-in's
 name and version.
 
+## Windows server (test build)
+
+Amberwave also runs natively on Windows, without Docker: download `Amberwave-Windows-Server-<version>.exe` from the
+[releases](../../releases), install (no admin rights needed), pick your music folder, set up in the browser. A program in
+the notification area starts and stops everything and installs updates on request. To move from Docker to Windows or back,
+use Settings › Backup › “Create migration package”.
+
 ## Android app
 
 A first test build is attached to the releases as `Amberwave-Android-<version>.apk` (Android 10 or newer). Allow your
@@ -162,7 +169,6 @@ controls. The app looks for updates on GitHub and asks before installing. Not in
 
 No dates, just direction:
 
-- **Mid-term:** Amberwave server for Windows (no Docker needed).
 - **Long-term:** a standalone Windows version (server and player in one), the Android app in the Play Store.
 - **Further out, not ruled out:** versions for macOS, iPhone and Linux desktops.
 - Along the way: UI polish, arm64 image, more import and tidy-up tools – shaped by your feedback.

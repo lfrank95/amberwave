@@ -1,4 +1,4 @@
-# Amberwave 0.9.1-beta.4
+# Amberwave 0.9.1-beta.5
 
 > **Eine App statt fünf:** Bibliothek, bitgenaue Ausgabe, Effekte, VST3, Routing pro Kanal und Fernsteuerung –
 > ohne virtuelle Kabel, ohne Treiber-Basteleien.
@@ -129,6 +129,13 @@ VST3-Plug-ins sind in der Beta **experimentell**: Jedes Plug-in läuft in einem 
 Musik nicht an – fremde Plug-ins sind aber die häufigste Fehlerquelle. Bitte Probleme mit Name und Version melden.
 
 
+## Windows-Server (Testbau)
+
+Amberwave läuft auch direkt unter Windows, ohne Docker: `Amberwave-Windows-Server-<Version>.exe` von den Releases laden,
+installieren (ohne Adminrechte), Musikordner wählen, im Browser einrichten. Ein Programm im Infobereich startet und stoppt
+alles und installiert Updates auf Nachfrage. Umziehen von Docker zu Windows und zurück: Einstellungen › Sicherung ›
+„Umzugspaket erstellen“.
+
 ## Android-App
 
 Ein erster Testbau hängt an den Releases als `Amberwave-Android-<Version>.apk` (ab Android 10). Einmal dem Browser oder
@@ -149,7 +156,6 @@ Play Store.
 
 Ohne Termine, nur die Richtung:
 
-- **Mittelfristig:** Amberwave-Server für Windows (ohne Docker).
 - **Langfristig:** eine eigenständige Windows-Version (Server und Player in einem), die Android-App im Play Store.
 - **In weiterer Ferne, aber nicht ausgeschlossen:** Versionen für macOS, iPhone und Linux.
 - Unterwegs: Feinschliff der Oberfläche, ARM-Image, mehr Werkzeuge – je nach euren Rückmeldungen.

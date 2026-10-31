@@ -1,7 +1,7 @@
 {
   "name": "amberwave-client",
   "productName": "Amberwave Windows Client",
-  "version": "0.9.1-beta.4",
+  "version": "0.9.1-beta.5",
   "description": "Amberwave Windows Client – spielt die Musik deines Amberwave-Servers bitgenau ab",
   "main": "main.js",
   "author": "Amberwave",

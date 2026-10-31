@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.1-beta.5 – in progress
+## 0.9.1-beta.5 – Windows server, Android app
 
 - **Windows client download in the web app:** on a Windows PC the profile menu offers "Download Windows client" – the
   installer of exactly the server's version from the GitHub release. A one-time hint points to it.
@@ -22,14 +22,23 @@
   background even with the app closed – optionally on Wi-Fi only – and without a network the app starts straight into
   "On this device". Playback keeps running in the background with notification, lock screen, headphone/Bluetooth buttons,
   and pauses for calls or when headphones are unplugged. Updates come from GitHub on request. "Download file" in the
-  track menu saves the actual file to Music/Amberwave (only where downloads are allowed). Every build is tested in an
-  Android emulator (connect, sign in, save offline, play, start without network).
+  track menu saves the actual file to Music/Amberwave (only where downloads are allowed). An automated test in an Android
+  emulator covers connecting, signing in, saving offline, playback controls and starting without network.
 - **Offline quality per device:** the admin sets the highest quality devices may save (Settings › Offline on devices:
   off, Opus 128/160/256 or original); each device picks its own quality up to that limit under Settings › Playback.
   Original (lossless) is available in the Android app; tracks already saved can be re-downloaded in the new quality.
 - "Allow file downloads for all accounts" is now a switch in the same place (before only `DOWNLOADS_ERLAUBT` in `.env`,
   which still works as the default).
 - In a browser on Android the profile menu offers the Android app matching the server's version.
+- Android app: finds Amberwave servers on your Wi-Fi by itself (with their public address, so it works on the go too),
+  supports foldables (book and laptop posture, also with rotation lock on), saves covers for offline use, switches to the
+  offline view by itself when the network or server goes away and back when it returns, and gives the bounce at the end
+  of a list only to the content – header and footer stay put.
+- Player: title and artist always on one line – long names scroll gently instead of wrapping, so the controls no longer
+  jump in height from track to track.
+- Android: no click when switching tracks mid-song (the old track now fades out for a moment).
+- Narrow artist pages without a biography no longer show a large empty area; initials in profile and artist pictures are
+  centred exactly.
 
 ## 0.9.1-beta.4 – all-in-one image
 
