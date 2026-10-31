@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impressum · Amberwave</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#120d0a">
+<link rel="icon" href="bilder/logo.svg" type="image/svg+xml">
+<style>
+@font-face { font-family: "Space Grotesk"; src: url(fonts/spacegrotesk-latin-v1.woff2) format("woff2"); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-v1.woff2) format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-ext-v1.woff2) format("woff2"); font-weight: 200 800; font-display: swap; unicode-range: U+0100-024F, U+1E00-1EFF; }
+/* Rechtliche Seiten im Stil der Homepage: ruhig, gut lesbar, eine Spalte */
+:root { --grund: #120d0a; --linie: rgba(255, 195, 90, .14); --text: #f6efe7; --leise: #b9a999; --bernstein: #ffa94d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--grund); color: var(--text); font: 16px/1.65 "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--bernstein); }
+.kopf { border-bottom: 1px solid var(--linie); }
+.innen { max-width: 760px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+.kopf .innen { display: flex; align-items: center; height: 64px; gap: 10px; }
+.marke { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font: 700 1.1rem "Space Grotesk", system-ui, sans-serif; }
+.marke img { width: 30px; height: 30px; }
+.kopf .zurueck { margin-left: auto; color: var(--leise); text-decoration: none; font-weight: 600; font-size: .92rem; }
+main { padding-block: 56px 80px; }
+h1, h2 { font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -.01em; line-height: 1.15; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 5vw, 2.6rem); margin: 0 0 8px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; }
+p, li { color: var(--leise); max-width: 68ch; }
+p { margin: 0 0 12px; }
+ul { padding-left: 20px; margin: 0 0 12px; }
+address { font-style: normal; color: var(--text); line-height: 1.7; }
+.en { border: 1px solid var(--linie); border-radius: 14px; padding: 16px 18px; margin: 22px 0 8px; font-size: .92rem; }
+.en p { margin: 0; }
+.stand { font-size: .85rem; color: #8d7d6d; margin-top: 40px; }
+</style>
+</head>
+<body>
+<header class="kopf"><div class="innen"><a class="marke" href="index.html"><img src="bilder/logo.svg" alt="" width="30" height="30">Amberwave</a><a class="zurueck" href="index.html">← Startseite / Home</a></div></header>
+<main class="innen">
+<h1>Impressum</h1>
+<div class="en"><p><b>Legal notice.</b> Amberwave is a private, non-commercial open-source project. Responsible for this website: Lorenzo Frank, address below.</p></div>
+
+<h2>Angaben gemäß § 5 DDG</h2>
+<address>
+Lorenzo Frank<br>
+Lindenweg 3<br>
+86498 Kettershausen<br>
+Deutschland
+</address>
+
+<h2>Kontakt</h2>
+<p>E-Mail: <a href="mailto:lorenzo@adrenalin-arena.eu">lorenzo@adrenalin-arena.eu</a></p>
+<p>Fehler und Wünsche zur Software gern auch als Issue auf <a href="https://github.com/lfrank95/amberwave/issues">GitHub</a>.</p>
+
+<h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
+<p>Lorenzo Frank, Anschrift wie oben.</p>
+
+<h2>Haftung für Links</h2>
+<p>Diese Seite verweist auf Inhalte anderer Anbieter, vor allem auf GitHub. Für deren Inhalte ist der jeweilige Anbieter verantwortlich. Zum Zeitpunkt der Verlinkung waren keine Rechtsverstöße erkennbar; werden solche bekannt, wird der Link entfernt.</p>
+
+<h2>Software und Lizenz</h2>
+<p>Amberwave ist freie Software unter der GNU Affero General Public License v3.0. Sie wird ohne jede Gewährleistung bereitgestellt, so wie es die Lizenz beschreibt. Der vollständige Lizenztext liegt im <a href="https://github.com/lfrank95/amberwave/blob/main/LICENSE">Repository</a>.</p>
+
+</main>
+</body>
+</html>
