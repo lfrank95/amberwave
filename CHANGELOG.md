@@ -20,6 +20,11 @@
 - Polish: the empty player bar says "Pick something to play" – short enough to stand still on a phone.
 - Settings: an area that isn't available here (e.g. Windows output in the browser) now also changes the address to the
   page that is shown.
+- Fix (phone): in Settings › Playback the long "On the go" choice pushed its field past the edge of the card and made
+  the page wider than the screen.
+- Android app start page: found servers no longer break addresses in the middle of a word, and the status dot is green
+  like in the Windows client.
+- Windows client setup: the version in the footer no longer wraps in the middle.
 
 ## 0.9.1-beta.5 – Windows server, Android app
 

@@ -29,9 +29,9 @@
   .suche h2 { margin: 0; font-size: 15px; }
   .fund { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--rand); background: #120d0a; color: var(--text); text-align: left; font-weight: 400; }
   .fund b { display: block; }
-  .fund small { color: var(--leise); word-break: break-all; }
+  .fund small { display: block; color: var(--leise); overflow-wrap: anywhere; }
   .fund span { flex: 1; min-width: 0; }
-  .punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--akzent); flex: none; }
+  .punkt { width: 10px; height: 10px; border-radius: 50%; background: #5fdca4; box-shadow: 0 0 10px rgba(95,220,164,.6); flex: none; }   /* wie im Windows Client: grün = antwortet */
   .laeuft::after { content: ""; display: inline-block; width: 12px; height: 12px; margin-left: 8px; border: 2px solid var(--akzent); border-right-color: transparent; border-radius: 50%; animation: dreh .8s linear infinite; vertical-align: -2px; }
   @keyframes dreh { to { transform: rotate(360deg); } }
 </style>

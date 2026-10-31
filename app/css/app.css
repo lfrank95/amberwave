@@ -101,6 +101,8 @@ input[type="text"], input[type="password"], input[type="email"], input[type="sea
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent-a); box-shadow: 0 0 0 3px rgba(255, 181, 71, 0.22); }
 select option { background: #241a12; }
+/* lange Optionen (z. B. „Automatisch (Handy/Tablet: Opus 160 …)“) schieben das Feld nicht über den Rand hinaus */
+select { max-width: 100%; text-overflow: ellipsis; }
 .checkbox-zeile { display: flex; align-items: center; gap: 10px; color: var(--text-primary); cursor: pointer; }
 .checkbox-zeile input { width: 18px; height: 18px; accent-color: var(--accent-a); margin: 0; }
 
@@ -2349,6 +2351,8 @@ html::-webkit-scrollbar-thumb:active, body::-webkit-scrollbar-thumb:active { bac
 .einst-name label { display: inline; margin: 0; color: inherit; font-size: inherit; }
 .einst-text > p { margin: 3px 0 0; color: var(--text-leise); font-size: .84rem; line-height: 1.45; max-width: 70ch; }
 .einst-regler { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.einst-regler { max-width: 100%; min-width: 0; }   /* lange Auswahl (Opus 160 im Mobilfunk …) bleibt in der Karte */
+.einst-regler > .auswahl { max-width: 100%; min-width: 0; }
 .einst-regler.breit { width: min(340px, 45%); }
 .einst-regler.breit > .einst-feld { width: 100%; }
 .einst-regler:empty { display: none; }
