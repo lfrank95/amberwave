@@ -1,10 +1,16 @@
 # Baut die Android-App (APK) und hängt sie als Testversion an den Lauf (kein Release, keine Ankündigung).
 # Signiert mit dem Schlüssel aus den Secrets AW_KEYSTORE_B64 (Keystore als Base64) und AW_KEYSTORE_PASSWORT –
 # ohne die beiden mit einem Wegwerf-Schlüssel (zum Ausprobieren; Updates darüber gehen dann nicht).
-# Von Hand: Actions → Android app → Run workflow; außerdem bei Änderungen unter android/.
+# Von Hand: Actions → Android app → Run workflow (Emulatortest per Häkchen); außerdem bei Änderungen unter android/
+# (dann nur die APK, ohne Emulatortest).
 name: Android app
 on:
   workflow_dispatch:
+    inputs:
+      emulatortest:
+        description: 'Zusätzlich im Emulator testen (dauert 15–25 Minuten länger)'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['android/**', 'tests/android_*', 'app/js/android.js', 'app/js/offline*.js', '.github/workflows/android.yml']
@@ -68,6 +74,8 @@ jobs:
   # Rauchtest im Emulator: Server eintragen, anmelden, offline speichern, abspielen, ohne Netz starten
   test:
     needs: apk
+    # nur auf Wunsch (Häkchen beim Starten) – die APK liegt schon nach dem ersten Teil unter Artifacts
+    if: github.event_name == 'workflow_dispatch' && inputs.emulatortest
     runs-on: ubuntu-latest
     timeout-minutes: 45
     # Android 13 entscheidet; das Emulator-Abbild von Android 14 stürzt auf den GitHub-Rechnern beim Laden gelegentlich
