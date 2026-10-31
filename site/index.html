@@ -133,11 +133,11 @@ html[data-sprache="de"] [lang="en"], html[data-sprache="en"] [lang="de"] { displ
 
 /* ---------- Fakten-Leiste ---------- */
 .fakten { border-top: 1px solid var(--linie); border-bottom: 1px solid var(--linie); margin-top: 56px; }
-.fakten .innen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.start .fakten .innen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; align-items: stretch; }
 .fakt { padding: 22px 18px 22px 0; }
 .fakt + .fakt { padding-left: 22px; border-left: 1px solid var(--linie); }
 .fakt b { display: block; font: 700 1.5rem var(--anzeige); }
-.fakt > span { color: var(--leise); font-size: .9rem; }
+.fakt > span { display: block; margin-top: 4px; color: var(--leise); font-size: .9rem; line-height: 1.45; }
 
 /* ---------- Abschnitte ---------- */
 section.teil { padding: 96px 0 0; }
@@ -213,14 +213,19 @@ section.teil { padding: 96px 0 0; }
   .sprache { margin-left: auto; }
   .start { padding-top: 44px; }
   .start .innen { grid-template-columns: 1fr; gap: 40px; }
-  .fakten .innen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fakt:nth-child(3) { padding-left: 0; border-left: 0; }
+  .start .fakten .innen { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+  .fakt, .fakt:nth-child(3) { padding: 20px 14px 20px 0; }
+  .fakt:nth-child(even) { padding: 20px 0 20px 16px; border-left: 1px solid var(--linie); }
+  .fakt:nth-child(3) { border-left: 0; }
   .fakt:nth-child(n+3) { border-top: 1px solid var(--linie); }
+  .fakt b { font-size: 1.3rem; }
   .funktionen { grid-template-columns: 1fr; }
   .fn, .fn.gross { grid-column: auto; }
   .wahl { grid-template-columns: 1fr; }
-  .wahl-liste { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
-  .wahl-liste button { flex: 0 0 auto; }
+  .wahl-liste { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .wahl-liste button { padding: 12px 8px; text-align: center; border-radius: 14px; }
+  .wahl-liste button b { font-size: .95rem; text-wrap: balance; }
+  .wahl-liste button > span { display: none; }
   .apps { grid-template-columns: 1fr; }
   section.teil { padding-top: 72px; }
 }
@@ -300,7 +305,7 @@ section.teil { padding: 96px 0 0; }
   <div class="fakten">
     <div class="innen">
       <div class="fakt"><b>5</b><span lang="de">Wege: Docker, All-in-One, Windows, Android, Browser</span><span lang="en">ways to run it: Docker, all-in-one, Windows, Android, browser</span></div>
-      <div class="fakt"><b>−23 … −14 LUFS</b><span lang="de">Lautstärke angleichen nach EBU R128</span><span lang="en">loudness levelling per EBU R128</span></div>
+      <div class="fakt"><b>−23 … −14</b><span lang="de">LUFS – Lautstärke angleichen nach EBU R128</span><span lang="en">LUFS – loudness levelling per EBU R128</span></div>
       <div class="fakt"><b><span lang="de">sample-genau</span><span lang="en">sample-accurate</span></b><span lang="de">lückenlos, auch Live-Alben</span><span lang="en">gapless, live albums too</span></div>
       <div class="fakt"><b>0</b><span lang="de">Abos, Tracker, Werbung</span><span lang="en">subscriptions, trackers, ads</span></div>
     </div>
