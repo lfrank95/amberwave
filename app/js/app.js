@@ -126,8 +126,13 @@ class App {
     // Android-App: ohne Service Worker – die Oberfläche für den Start ohne Netz hält die App selbst
     if (android) this.huelleVorladen();
     else if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(() => this.huelleVorladen()).catch(() => {});
+    // Netz weg oder wieder da: selbst zwischen Online- und Offline-Ansicht wechseln (Android-App meldet es zusätzlich nativ)
+    this.offlineGestartet = !!this.offline;
     window.addEventListener('online', () => this.wiederOnline());
-    if (this.offline) { setInterval(() => { if (!document.hidden) this.wiederOnline(); }, 30000); return; }
+    window.addEventListener('offline', () => this.netzPruefen());
+    window.addEventListener('aw-netz', (e) => { if (e.detail) this.wiederOnline(); else this.netzPruefen(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && !this.offline && navigator.onLine === false) this.netzPruefen(); });
+    if (this.offline) { this.offlineUhr = setInterval(() => { if (!document.hidden) this.wiederOnline(); }, 20000); androidRufen('offlineMelden', '1'); return; }
     window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); this.installHinweis = e; });
     // Einmal je Browser: am Windows-PC auf den Windows-Client hinweisen (Download im Profilmenü)
     if (istWindowsDesktop() && clientDownload(this.ich.app.version)) {
@@ -192,10 +197,56 @@ class App {
     try { localStorage.setItem('aw_huelle', stand); } catch (e) { /* egal */ }
   }
 
-  /** Netz wieder da: offline gestartet → neu verbinden (sofort, wenn gerade nichts läuft), sonst Verlauf nachreichen */
+  /** Antwortet der Server? (kurz – unterwegs zählt jede Sekunde) */
+  async serverDa(ms = 4000) {
+    try { const r = await fetch('/api/v1/ping', { cache: 'no-store', signal: AbortSignal.timeout(ms) }); return r.ok; } catch (e) { return false; }
+  }
+
+  /** Netz weg? Zweimal nachfragen (ein kurzer Aussetzer im Tunnel zählt nicht), dann in die Offline-Ansicht */
+  async netzPruefen() {
+    if (this.offline || this._pruefeNetz || !offlineAn()) return;
+    this._pruefeNetz = true;
+    try {
+      if (await this.serverDa()) return;
+      await new Promise((r) => setTimeout(r, 3000));
+      if (await this.serverDa()) return;
+      this.offlineWechseln();
+    } finally { this._pruefeNetz = false; }
+  }
+
+  /** Während des Betriebs offline gehen: Musik läuft weiter (ab jetzt vom Gerät), Ansicht zeigt das Gespeicherte */
+  offlineWechseln() {
+    if (this.offline) return;
+    this.offline = true;
+    document.documentElement.classList.add('app-offline');
+    androidRufen('offlineMelden', '1');
+    toast(t('Kein Netz – Amberwave zeigt jetzt, was auf diesem Gerät gespeichert ist.'));
+    const pfad = location.pathname;
+    this.navigieren(/^\/(alben|playlists)\/\d+$/.test(pfad) ? pfad : '/offline');
+    clearInterval(this.offlineUhr);
+    this.offlineUhr = setInterval(() => { if (!document.hidden) this.wiederOnline(); }, 20000);
+  }
+
+  /** Netz wieder da: offline gestartet → neu verbinden (sofort, wenn gerade nichts läuft); erst unterwegs offline
+   *  gegangen → ohne Neuladen zurück in die normale Ansicht */
   async wiederOnline() {
+    if (!this.offline || this._pruefeOnline) return;
+    this._pruefeOnline = true;
+    try { if (!await this.serverDa()) return; } finally { this._pruefeOnline = false; }
     if (!this.offline) return;
-    try { const r = await fetch('/api/v1/ping', { cache: 'no-store' }); if (!r.ok) return; } catch (e) { return; }
+    if (!this.offlineGestartet) {
+      this.offline = false;
+      document.documentElement.classList.remove('app-offline');
+      androidRufen('offlineMelden', '0');
+      clearInterval(this.offlineUhr);
+      this.offlineUhr = null;
+      toast(t('Wieder online'));
+      this.navigieren(location.pathname + location.search, false);
+      offline.verlaufNachreichen();
+      offline.abgleichen();
+      return;
+    }
+    androidRufen('offlineMelden', '0');
     if (!this.player?.spielt) { location.reload(); return; }
     if (this._onlineGezeigt) return;
     this._onlineGezeigt = true;

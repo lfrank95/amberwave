@@ -499,5 +499,7 @@
  "Wartet auf Netz.": "Waiting for a network.",
  "Wartet auf WLAN – geladen wird nur im WLAN (Einstellungen › Wiedergabe).": "Waiting for Wi-Fi – downloads only run on Wi-Fi (Settings › Playback).",
  "Wird in der neuen Qualität geladen": "Downloading in the new quality",
- "Original (verlustfrei)": "Original (lossless)"
+ "Original (verlustfrei)": "Original (lossless)",
+ "Kein Netz – Amberwave zeigt jetzt, was auf diesem Gerät gespeichert ist.": "No network – Amberwave now shows what's saved on this device.",
+ "Wieder online": "Back online"
 }

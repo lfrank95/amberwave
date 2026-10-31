@@ -32,8 +32,11 @@ export const androidFalz = () => falz;
 
 if (android) {
   try { falz = JSON.parse(android.falz?.() || 'null'); } catch (e) { falz = null; }
+  // Netz weg / wieder da (die App meldet es sofort, ohne auf den Browser zu warten)
+  window.awAndroidNetz = (da) => window.dispatchEvent(new CustomEvent('aw-netz', { detail: !!da }));
   window.awAndroidFalz = (f) => { falz = f || null; window.dispatchEvent(new CustomEvent('aw-android-falz')); };
   document.documentElement.classList.add('aw-android');
+  import('./federn.js').then((m) => m.federnEinrichten()).catch(() => {});
   window.awAndroidEreignis = (e) => {
     const d = typeof e === 'string' ? JSON.parse(e) : e;
     for (const f of hoerer) { try { f(d); } catch (x) { console.warn(x); } }

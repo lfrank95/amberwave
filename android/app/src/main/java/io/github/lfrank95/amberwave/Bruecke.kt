@@ -84,6 +84,9 @@ class Bruecke(private val app: Context, private val aktivitaet: () -> MainActivi
         aktivitaet()?.let { a -> a.runOnUiThread { Aktualisierung.pruefen(a, vonHand = true) } }
     }
 
+    /** Oberfläche ist in die Offline-Ansicht gewechselt (oder zurück) – dann liefert die App Cover aus dem Speicher großzügiger */
+    @JavascriptInterface fun offlineMelden(an: String) { if (vomServer()) Oberflaeche.offline = an == "1" }
+
     @JavascriptInterface fun server(): String = if (vomServer()) Einstellungen.server else ""
 
     // ---------- Speicher der Oberfläche ----------

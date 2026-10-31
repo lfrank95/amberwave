@@ -238,7 +238,21 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    // Netz weg / wieder da: sofort an die Oberfläche (die prüft dann selbst, ob der Server antwortet)
+    private val netzHoerer = object : android.net.ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: android.net.Network) { WebHalter.js("window.awAndroidNetz && window.awAndroidNetz(true)") }
+        override fun onLost(network: android.net.Network) {
+            if (!Netz.verbunden()) WebHalter.js("window.awAndroidNetz && window.awAndroidNetz(false)")
+        }
+    }
+
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+        runCatching { getSystemService(android.net.ConnectivityManager::class.java).registerDefaultNetworkCallback(netzHoerer) }
+    }
+
     override fun onDestroy() {
+        runCatching { getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(netzHoerer) }
         if (aktiv === this) aktiv = null
         rahmen.removeView(web)
         // Läuft Musik oder ein Download, bleibt die Oberfläche (an der App hängend) am Leben – sonst aufräumen
