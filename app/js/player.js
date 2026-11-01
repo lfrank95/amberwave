@@ -388,7 +388,7 @@ export class Player extends EventTarget {
 
   url(track, q, ab = 0) {
     // Amberwave Connect: Titel eines gekoppelten Servers – unser Server holt ihn verschlüsselt dort ab und reicht ihn durch
-    if (track.connect) return `/api/v1/connect/server/${track.connect}/stream/${track.rid}?q=${q}`;
+    if (track.connect) return netzweg.url(`/api/v1/connect/server/${track.connect}/stream/${track.rid}?q=${q}`);
     const t = ab > 0.5 ? `&t=${ab.toFixed(1)}` : '';
     // Umgewandelte Streams bekommen den Lautheitsangleich gleich vom Server (dann geht auch Anheben ohne Web Audio)
     const g = q !== 'original' ? this.lautheitFuer(track)?.db || 0 : 0;

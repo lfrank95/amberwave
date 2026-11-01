@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Amberwave Connect: at home over direct access, pairing, rights, copying and transfers failed with "Administration only works via the normal address" – these now always go the normal way; browsing, covers and listening stay on the fast direct route.
+
 ## 0.9.1-beta.9 – Amberwave OS: storage, manual update check, writable music folder
 - Amberwave OS › Updates: **"Check now"** asks GitHub right away instead of waiting for the twice-daily check, and shows when it last looked.
 - Amberwave OS › Storage: the internal drive as one bar with what takes the space – Amberwave OS, Amberwave itself (app and offline update package), library (database, covers, artist images), backups, music on the device, room for updates and free space. Music on a USB drive or NAS gets its own bar.

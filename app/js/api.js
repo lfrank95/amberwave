@@ -5,7 +5,9 @@ import { netzweg } from './netzweg.js';
 
 // Zuhause (Direktadresse erreichbar) gehen alle API-Anfragen direkt an den Server im Heimnetz – nur Anmeldung, Abmelden
 // und das Holen des Direkt-Schlüssels bleiben auf dem normalen Weg (dort hängt das Login-Cookie).
-const IMMER_NORMAL = [/^\/auth\b/, /^\/abmelden\b/, /^\/direkt\//, /^\/ping\b/, /^\/profil\/passwort\b/, /^\/admin\b/, /^\/heimnetz\b/];
+// Amberwave Connect: Koppeln, Rechte, Holen, Senden und Übertragungen sind Verwaltung – Stöbern und Hören gehen direkt.
+const IMMER_NORMAL = [/^\/auth\b/, /^\/abmelden\b/, /^\/direkt\//, /^\/ping\b/, /^\/profil\/passwort\b/, /^\/admin\b/, /^\/heimnetz\b/,
+  /^\/connect\/(code|koppeln|heimnetz|auftraege)\b/, /^\/connect\/server\/\d+(\/(holen|senden))?$/];
 
 function direktBasis(pfad, normal) {
   const d = netzweg.direkt;
@@ -26,7 +28,7 @@ function bilderLeicht(x) {
 /** Bild-Adressen in Antworten auf die Direktadresse umschreiben (Cover, Künstlerbilder) */
 function bilderDirekt(x) {
   if (!netzweg.erreichbar || !netzweg.direkt) return x;
-  if (typeof x === 'string') return x.startsWith('/api/v1/bild/') ? netzweg.url(x) : x;
+  if (typeof x === 'string') return x.startsWith('/api/v1/bild/') || /^\/api\/v1\/connect\/server\/\d+\/bild\//.test(x) ? netzweg.url(x) : x;
   if (Array.isArray(x)) { for (let i = 0; i < x.length; i++) x[i] = bilderDirekt(x[i]); return x; }
   if (x && typeof x === 'object') { for (const k of Object.keys(x)) x[k] = bilderDirekt(x[k]); }
   return x;
