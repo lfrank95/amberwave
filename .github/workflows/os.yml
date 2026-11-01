@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
     inputs:
       kanal:
-        description: 'Amberwave-Image für den VM-Test (main, beta, latest)'
-        default: main
+        description: 'Welches Amberwave das Gerät beim ersten Start holt (beta, latest, main)'
+        default: beta
+      release:
+        description: 'Optional: an dieses bestehende Release anhängen (Tag, z. B. v0.9.1-beta.5)'
+        default: ''
   release:
     types: [published]
 permissions:
@@ -157,7 +160,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   anhaengen:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || inputs.release != ''
     needs: [image, vm, ersteller, ersteller-test]
     runs-on: ubuntu-latest
     permissions:
@@ -174,5 +177,5 @@ jobs:
           cd "$RUNNER_TEMP/a"
           ls -la
           for f in amberwave-os-*.img Amberwave-USB-Ersteller-*.exe; do sha256sum "$f" > "$f.sha256"; done
-          gh release upload "${{ github.event.release.tag_name }}" amberwave-os-*.img* Amberwave-USB-Ersteller-*.exe* --clobber -R "${{ github.repository }}"
+          gh release upload "${{ github.event.release.tag_name || inputs.release }}" amberwave-os-*.img* Amberwave-USB-Ersteller-*.exe* --clobber -R "${{ github.repository }}"
           echo "::notice title=Release::Amberwave OS und USB-Ersteller angehängt"
