@@ -8,7 +8,7 @@ set -euo pipefail
 ST=/run/amberwave/installation.json; mkdir -p /run/amberwave
 stand() { printf '{"schritt":"%s","prozent":%s,"fertig":%s,"fehler":%s}\n' "$1" "$2" "${3:-false}" "${4:-null}" > "$ST.neu"; mv "$ST.neu" "$ST"; echo "[installieren] $2 % $1"; }
 fehler() { stand "fehler" 0 false "\"$(echo "$1" | sed 's/"/\\"/g')\""; echo "fehler:$1" > /run/amberwave/stand; exit 1; }
-trap 'fehler "Unerwarteter Fehler in Zeile $LINENO."' ERR
+trap 'fehler "Unerwarteter Fehler in Zeile $LINENO ($BASH_COMMAND)."' ERR
 
 D="/dev/$AW_PLATTE"
 [ -b "$D" ] || fehler "Die Platte $AW_PLATTE gibt es nicht."
@@ -37,11 +37,11 @@ mkfs.ext4 -q -F -L aw-system "$(teil 2)"
 
 stand "System kopieren" 10
 mount "$(teil 2)" /mnt/aw
-GESAMT=$(du -sxm "$QUELLE" 2>/dev/null | cut -f1)
+GESAMT=$(du -sxm "$QUELLE" 2>/dev/null | cut -f1 || true)
 ( rsync -aHAXx --exclude=/mnt/* --exclude=/media/* --exclude=/proc/* --exclude=/sys/* --exclude=/dev/* --exclude=/run/* --exclude=/tmp/* "$QUELLE/" /mnt/aw/ ) &
 KOPIE=$!
 while kill -0 $KOPIE 2>/dev/null; do
-  sleep 2; JETZT=$(du -sxm /mnt/aw 2>/dev/null | cut -f1)
+  sleep 2; JETZT=$(du -sxm /mnt/aw 2>/dev/null | cut -f1 || true); JETZT=${JETZT:-0}
   [ "${GESAMT:-0}" -gt 0 ] && stand "System kopieren" $(( 10 + 70 * JETZT / GESAMT > 80 ? 80 : 10 + 70 * JETZT / GESAMT ))
 done
 wait $KOPIE
@@ -88,7 +88,8 @@ mkdir -p /mnt/aw/daten/system /mnt/aw/daten/appdata /mnt/aw/daten/musik
   done
 } > /mnt/aw/daten/system/einstellungen
 if [ "${AW_MUSIK_ART:-}" = nas ]; then
-  umask 077; printf 'username=%s\npassword=%s\n' "${AW_NAS_BENUTZER:-}" "${AW_NAS_PASSWORT:-}" > /mnt/aw/daten/system/nas.zugang
+  { set +x; } 2>/dev/null   # das Passwort nie ins Protokoll
+  ( umask 077; printf 'username=%s\npassword=%s\n' "${AW_NAS_BENUTZER:-}" "${AW_NAS_PASSWORT:-}" > /mnt/aw/daten/system/nas.zugang )
 fi
 sync
 umount -R /mnt/aw

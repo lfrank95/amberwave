@@ -114,7 +114,8 @@ def installieren(w):
             json.dump({'schritt': 'Start', 'prozent': 1, 'fertig': False, 'fehler': None}, f)
 
     def lauf():
-        subprocess.run(['/bin/bash', SKRIPT], env=env)
+        with open('/run/amberwave/installation.log', 'w') as log:
+            subprocess.run(['/bin/bash', '-x', SKRIPT], env=env, stdout=log, stderr=subprocess.STDOUT)
         if stand_lesen().get('fertig'):
             stick_beobachten()
     threading.Thread(target=lauf, daemon=True).start()
@@ -142,6 +143,12 @@ class Anfrage(BaseHTTPRequestHandler):
                                      'ips': ips(), 'platten': ziele, 'musik': musik, 'stand': stand_lesen() if gestartet else None})
         if p == '/api/stand':
             return self.senden(200, stand_lesen())
+        if p == '/api/protokoll':   # „Details“ bei einem Fehler: die letzten Zeilen der Installation
+            try:
+                with open('/run/amberwave/installation.log', errors='replace') as f:
+                    return self.senden(200, {'zeilen': [z for z in f.read().splitlines() if 'PASSWORT' not in z][-60:]})
+            except OSError:
+                return self.senden(200, {'zeilen': []})
         if p in ('/api/v1/ping',):   # damit die Amberwave-Apps das Gerät schon jetzt finden und hierher leiten
             return self.senden(200, {'ok': True, 'app': 'amberwave-os', 'einrichtung': True})
         datei = 'index.html' if p in ('/', '/index.html') or not os.path.splitext(p)[1] else p.lstrip('/')

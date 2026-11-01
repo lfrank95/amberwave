@@ -87,7 +87,13 @@ try:
     try:
         warten(fertig, 900, 'Installation wird nicht fertig')
     except SystemExit as e:
-        melden('error', 'Installation', str(e)); raise
+        melden('error', 'Installation', str(e))
+        try:
+            z = holen('/api/protokoll').get('zeilen', [])[-25:]
+            print('::error title=Protokoll der Installation::' + '%0A'.join(x.replace('%', '%25')[:200] for x in z), flush=True)
+        except Exception:
+            pass
+        raise
     melden('notice', 'Installation', f'fertig nach {int(time.time() - t1)} s')
     foto(q, '2-installiert')
     q.rufen('device_del', id='stickgeraet')   # Stick abziehen → das Gerät startet von selbst neu
