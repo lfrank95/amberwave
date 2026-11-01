@@ -57,13 +57,17 @@ PARTLABEL=aw-efi    /boot/efi  vfat  umask=0077                          0 2
 PARTLABEL=aw-daten  /daten     ext4  defaults,noatime                    0 2
 F
 for x in dev proc sys run; do mount --rbind /$x /mnt/aw/$x; mount --make-rslave /mnt/aw/$x; done
-chroot /mnt/aw grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --removable --no-nvram >/dev/null 2>&1 \
-  || fehler "Das Startmenü ließ sich nicht einrichten."
+# Startdateien wie auf dem Stick: shim → signierter GRUB → signierter Kernel (Secure Boot darf an bleiben)
+E=/mnt/aw/boot/efi/EFI
+mkdir -p "$E/BOOT" "$E/debian"
+cp /mnt/aw/usr/lib/shim/shimx64.efi.signed "$E/BOOT/BOOTX64.EFI" || fehler "Startdateien fehlen im System."
+cp /mnt/aw/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed "$E/BOOT/grubx64.efi"
+cp /mnt/aw/usr/lib/shim/mmx64.efi.signed "$E/BOOT/mmx64.efi" 2>/dev/null || true
+printf 'search --no-floppy --fs-uuid --set=root %s\nset prefix=($root)/boot/grub\nconfigfile ($root)/boot/grub/grub.cfg\n' "$FS_UUID" | tee "$E/BOOT/grub.cfg" > "$E/debian/grub.cfg"
+mkdir -p /mnt/aw/boot/grub
 cat > /mnt/aw/boot/grub/grub.cfg <<G
 set timeout=2
 set default=0
-insmod part_gpt
-insmod ext2
 search --no-floppy --fs-uuid --set=root $FS_UUID
 menuentry "Amberwave" {
   linux /vmlinuz root=PARTUUID=$SYS_UUID ro quiet console=tty1 console=ttyS0,115200n8

@@ -14,9 +14,10 @@ W="$AUS/bau"; R="$W/rootfs"
 rm -rf "$W"; mkdir -p "$W" "$AUS"
 
 PAKETE=(systemd-sysv systemd-resolved systemd-timesyncd udev dbus kmod linux-image-amd64 initramfs-tools live-boot
-  grub-efi-amd64-bin grub2-common efibootmgr gdisk e2fsprogs dosfstools rsync util-linux
+  grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub2-common efibootmgr gdisk e2fsprogs dosfstools rsync util-linux
   iproute2 iputils-ping avahi-daemon libnss-mdns ca-certificates curl python3
-  docker.io docker-cli iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek)
+  docker.io docker-cli iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek firmware-misc-nonfree firmware-amd-graphics firmware-bnx2 firmware-bnx2x
+  amd64-microcode intel-microcode)
 echo "== Grundsystem ($SUITE)"
 mmdebstrap --variant=minbase --components=main,contrib,non-free-firmware \
   --include="$(IFS=,; echo "${PAKETE[*]}")" \
@@ -48,10 +49,17 @@ mksquashfs "$R" "$W/stick/live/filesystem.squashfs" -comp zstd -Xcompression-lev
 cp "$(readlink -f "$R/vmlinuz")" "$W/stick/live/vmlinuz"
 cp "$(readlink -f "$R/initrd.img")" "$W/stick/live/initrd.img"
 cp "$HIER/grub-stick.cfg" "$W/stick/boot/grub/grub.cfg"
-# GRUB für den Stick: findet seine Konfiguration über das Dateisystem-Label AMBERWAVE
-printf 'search --no-floppy --set=root --label AMBERWAVE\nset prefix=($root)/boot/grub\nconfigfile ($root)/boot/grub/grub.cfg\n' > "$W/grub-eingebettet.cfg"
-grub-mkstandalone -O x86_64-efi -o "$W/stick/EFI/BOOT/BOOTX64.EFI" --modules="part_gpt fat search search_label configfile linux normal all_video gfxterm echo test" \
-  "boot/grub/grub.cfg=$W/grub-eingebettet.cfg"
+# Start mit Secure Boot: shim (von Microsoft signiert) → GRUB (von Debian signiert) → Kernel (von Debian signiert).
+# Der signierte GRUB liest seine Konfiguration aus EFI/debian bzw. neben sich – beide Stellen bekommen denselben Wegweiser.
+SHIM="$(ls "$R"/usr/lib/shim/shimx64.efi.signed* 2>/dev/null | head -1)"
+MM="$(ls "$R"/usr/lib/shim/mmx64.efi.signed* 2>/dev/null | head -1)"
+GRUBSIG="$(ls "$R"/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed 2>/dev/null | head -1)"
+[ -f "$SHIM" ] && [ -f "$GRUBSIG" ] || { echo "signierter shim/GRUB fehlt"; exit 1; }
+mkdir -p "$W/stick/EFI/debian"
+cp "$SHIM" "$W/stick/EFI/BOOT/BOOTX64.EFI"
+cp "$GRUBSIG" "$W/stick/EFI/BOOT/grubx64.efi"
+[ -f "$MM" ] && cp "$MM" "$W/stick/EFI/BOOT/mmx64.efi"
+printf 'search --no-floppy --set=root --label AMBERWAVE\nset prefix=($root)/boot/grub\nconfigfile ($root)/boot/grub/grub.cfg\n' | tee "$W/stick/EFI/BOOT/grub.cfg" > "$W/stick/EFI/debian/grub.cfg"
 
 echo "== Image"
 GROESSE_MB=$(( $(du -sm "$W/stick" | cut -f1) + 96 ))

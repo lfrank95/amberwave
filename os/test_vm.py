@@ -63,9 +63,10 @@ def warten(bedingung, sekunden, was):
 
 
 subprocess.run(['qemu-img', 'create', '-f', 'qcow2', os.path.join(AUS, 'ssd.qcow2'), '32G'], check=True, capture_output=True)
-subprocess.run(['cp', '/usr/share/OVMF/OVMF_VARS_4M.fd', os.path.join(AUS, 'vars.fd')], check=True)
-vm = subprocess.Popen(['qemu-system-x86_64', '-machine', 'q35,accel=kvm', '-cpu', 'host', '-m', '4096', '-smp', '2',
-    '-drive', 'if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd', '-drive', f'if=pflash,format=raw,file={AUS}/vars.fd',
+# Secure Boot an, mit den Microsoft-Schlüsseln wie auf einem gewöhnlichen PC
+subprocess.run(['cp', '/usr/share/OVMF/OVMF_VARS_4M.ms.fd', os.path.join(AUS, 'vars.fd')], check=True)
+vm = subprocess.Popen(['qemu-system-x86_64', '-machine', 'q35,accel=kvm,smm=on', '-global', 'driver=cfi.pflash01,property=secure,value=on', '-cpu', 'host', '-m', '4096', '-smp', '2',
+    '-drive', 'if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd', '-drive', f'if=pflash,format=raw,file={AUS}/vars.fd',
     '-drive', f'if=none,id=ssd,file={AUS}/ssd.qcow2,format=qcow2', '-device', 'virtio-blk-pci,drive=ssd,bootindex=2',
     '-device', 'qemu-xhci,id=xhci', '-drive', f'if=none,id=stick,file={IMG},format=raw,snapshot=on', '-device', 'usb-storage,drive=stick,id=stickgeraet,bootindex=1',
     '-netdev', 'user,id=netz,hostfwd=tcp::8080-:80', '-device', 'virtio-net-pci,netdev=netz',
@@ -74,7 +75,9 @@ q = Qmp()
 t0 = time.time()
 try:
     info = warten(lambda: holen('/api/info'), 300, 'Einrichtung antwortet nicht')
-    melden('notice', 'Live-System', f'Einrichtung nach {int(time.time() - t0)} s erreichbar · Platten: ' + ', '.join(f"{p['name']} {p['groesse'] // 2**30} GB {p['art']}" for p in info['platten']))
+    if not info.get('secure_boot'):
+        raise RuntimeError('Secure Boot ist im Live-System nicht aktiv')
+    melden('notice', 'Live-System', f'Einrichtung nach {int(time.time() - t0)} s erreichbar, Secure Boot an · Platten: ' + ', '.join(f"{p['name']} {p['groesse'] // 2**30} GB {p['art']}" for p in info['platten']))
     time.sleep(3); foto(q, '1-live-konsole')
     ziel = next(p for p in info['platten'] if p['name'].startswith('vd'))
     r = holen('/api/installieren', {'platte': ziel['name'], 'name': 'amberwave', 'kanal': KANAL, 'musik': {'art': 'intern'}, 'zeitzone': 'Europe/Berlin'})

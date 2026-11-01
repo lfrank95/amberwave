@@ -42,6 +42,14 @@ def platten():
     return [z for z in ziele if z['groesse'] >= 16 * 1024**3], musik
 
 
+def secure_boot():
+    try:
+        with open('/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c', 'rb') as f:
+            return f.read()[-1] == 1
+    except OSError:
+        return False
+
+
 def ips():
     r = subprocess.run(['ip', '-4', '-o', 'addr', 'show', 'scope', 'global'], capture_output=True, text=True)
     return [z.split()[3].split('/')[0] for z in r.stdout.splitlines() if len(z.split()) > 3]
@@ -140,7 +148,7 @@ class Anfrage(BaseHTTPRequestHandler):
         if p == '/api/info':
             ziele, musik = platten()
             return self.senden(200, {'version': open('/etc/amberwave-version').read().strip(), 'name': os.uname().nodename,
-                                     'ips': ips(), 'platten': ziele, 'musik': musik, 'stand': stand_lesen() if gestartet else None})
+                                     'ips': ips(), 'secure_boot': secure_boot(), 'platten': ziele, 'musik': musik, 'stand': stand_lesen() if gestartet else None})
         if p == '/api/stand':
             return self.senden(200, stand_lesen())
         if p == '/api/protokoll':   # „Details“ bei einem Fehler: die letzten Zeilen der Installation
