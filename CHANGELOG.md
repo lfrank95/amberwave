@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Amberwave OS › Network: a fixed address now asks for the subnet mask as people know it from their router (255.255.255.0) instead of a prefix (/24).
 - **USB Creator** (renamed from "USB-Ersteller"; file `Amberwave-USB-Creator-<version>.exe`) is now in English and shows more while it works: downloaded/written MB of the total, speed, time left and elapsed, and how long each finished step took.
 - Amberwave OS: the setup hotspot is now called "Amberwave-Setup".
 - Amberwave OS setup in the browser: the installation shows every step with a tick and how long it took; while copying, MB of the total, speed and time left – and the steps are now translated (they were always German).

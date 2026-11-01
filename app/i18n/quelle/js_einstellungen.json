@@ -871,5 +871,7 @@
  "Das Gerät hat kein Netzwerkkabel – ohne WLAN ist es danach nicht mehr erreichbar, bis ein Kabel steckt.": "The device has no network cable – without Wi-Fi it can’t be reached until a cable is plugged in.",
  "Das Gerät trennt sich vom WLAN und bleibt über das Kabel erreichbar.": "The device leaves the Wi-Fi and stays reachable over the cable.",
  "Vergessen": "Forget",
- "WLAN vergessen.": "Wi-Fi forgotten."
+ "WLAN vergessen.": "Wi-Fi forgotten.",
+ "Subnetzmaske": "Subnet mask",
+ "Fast immer 255.255.255.0 – steht sonst in den Einstellungen deines Routers.": "Almost always 255.255.255.0 – otherwise it’s in your router’s settings."
 }

@@ -55,6 +55,9 @@ function wartenBisDa(titel, text, danach = null) {
 export async function geraetZeichnen(app, inhalt, signal) {
   const g = await api.get('/admin/geraet', { signal });
   const n = g.netz, m = g.musik, sys = g.system, wl = g.wlan;
+  // Subnetzmaske statt Präfix (255.255.255.0 statt /24) – so steht es auch im Router
+  const maske = (p) => [0, 1, 2, 3].map((i) => (0xffffffff << (32 - p) >>> (24 - i * 8)) & 255).join('.');
+  const praefixJetzt = parseInt((n.fest.adresse || n.adresse || '/24').split('/')[1], 10) || 24;
   const signalText = (d) => (d == null ? '' : d >= -60 ? t('starkes Signal') : d >= -72 ? t('mittleres Signal') : t('schwaches Signal'));
   const adresse = `${g.name}.local`;
   const platten = m.platten || [];
@@ -87,7 +90,9 @@ export async function geraetZeichnen(app, inhalt, signal) {
         segment([['auto', t('Automatisch')], ['fest', t('Fest')]], n.art, 'data-netz-art'))}
       <div class="os-fest" data-fest ${n.art === 'fest' ? '' : 'hidden'}>
         ${zeile('netz-adresse', t('Adresse'), t('z. B. {beispiel}', { beispiel: '<code>192.168.178.50</code>' }),
-          `<span class="os-gruppe"><input type="text" class="einst-feld" data-f="adresse" inputmode="decimal" value="${h((n.fest.adresse || n.adresse || '').split('/')[0])}" placeholder="192.168.178.50"><span class="einheit">/</span><input type="number" class="einst-feld zahl os-praefix" data-f="praefix" min="8" max="30" value="${h((n.fest.adresse || n.adresse || '/24').split('/')[1] || 24)}" aria-label="${h(t('Präfix'))}"></span>`)}
+          `<input type="text" class="einst-feld" data-f="adresse" inputmode="decimal" value="${h((n.fest.adresse || n.adresse || '').split('/')[0])}" placeholder="192.168.178.50">`)}
+        ${zeile('netz-maske', t('Subnetzmaske'), t('Fast immer 255.255.255.0 – steht sonst in den Einstellungen deines Routers.'),
+          `<select class="einst-feld" data-f="praefix">${[24, 16, 8, 25, 26, 27, 28, 29, 30, 23, 22, 21, 20].map((p) => `<option value="${p}" ${p === praefixJetzt ? 'selected' : ''}>${maske(p)}</option>`).join('')}</select>`)}
         ${zeile('netz-router', t('Router'), '', `<input type="text" class="einst-feld" data-f="router" inputmode="decimal" value="${h(n.fest.router || n.router)}" placeholder="192.168.178.1">`)}
         ${zeile('netz-dns', t('DNS-Server'), t('Leer = der Router'), `<input type="text" class="einst-feld" data-f="dns" value="${h(n.fest.dns)}" placeholder="${h(n.router || '192.168.178.1')}">`)}
       </div>
