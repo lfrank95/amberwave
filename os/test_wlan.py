@@ -96,7 +96,7 @@ def lauf(name, titel, zusatz, wlan, pruefen):
 
 
 def stick(seriell, t0):
-    info = warten(lambda: (lambda i: i if heim_adresse(i) else None)(holen('/api/info')), 180)
+    info = warten(lambda: (lambda i: i if heim_adresse(i) and i['netz'].get('ssid') else None)(holen('/api/info')), 180)
     if not info:
         raise RuntimeError(f'nicht im Heim-WLAN (Adressen: {holen("/api/info").get("ips")}, Netz: {holen("/api/info").get("netz")})')
     if info['netz'].get('ssid') != 'AW-Test-Heim':
