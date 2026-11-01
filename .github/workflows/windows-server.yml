@@ -2,7 +2,14 @@
 # Windows-Rechner und hängt das Paket als Testversion an den Lauf (kein Release, keine Ankündigung).
 # Nur von Hand: Actions → Windows server → Run workflow.
 name: Windows server
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Optional: fertig getestet an dieses bestehende Release hängen (Tag, z. B. v0.9.1-beta.6)'
+        default: ''
+  release:
+    types: [published]
 permissions:
   contents: read
 jobs:
@@ -60,3 +67,34 @@ jobs:
           path: C:/Amberwave-Windows-Server-${{ env.V }}.exe
           retention-days: 14
           compression-level: 0
+
+  # Beim Veröffentlichen eines Releases (oder von Hand mit „release“): fertig gebaut und getestet → ans Release hängen
+  anhaengen:
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release != '')
+    needs: [paket]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app/includes/config.php
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'Amberwave-Windows-Server-*'
+          path: ${{ runner.temp }}/a
+          merge-multiple: true
+      - name: Ans Release hängen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.release }}
+        run: |
+          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          if [ "${TAG#v}" != "$V" ]; then
+            echo "::error title=Release::Gebaut wurde $V, das Release ist $TAG – nichts angehängt"; exit 1
+          fi
+          cd "$RUNNER_TEMP/a"
+          for f in Amberwave-Windows-Server-*.exe; do [ -f "$f" ] && [ ! -f "$f.sha256" ] && sha256sum "$f" > "$f.sha256"; done
+          ls -la
+          gh release upload "$TAG" Amberwave-Windows-Server-*.exe *.sha256 --clobber -R "${{ github.repository }}"
+          echo "::notice title=Release::$(ls Amberwave-Windows-Server-*.exe | tr '\n' ' ')an $TAG angehängt"

@@ -11,6 +11,11 @@ on:
         description: 'Zusätzlich im Emulator testen (dauert 15–25 Minuten länger)'
         type: boolean
         default: false
+      release:
+        description: 'Optional: fertig getestet an dieses bestehende Release hängen (Tag, z. B. v0.9.1-beta.6)'
+        default: ''
+  release:
+    types: [published]
   push:
     branches: [main]
     paths: ['android/**', 'tests/android_*', 'app/js/android.js', 'app/js/offline*.js', '.github/workflows/android.yml']
@@ -20,6 +25,8 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    outputs:
+      signiert: ${{ steps.schluessel.outputs.signiert }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -30,13 +37,14 @@ jobs:
         with:
           gradle-version: '8.11.1'
       - name: Signierschlüssel
+        id: schluessel
         env:
           AW_KEYSTORE_B64: ${{ secrets.AW_KEYSTORE_B64 }}
         run: |
           if [ -n "$AW_KEYSTORE_B64" ]; then
             echo "$AW_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/amberwave.jks"
             echo "AW_KEYSTORE=$RUNNER_TEMP/amberwave.jks" >> "$GITHUB_ENV"
-            echo "SIGNIERT=ja" >> "$GITHUB_ENV"
+            echo "SIGNIERT=ja" >> "$GITHUB_ENV"; echo "signiert=ja" >> "$GITHUB_OUTPUT"
           else
             echo "::warning title=Android::Kein Signierschlüssel in den Secrets – APK nur zum Ausprobieren (Wegwerf-Schlüssel)."
             echo "SIGNIERT=nein" >> "$GITHUB_ENV"
@@ -139,3 +147,36 @@ jobs:
       - name: Server-Protokoll bei Fehler
         if: failure()
         run: docker logs aw-test 2>&1 | tail -40 | while IFS= read -r z; do echo "::warning title=Server::${z//%/%25}"; done
+
+  # Beim Veröffentlichen eines Releases (oder von Hand mit „release“): fertig gebaut und getestet → ans Release hängen
+  anhaengen:
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release != '')
+    needs: [apk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app/includes/config.php
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'Amberwave-Android-*'
+          path: ${{ runner.temp }}/a
+          merge-multiple: true
+      - name: Ans Release hängen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.release }}
+        run: |
+          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          if [ "${TAG#v}" != "$V" ]; then
+            echo "::error title=Release::Gebaut wurde $V, das Release ist $TAG – nichts angehängt"; exit 1
+          fi
+          cd "$RUNNER_TEMP/a"
+          # nur mit dem echten Schlüssel signierte APKs – sonst gingen Updates über die App nicht
+          [ "${{ needs.apk.outputs.signiert }}" = ja ] || { echo "::error title=Release::APK nicht mit dem echten Schlüssel signiert – nichts angehängt"; exit 1; }
+          for f in Amberwave-Android-*.apk; do [ -f "$f" ] && [ ! -f "$f.sha256" ] && sha256sum "$f" > "$f.sha256"; done
+          ls -la
+          gh release upload "$TAG" Amberwave-Android-*.apk *.sha256 --clobber -R "${{ github.repository }}"
+          echo "::notice title=Release::$(ls Amberwave-Android-*.apk | tr '\n' ' ')an $TAG angehängt"

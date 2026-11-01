@@ -160,7 +160,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   anhaengen:
-    if: github.event_name == 'release' || inputs.release != ''
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release != '')
     needs: [image, vm, ersteller, ersteller-test]
     runs-on: ubuntu-latest
     permissions:

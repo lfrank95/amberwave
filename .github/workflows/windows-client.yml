@@ -3,7 +3,14 @@
 # dem Repository gebaut (Voraussetzung für eine spätere Code-Signierung).
 # Nur von Hand: Actions → Windows client → Run workflow.
 name: Windows client
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Optional: fertig getestet an dieses bestehende Release hängen (Tag, z. B. v0.9.1-beta.6)'
+        default: ''
+  release:
+    types: [published]
 permissions:
   contents: read
 env:
@@ -108,3 +115,34 @@ jobs:
           if (Test-Path "$ort\alt.txt") { Write-Host "::error title=Stilles Update::alte Dateien nicht ersetzt"; exit 1 }
           if (-not $laeuft) { Write-Host "::error title=Stilles Update::Client nach dem Update nicht gestartet"; exit 1 }
           Write-Host "::notice title=Stilles Update::ohne Klicks von 0.0.1 auf $v, Client danach gestartet"
+
+  # Beim Veröffentlichen eines Releases (oder von Hand mit „release“): fertig gebaut und getestet → ans Release hängen
+  anhaengen:
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release != '')
+    needs: [bauen, pruefen]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: app/includes/config.php
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'Amberwave-Windows-Client-*'
+          path: ${{ runner.temp }}/a
+          merge-multiple: true
+      - name: Ans Release hängen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.release }}
+        run: |
+          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          if [ "${TAG#v}" != "$V" ]; then
+            echo "::error title=Release::Gebaut wurde $V, das Release ist $TAG – nichts angehängt"; exit 1
+          fi
+          cd "$RUNNER_TEMP/a"
+          for f in Amberwave-Windows-Client-*.exe; do [ -f "$f" ] && [ ! -f "$f.sha256" ] && sha256sum "$f" > "$f.sha256"; done
+          ls -la
+          gh release upload "$TAG" Amberwave-Windows-Client-*.exe *.sha256 --clobber -R "${{ github.repository }}"
+          echo "::notice title=Release::$(ls Amberwave-Windows-Client-*.exe | tr '\n' ' ')an $TAG angehängt"
