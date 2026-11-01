@@ -38,16 +38,24 @@ if docker inspect amberwave >/dev/null 2>&1; then
   docker start amberwave >/dev/null && stand "laeuft"
   exit 0
 fi
-stand "Amberwave wird geladen … (einmalig, etwa 400 MB)"
-gesamt=0; fertig=0
-docker pull "$BILD" 2>&1 | while IFS= read -r z; do
-  case "$z" in *"Pulling fs layer"*) gesamt=$((gesamt+1)) ;; *"Pull complete"*) fertig=$((fertig+1)) ;; esac
-  [ "$gesamt" -gt 0 ] && echo "Amberwave wird geladen … $(( fertig * 100 / gesamt )) %" > "$S"
+# laden – geduldig: direkt nach dem Start ist das Netz oft noch nicht ganz da, und Docker braucht einen Moment
+versuch=0
+until docker image inspect "$BILD" >/dev/null 2>&1; do
+  versuch=$((versuch+1))
+  if ! docker info >/dev/null 2>&1; then stand "Docker startet …"; sleep 3; continue; fi
+  if ! curl -fsS -m 8 -o /dev/null https://ghcr.io/v2/ 2>/dev/null && ! curl -sS -m 8 -o /dev/null -w '%{http_code}' https://ghcr.io/v2/ 2>/dev/null | grep -q '^[24]'; then
+    stand "fehler:Warte auf das Internet … (Amberwave wird beim ersten Start einmalig geladen)"; sleep 10; continue
+  fi
+  stand "Amberwave wird geladen … (einmalig, etwa 400 MB)"
+  gesamt=0; fertig=0
+  docker pull "$BILD" 2>&1 | while IFS= read -r z; do
+    case "$z" in *"Pulling fs layer"*) gesamt=$((gesamt+1)) ;; *"Pull complete"*) fertig=$((fertig+1)) ;; esac
+    [ "$gesamt" -gt 0 ] && echo "Amberwave wird geladen … $(( fertig * 100 / gesamt )) %" > "$S"
+  done
+  docker image inspect "$BILD" >/dev/null 2>&1 && break
+  stand "fehler:Laden unterbrochen – neuer Versuch in 30 Sekunden (Versuch $versuch)"
+  sleep 30
 done
-if ! docker image inspect "$BILD" >/dev/null 2>&1; then
-  stand "fehler:Amberwave ließ sich nicht laden – Internet erreichbar? Neuer Versuch beim nächsten Start."
-  exit 1
-fi
 stand "Amberwave startet …"
 docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 \
   -p 80:80 -p 9950:80 -v /daten/appdata:/appdata -v /musik:/musik \

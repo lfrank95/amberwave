@@ -36,7 +36,7 @@ cat > "$R/etc/hosts" <<H
 ::1 localhost ip6-localhost ip6-loopback
 H
 # Konsole: auf tty1 läuft die Anzeige (Adresse, Stand) statt einer Anmeldung; niemand muss sich je anmelden
-chroot "$R" systemctl enable systemd-networkd systemd-resolved systemd-timesyncd avahi-daemon aw-anzeige aw-installer aw-start >/dev/null
+chroot "$R" systemctl enable systemd-networkd systemd-networkd-wait-online systemd-resolved systemd-timesyncd avahi-daemon aw-anzeige aw-installer aw-start >/dev/null
 chroot "$R" systemctl mask getty@tty1.service >/dev/null
 chroot "$R" passwd -l root >/dev/null
 ln -sf /run/systemd/resolve/stub-resolv.conf "$R/etc/resolv.conf"
