@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Faster library scan: MP3, M4A, OGG, WAV etc. are now read by several ffprobe processes at once (about 2–4× faster on multi-core devices); the all-in-one database no longer waits for the disk after every write.
+- Amberwave OS: "Remove stick and restart" now forces the restart if a service hangs.
 
 - **Amberwave OS (first test version):** Amberwave as its own device on any x86-64 PC – write the image to a USB
   stick, boot it, choose the internal drive and the music source in the browser, unplug the stick. Secure Boot can stay

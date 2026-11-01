@@ -281,7 +281,18 @@ function scan_ordner_aufbauen(int $lauf, string $wurzel, string $basis, array $d
     $r = ['alben_neu' => 0, 'fehler' => 0];
     $basis_hash = hash('sha256', $basis);
 
-    // 1. Jede Datei lesen (oder Tags aus der Datenbank, wenn unverändert) und in dateien speichern
+    // 1. Jede Datei lesen (oder Tags aus der Datenbank, wenn unverändert) und in dateien speichern.
+    //    Was ffprobe braucht (alles außer FLAC), wird vorab parallel gelesen.
+    $vorlesen = [];
+    foreach ($dateien as $rel) {
+        [$groesse, $mtime] = $platte[$rel];
+        $alt = $bekannt[$rel] ?? null;
+        if (($voll || !$alt || $alt['groesse'] !== $groesse || $alt['mtime'] !== $mtime)
+            && strtolower(pathinfo($rel, PATHINFO_EXTENSION)) !== 'flac') {
+            $vorlesen[] = $wurzel . '/' . $rel;
+        }
+    }
+    ffprobe_vorlesen($vorlesen);
     $eintraege = [];
     foreach ($dateien as $rel) {
         [$groesse, $mtime] = $platte[$rel];

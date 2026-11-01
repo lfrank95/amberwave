@@ -23,10 +23,91 @@ function datei_lesen(string $pfad): array
     return ffprobe_lesen($pfad);
 }
 
+function ffprobe_befehl(string $pfad): string
+{
+    return aw_arg(konfig()['stream']['ffprobe']) . ' -v error -print_format json -show_format -show_streams ' . aw_arg($pfad);
+}
+
+/** ffprobe-Ergebnisse, die ffprobe_vorlesen() schon parallel geholt hat (Pfad => JSON) */
+function &ffprobe_vorrat(): array
+{
+    static $v = [];
+    return $v;
+}
+
+/**
+ * Liest viele Dateien mit mehreren ffprobe-Prozessen gleichzeitig vor (ein Prozess pro Datei kostet vor allem
+ * Startzeit – nacheinander ist das auf schwachen Geräten der Engpass beim Einlesen). ffprobe_lesen() nimmt danach
+ * das fertige Ergebnis aus dem Vorrat.
+ */
+function ffprobe_vorlesen(array $pfade, int $gleichzeitig = 0): void
+{
+    $vorrat = &ffprobe_vorrat();
+    $vorrat = [];
+    if (!function_exists('proc_open') || count($pfade) < 2) {
+        return;
+    }
+    if ($gleichzeitig < 1) {
+        $gleichzeitig = max(2, min(8, aw_kerne()));
+    }
+    $offen = [];
+    $warte = array_values($pfade);
+    while ($warte || $offen) {
+        while ($warte && count($offen) < $gleichzeitig) {
+            $pfad = array_shift($warte);
+            $p = @proc_open(ffprobe_befehl($pfad), [1 => ['pipe', 'w'], 2 => ['file', aw_null(), 'w']], $rohre);
+            if (!is_resource($p)) {
+                continue;
+            }
+            stream_set_blocking($rohre[1], false);
+            $offen[] = ['p' => $p, 'aus' => $rohre[1], 'pfad' => $pfad, 'text' => ''];
+        }
+        $lesen = array_map(static fn ($o) => $o['aus'], $offen);
+        $x = $y = null;
+        if ($lesen && @stream_select($lesen, $x, $y, 5) === false) {
+            usleep(20000);
+        }
+        foreach ($offen as $i => $o) {
+            $stueck = stream_get_contents($o['aus']);
+            if ($stueck !== false && $stueck !== '') {
+                $offen[$i]['text'] .= $stueck;
+            }
+            if (feof($o['aus'])) {
+                fclose($o['aus']);
+                proc_close($o['p']);
+                $vorrat[$o['pfad']] = $offen[$i]['text'];
+                unset($offen[$i]);
+            }
+        }
+        $offen = array_values($offen);
+    }
+}
+
+/** Zahl der Prozessorkerne (für parallele Arbeit), im Zweifel 2 */
+function aw_kerne(): int
+{
+    static $n = null;
+    if ($n === null) {
+        $n = 0;
+        if (is_readable('/proc/cpuinfo')) {
+            $n = (int) preg_match_all('/^processor\s*:/m', (string) @file_get_contents('/proc/cpuinfo'));
+        } elseif (getenv('NUMBER_OF_PROCESSORS')) {
+            $n = (int) getenv('NUMBER_OF_PROCESSORS');
+        }
+        $n = $n > 0 ? $n : 2;
+    }
+    return $n;
+}
+
 function ffprobe_lesen(string $pfad): array
 {
-    $cmd = aw_arg(konfig()['stream']['ffprobe']) . ' -v error -print_format json -show_format -show_streams ' . aw_arg($pfad) . aw_ohne_fehler();
-    $json = shell_exec($cmd);
+    $vorrat = &ffprobe_vorrat();
+    if (isset($vorrat[$pfad])) {
+        $json = $vorrat[$pfad];
+        unset($vorrat[$pfad]);
+    } else {
+        $json = shell_exec(ffprobe_befehl($pfad) . aw_ohne_fehler());
+    }
     $d = is_string($json) ? json_decode($json, true) : null;
     if (!is_array($d) || empty($d['streams'])) {
         throw new RuntimeException(t('ffprobe konnte die Datei nicht lesen'));

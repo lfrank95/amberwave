@@ -34,6 +34,8 @@ skip-name-resolve
 character-set-server = utf8mb4
 collation-server = utf8mb4_unicode_ci
 innodb_buffer_pool_size = ${DB_PUFFER:-512M}
+# Beim Einlesen nicht nach jeder Transaktion auf die Platte warten (bei einem Absturz fehlt höchstens die letzte Sekunde – der nächste Scan holt sie nach)
+innodb_flush_log_at_trx_commit = 2
 log_error = $AIO_DB_DIR/mariadb-fehler.log
 [client]
 socket = $AIO_SOCK

@@ -94,12 +94,28 @@ def nas_pruefen(pfad, benutzer, passwort):
         shutil.rmtree(ort, ignore_errors=True)
 
 
+def neu_starten():
+    """Neustart, der garantiert passiert: erst sauber, nach 15 s erzwungen (die Installation ist fertig und
+    geschrieben, im Live-System gibt es nichts zu verlieren – ein hängender Dienst darf den Neustart nicht aufhalten)"""
+    subprocess.run(['sync'])
+    subprocess.Popen(['systemctl', 'reboot'])
+    time.sleep(15)
+    subprocess.run(['sync'])
+    subprocess.run(['systemctl', 'reboot', '--force', '--force'])
+    time.sleep(5)
+    try:
+        with open('/proc/sysrq-trigger', 'w') as f:
+            f.write('b')
+    except OSError:
+        pass
+
+
 def stick_beobachten():
     """Nach der Installation: Stick abgezogen → neu starten (ins installierte System)"""
     while os.path.exists('/dev/disk/by-partlabel/aw-stick'):
         time.sleep(1)
     time.sleep(1)
-    subprocess.run(['systemctl', 'reboot'])
+    neu_starten()
 
 
 def installieren(w):
@@ -187,7 +203,7 @@ class Anfrage(BaseHTTPRequestHandler):
         if self.path == '/api/nas-pruefen':
             return self.senden(200, nas_pruefen(w.get('pfad'), w.get('benutzer', ''), w.get('passwort', '')))
         if self.path == '/api/neustart':
-            threading.Timer(1, lambda: subprocess.run(['systemctl', 'reboot'])).start()
+            threading.Timer(1, neu_starten).start()
             return self.senden(200, {'ok': True})
         self.senden(404, {'fehler': 'nicht gefunden'})
 
