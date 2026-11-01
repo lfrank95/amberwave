@@ -4206,3 +4206,35 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .os-teil-reserve { background: repeating-linear-gradient(135deg, rgba(255,244,230,.22) 0 4px, rgba(255,244,230,.08) 4px 8px); }
 .os-teil-frei { background: rgba(255,244,230,.06); box-shadow: inset 0 0 0 1px rgba(255,244,230,.18); }
 .os-platte .os-teil-frei { box-shadow: none; background: transparent; }
+
+/* Connect › Netzkarte */
+.nk { margin: 4px 0 26px; border-radius: var(--radius-lg); border: 1px solid var(--glass-border); background: var(--glass-bg); padding: 14px 16px 16px; }
+.nk-bild { overflow-x: auto; }
+.nk-bild svg { display: block; width: 100%; height: auto; margin: 0 auto; }
+.nk-knoten rect { fill: rgba(20,14,10,.92); stroke: rgba(255,236,214,.18); stroke-width: 1.5; }
+.nk-knoten.nk-eigen rect { stroke: var(--accent-a); stroke-width: 2; }
+.nk-knoten.nk-weg { opacity: .55; }
+.nk-knoten text, .nk-netz text { text-anchor: middle; fill: var(--text-primary); font-family: var(--font-body); }
+.nk-name { font-size: 15px; font-weight: 700; }
+.nk-unter { font-size: 11.5px; fill: var(--text-muted) !important; }
+.nk-netz rect { fill: rgba(255,244,230,.06); stroke: rgba(255,236,214,.22); stroke-width: 1.2; }
+.nk-netz text { font-size: 13px; font-weight: 600; fill: var(--text-muted); }
+.nk-linie { fill: none; stroke-width: 2.6; stroke-linecap: round; }
+.nk-heimnetz { stroke: var(--success); color: var(--success); }
+.nk-direkt { stroke: #7aa7d8; color: #7aa7d8; }
+.nk-tunnel { stroke: var(--accent-a); stroke-dasharray: 9 6; color: var(--accent-a); }
+.nk-rueck { stroke: #c49bff; stroke-dasharray: 2 6; color: #c49bff; }
+.nk-aus { stroke: #8d7b6c; stroke-dasharray: 4 6; color: #8d7b6c; }
+.nk-pfeilspitze { fill: #c49bff; }
+.nk-beschr { font-family: var(--font-body); font-size: 12px; font-weight: 600; fill: currentColor; stroke: none; paint-order: stroke; }
+.nk-links { text-anchor: start; }
+.nk-rechtsbuendig { text-anchor: end; }
+.nk-heimnetz.nk-beschr, .nk-direkt.nk-beschr { text-anchor: middle; }
+.nk-legende { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: .8rem; color: var(--text-muted); }
+.nk-legende span { display: inline-flex; align-items: center; gap: 8px; }
+.nk-legende i { display: inline-block; width: 26px; height: 0; border-top: 3px solid; }
+.nk-legende i.nk-tunnel { border-top-style: dashed; border-color: var(--accent-a); }
+.nk-legende i.nk-rueck { border-top-style: dotted; border-color: #c49bff; }
+.nk-legende i.nk-aus { border-top-style: dashed; border-color: #8d7b6c; }
+.nk-legende i.nk-heimnetz { border-color: var(--success); }
+.nk-legende i.nk-direkt { border-color: #7aa7d8; }

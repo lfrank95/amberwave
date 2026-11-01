@@ -129,7 +129,9 @@ $routen = [
     ['GET', '/connect/server', function () {
         $u = api_user();
         require_once __DIR__ . '/../includes/connect.php';
-        $r = ['server' => connect_server_liste(), 'ausweis' => ['kennung' => ausweis_kennung(), 'name' => connect_eigener_name()]];
+        $eigen = connect_eigene_adressen();
+        $r = ['server' => connect_server_liste(), 'ausweis' => ['kennung' => ausweis_kennung(), 'name' => connect_eigener_name(),
+            'von_aussen' => connect_von_aussen_erreichbar(), 'tunnel' => !empty($eigen['tunnel']), 'heimnetz' => !empty($eigen['lan'])]];
         if (ist_admin($u)) {
             $r['adressen'] = connect_eigene_adressen();
             $r['einladung'] = connect_einladung_aktiv();

@@ -65,6 +65,9 @@ function connect_server_objekt(array $z): array
         'erreichbar' => $frisch !== null && $frisch < 600 && $z['weg'] !== '',
         'weg' => ['art' => (string) $z['weg_art'], 'ms' => $z['weg_ms'] !== null ? (int) $z['weg_ms'] : null, 'am' => iso($z['weg_am'])],
         'adressen' => ['heimnetz' => count($ad['lan'] ?? []), 'direkt' => !empty($ad['direkt']), 'oeffentlich' => !empty($ad['oeffentlich'])],
+        // Von außen erreichbar (Tunnel oder öffentliche Adresse)? Sonst nur ausgehend – z. B. hinter CGNAT
+        'von_aussen' => !empty($ad['tunnel']) || (!empty($ad['oeffentlich']) && connect_adresse_oeffentlich((string) $ad['oeffentlich'])),
+        'tunnel' => !empty($ad['tunnel']),
         'dir_erlaubt' => json_decode((string) ($z['dir_erlaubt'] ?? ''), true) ?: null,
     ];
 }

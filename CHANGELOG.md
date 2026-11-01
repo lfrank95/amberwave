@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Connect: a **network map** at the top of the Connect tab shows how your servers reach each other right now – home network, direct access, tunnel/open address or back channel – and which servers are reachable from outside and which only connect outwards (CGNAT).
 - **Connect back channel:** a server that can't be reached from outside – behind CGNAT like Starlink, without a tunnel – now keeps a connection open to a paired server that can (e.g. your Unraid with its Cloudflare tunnel). Through it the other server reaches it anyway: browse, listen and copy work in both directions, with nothing to set up. Settings show when a server uses it; the connection shows as "Back channel". Idle it costs a few kilobits per second.
 - Connect: copying from another server now also brings **artist images, artist biographies and album descriptions** along – applied once the music is read in, and only where your server has nothing yet.
 - Amberwave Connect: **pairing always shares both ways** – paired servers may browse, listen and copy from each other; the per-server switches are gone.

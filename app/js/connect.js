@@ -234,6 +234,67 @@ async function auftraegeZeichnen(app, box, signal) {
   await zeichnen();
 }
 
+/**
+ * Netzkarte: dieser Server oben, die gekoppelten unten, dazwischen das Internet. Linien zeigen, wie sie sich gerade
+ * erreichen – Heimnetz direkt, Direktzugang, über den Tunnel bzw. eine offene Adresse, oder über den Rückkanal eines
+ * Servers, der von außen nicht erreichbar ist (z. B. CGNAT). Gezeichnet als SVG, skaliert mit der Breite.
+ */
+function netzkarte(r) {
+  const peers = r.server;
+  if (!peers.length) return '';
+  const B = Math.max(440, peers.length * 210), H = 400;
+  const eigen = { x: B / 2, y: 62 }, netz = { x: B / 2, y: 196 };
+  const pos = peers.map((_, i) => ({ x: (B / peers.length) * (i + 0.5), y: 334 }));
+  const art = (s) => (s.erreichbar ? s.weg?.art || '' : '');
+  const ms = (s) => (s.weg?.ms != null ? ` · ${zahl(s.weg.ms)} ms` : '');
+  const offenText = (o) => (o.von_aussen ? (o.tunnel ? t('Tunnel – von außen erreichbar') : t('offen – von außen erreichbar')) : t('nur ausgehend (z. B. CGNAT)'));
+  const knoten = ({ x, y }, name, unter, klasse) => {
+    const w = 184, hoehe = 58;
+    return `<g class="nk-knoten ${klasse}"><rect x="${x - w / 2}" y="${y - hoehe / 2}" width="${w}" height="${hoehe}" rx="14"/>
+      <text x="${x}" y="${y - 4}" class="nk-name">${h(name.length > 22 ? `${name.slice(0, 21)}…` : name)}</text>
+      <text x="${x}" y="${y + 16}" class="nk-unter">${h(unter)}</text></g>`;
+  };
+  const linie = (a, b, klasse, pfeil = false) => `<path class="nk-linie ${klasse}" d="M${a.x},${a.y} L${b.x},${b.y}"${pfeil ? ' marker-end="url(#nk-pfeil)"' : ''}/>`;
+  const beschriftung = (x, y, text, klasse) => `<text x="${x}" y="${y}" class="nk-beschr ${klasse}">${h(text)}</text>`;
+  let linien = '', texte = '';
+  const ueberNetz = peers.some((s) => art(s) !== 'heimnetz' && art(s) !== 'direkt');
+  if (ueberNetz) {
+    // dieser Server ↔ Internet: offen (Tunnel) oder nur ausgehend (Rückkanal von hier aus)
+    const k = r.ausweis.von_aussen ? 'nk-tunnel' : 'nk-rueck';
+    linien += r.ausweis.von_aussen ? linie({ x: eigen.x, y: eigen.y + 29 }, { x: netz.x, y: netz.y - 18 }, k) : linie({ x: eigen.x, y: eigen.y + 29 }, { x: netz.x, y: netz.y - 22 }, k, true);
+    texte += beschriftung(eigen.x + 12, (eigen.y + netz.y) / 2 + 4, r.ausweis.von_aussen ? (r.ausweis.tunnel ? t('Tunnel') : t('offen')) : t('nur ausgehend'), `nk-links ${k}`);
+  }
+  peers.forEach((s, i) => {
+    const p = pos[i], a = art(s), oben = { x: p.x, y: p.y - 29 };
+    if (a === 'heimnetz' || a === 'direkt') {
+      const k = a === 'heimnetz' ? 'nk-heimnetz' : 'nk-direkt';
+      // am Internet vorbei: Bogen zur Seite
+      const seite = p.x <= eigen.x ? -1 : 1;
+      const c = { x: eigen.x + seite * Math.max(150, Math.abs(p.x - eigen.x)), y: (eigen.y + p.y) / 2 };
+      linien += `<path class="nk-linie ${k}" d="M${eigen.x + seite * 92},${eigen.y} Q${c.x},${c.y} ${oben.x},${oben.y}"/>`;
+      texte += beschriftung((eigen.x + seite * 92 + 2 * c.x + oben.x) / 4, (eigen.y + 2 * c.y + oben.y) / 4 - 6, `${WEG()[a]}${ms(s)}`, k);
+      return;
+    }
+    let k = 'nk-aus', text = t('nicht erreichbar');
+    if (a === 'rueckkanal') { k = 'nk-rueck'; text = `${t('Rückkanal')}${ms(s)}`; }
+    else if (a) { k = 'nk-tunnel'; text = `${WEG()[a] || a}${ms(s)}`; }
+    // Server, die von außen nicht erreichbar sind, öffnen die Verbindung selbst (Pfeil ins Internet)
+    linien += !s.von_aussen && a ? linie(oben, { x: netz.x + (p.x - netz.x) * 0.12, y: netz.y + 22 }, k, true)
+      : linie({ x: netz.x + (p.x - netz.x) * 0.12, y: netz.y + 18 }, oben, k);
+    texte += beschriftung((netz.x + p.x) / 2 + (p.x < netz.x ? -8 : 8), (netz.y + p.y) / 2 + 6, text, `${k} ${p.x < netz.x ? 'nk-rechtsbuendig' : 'nk-links'}`);
+  });
+  const knotenHtml = knoten(eigen, r.ausweis.name, offenText(r.ausweis), 'nk-eigen')
+    + (ueberNetz ? `<g class="nk-netz"><rect x="${netz.x - 70}" y="${netz.y - 18}" width="140" height="36" rx="18"/><text x="${netz.x}" y="${netz.y + 5}">${h(t('Internet'))}</text></g>` : '')
+    + peers.map((s, i) => knoten(pos[i], s.name, offenText(s), s.erreichbar ? '' : 'nk-weg')).join('');
+  const legende = [['nk-heimnetz', t('Heimnetz')], ['nk-direkt', t('Direktzugang')], ['nk-tunnel', t('Tunnel / offene Adresse')], ['nk-rueck', t('Rückkanal – hält eine Verbindung von innen offen (CGNAT)')], ['nk-aus', t('gerade nicht erreichbar')]];
+  return `<section class="nk" aria-label="${h(t('Wie die Server verbunden sind'))}">
+    <div class="nk-bild"><svg viewBox="0 0 ${B} ${H}" style="max-width:${B}px;min-width:${peers.length > 2 ? 560 : 0}px" role="img" aria-label="${h(t('Netzkarte der gekoppelten Server'))}">
+      <defs><marker id="nk-pfeil" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="nk-pfeilspitze"/></marker></defs>
+      ${linien}${knotenHtml}${texte}</svg></div>
+    <div class="nk-legende">${legende.map(([k, n]) => `<span><i class="${k}"></i>${h(n)}</span>`).join('')}</div>
+  </section>`;
+}
+
 export const connectAnsichten = {
   /** Alle gekoppelten Server und die Übertragungen */
   async uebersicht({ app, ziel, signal }) {
@@ -246,6 +307,7 @@ export const connectAnsichten = {
       </a>`;
     ziel.innerHTML = kopf('Amberwave Connect', t('Dein Server {name} · Ausweis {kennung}', { name: h(r.ausweis.name), kennung: `<code>${h(r.ausweis.kennung)}</code>` }),
       admin ? `<a class="btn btn-zweit" href="/einstellungen/connect" data-link>${icon('einstellungen', 18)}<span>${t('Server koppeln')}</span></a>` : '') + `
+      ${netzkarte(r)}
       ${r.server.length ? `<div class="cn-server-liste">${r.server.map(karte).join('')}</div>`
         : leer(t('Noch kein Server gekoppelt'), admin ? t('Koppel einen zweiten Amberwave – etwa im Wohnwagen oder bei der Familie. Dann stöberst du hier in seiner Musik, hörst rein und holst dir Alben herüber.') : t('Ein Admin kann unter Einstellungen › Amberwave Connect einen weiteren Amberwave-Server koppeln.'),
           admin ? `<a class="btn" href="/einstellungen/connect" data-link>${t('Server koppeln')}</a>` : '')}
