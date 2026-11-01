@@ -24,5 +24,15 @@ Für Leute, die nie ein Terminal öffnen wollen.
 
 Gebaut und getestet wird in GitHub Actions (`.github/workflows/os.yml`).
 
-Noch offen: Secure Boot (signierter shim), Updates des Containers mit Rollback, Bereich „Gerät“ in den Einstellungen,
+## Auf echter Hardware testen
+
+1. Image laden: Actions › *Amberwave OS* › letzter erfolgreicher Lauf › Artefakt `amberwave-os-img` (ZIP mit der `.img`).
+2. Mit Rufus (Modus „DD-Image“) oder balenaEtcher auf einen USB-Stick (≥ 2 GB) schreiben.
+3. PC mit Netzwerkkabel am Router, Stick einstecken, beim Start das Startmenü der Firmware öffnen (meist F11, F12, F8
+   oder Esc) und den Stick wählen. Secure Boot darf an bleiben; der PC muss UEFI können (praktisch alles ab ~2012).
+4. Am Bildschirm steht die Adresse – auf Handy oder PC öffnen, Platte wählen, installieren, Stick abziehen.
+
+Voraussetzungen: x86-64 mit UEFI, ≥ 2 GB RAM (4 GB empfohlen), interne Platte ≥ 16 GB, Netzwerkkabel (WLAN folgt).
+
+Noch offen: Updates des Containers mit Rollback, Bereich „Gerät“ in den Einstellungen,
 Systemupdates, USB-Ersteller für Windows, Raspberry Pi.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Amberwave OS (first test version):** Amberwave as its own device on any x86-64 PC – write the image to a USB
+  stick, boot it, choose the internal drive and the music source in the browser, unplug the stick. Secure Boot can stay
+  on. The device shows its address on screen and on the network as `amberwave.local`; Amberwave itself is loaded from
+  GitHub on the first start. See `os/README.md`.
 - **Updates from inside the app (Windows):**
   - Windows client: when a new version is out, a card in the window offers "Update now" – the client downloads the
     installer, installs it without any clicks and comes back up in the new version. The tray menu does the same.
