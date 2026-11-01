@@ -13,20 +13,7 @@ if [ "$(hostname)" != "$AW_NAME" ]; then
 fi
 
 # Musik einbinden
-mkdir -p /musik /daten/appdata
-case "$AW_MUSIK_ART" in
-  platte)
-    mountpoint -q /musik || mount -o "${AW_MUSIK_OPTIONEN:-defaults}" "UUID=$AW_MUSIK_UUID" /musik || stand "fehler:Die Musik-Platte wurde nicht gefunden – ist sie angesteckt?" ;;
-  nas)
-    for i in $(seq 1 30); do
-      mountpoint -q /musik && break
-      mount -t cifs "$AW_NAS_PFAD" /musik -o "credentials=/daten/system/nas.zugang,iocharset=utf8,vers=3.0,file_mode=0664,dir_mode=0775" 2>/dev/null && break
-      stand "Warte auf die Musik-Freigabe $AW_NAS_PFAD …"; sleep 4
-    done
-    mountpoint -q /musik || stand "fehler:Die Musik-Freigabe $AW_NAS_PFAD ist nicht erreichbar." ;;
-  *)
-    mkdir -p /daten/musik; mountpoint -q /musik || mount --bind /daten/musik /musik ;;
-esac
+musik_einbinden
 
 # Bis Amberwave selbst antwortet: Statusseite auf Port 80 (wer die Adresse schon öffnet, sieht, was passiert)
 status_an() { python3 /usr/local/lib/amberwave/status.py & STATUS_PID=$!; }

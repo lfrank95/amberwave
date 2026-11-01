@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/api_nutzer.php';
 require_once __DIR__ . '/../includes/einrichtung.php';
 require_once __DIR__ . '/../includes/api_admin.php';
+require_once __DIR__ . '/../includes/os_geraet.php';
 require_once __DIR__ . '/../includes/api_metadaten.php';
 require_once __DIR__ . '/../includes/metadatenjob.php';
 require_once __DIR__ . '/../includes/automatik.php';
@@ -755,6 +756,15 @@ $routen = [
     ['PUT', '/admin/alben/{id}/edition', fn($p) => api_admin_album_edition(api_user(true), (int) $p['id'])],
     ['POST', '/admin/update', fn() => api_admin_update(api_user(true))],
     ['POST', '/admin/update/windows', fn() => api_admin_windows_update(api_user(true))],
+    ['GET', '/admin/geraet', function () {
+        api_user(true);
+        return api_admin_os_geraet();
+    }],
+    ['GET', '/admin/geraet/protokoll', function () {
+        api_user(true);
+        api_admin_os_geraet_protokoll();
+    }],
+    ['POST', '/admin/geraet/{aktion}', fn($p) => api_admin_os_geraet_aktion(api_user(true), (string) $p['aktion'])],
     ['GET', '/admin/update/windows', function () {
         api_user(true);
         return api_admin_windows_update_stand();

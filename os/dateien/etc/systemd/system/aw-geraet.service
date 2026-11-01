@@ -1,0 +1,13 @@
+[Unit]
+Description=Amberwave – Gerätedienst (Einstellungen des Geräts für die App, nur 127.0.0.1)
+ConditionKernelCommandLine=!boot=live
+RequiresMountsFor=/daten
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/amberwave/geraet.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

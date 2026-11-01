@@ -28,6 +28,14 @@ if [ "$(docker inspect -f '{{.Image}}' amberwave 2>/dev/null)" = "$neu" ]; then
   exit 0
 fi
 
+# nie zurück auf eine ältere Version (z. B. nach dem Wechsel von Beta auf Stabil) – die Datenbank ist schon weiter
+vers() { docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' "$1" 2>/dev/null; }
+alt_v="$(vers "$(docker inspect -f '{{.Image}}' amberwave 2>/dev/null)")"; neu_v="$(vers "$BILD")"
+if [ -n "$alt_v" ] && [ -n "$neu_v" ] && ! python3 /usr/local/lib/amberwave/version_neuer.py "$neu_v" "$alt_v"; then
+  melden fehler "Auf diesem Kanal gibt es noch keine neuere Version als $alt_v."
+  exit 0
+fi
+
 melden startet
 docker rm -f amberwave-alt >/dev/null 2>&1
 docker rename amberwave amberwave-alt && docker stop -t 60 amberwave-alt >/dev/null

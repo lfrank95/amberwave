@@ -8,6 +8,7 @@ import { t, tn, zahl, locale } from './i18n.js';
 import { QUALITAETEN, LAUTHEIT_ZIELE } from './player.js';
 import { LueckenlosMotor } from './lueckenlos.js';
 import { exportListe } from './export.js';
+import { geraetZeichnen } from './geraet.js';
 import { nativ } from './nativ.js';
 import { netzweg } from './netzweg.js';
 import { direktEinrichten, tunnelEinrichten, lautheitPanel, raeumePanel, sicherungWiederherstellen } from './verwaltung.js';
@@ -25,6 +26,7 @@ const BEREICHE = [
   { id: 'konto', gruppe: 'persoenlich', titel: t('Konto'), icon: 'profil', text: t('Name, Bild, Passwort und die Geräte, auf denen du angemeldet bist.') },
   { id: 'wiedergabe', gruppe: 'persoenlich', titel: t('Wiedergabe'), icon: 'play', text: '' },
   { id: 'ausgabe', gruppe: 'persoenlich', titel: t('Windows-Ausgabe'), icon: 'computer', zusatz: t('dieser PC'), text: t('Nur im Windows Client · gilt für diesen PC.') },
+  { id: 'geraet', gruppe: 'server', titel: t('Amberwave OS'), icon: 'computer', nurOs: true, text: t('Dieses Gerät: Name im Netz, Netzwerk, wo die Musik liegt, Speicher, Updates und Strom.') },
   { id: 'bibliothek', gruppe: 'server', titel: t('Bibliothek & Automatik'), icon: 'alben', text: t('Wann Amberwave selbst einliest, abgleicht und misst. Von Hand ausführen geht weiter unter Verwaltung › Bibliothek.') },
   { id: 'dienste', gruppe: 'server', titel: t('Dienste & Schlüssel'), icon: 'schluessel', text: t('Zugänge zu Diensten für Metadaten, Bilder und Übersetzungen. Schlüssel werden verschlüsselt gespeichert und nie wieder angezeigt.') },
   { id: 'downloads', gruppe: 'server', titel: t('Downloads'), icon: 'download', text: t('Prowlarr oder Newznab-Indexer suchen, SABnzbd lädt, Amberwave übernimmt das Fertige in die Bibliothek.') },
@@ -144,6 +146,9 @@ const SUCHE_PERSOENLICH = [
   ['ausgabe', 'rate', t('Abtastrate am Gerät'), t('samplerate khz')], ['ausgabe', 'aufschlag', t('Pause nach dem Umschalten'), t('ratenwechsel anlauf')],
   ['bibliothek', 'lautheit_analyse', t('Lautheitsanalyse'), t('ebu r128 messen')], ['zugang', 'direkt', t('Direktzugang im Heimnetz'), t('cloudflare zertifikat lets encrypt dns')], ['zugang', 'tunnel', t('Cloudflare Tunnel'), t('unterwegs cloudflared von außen erreichbar')],
   ['zugang', 'apps', t('Für Apps'), t('token api windows')], ['downloads', 'suchanbieter', t('Suchanbieter'), t('prowlarr newznab indexer usenet suche')], ['downloads', 'downloadclients', t('Downloadclients'), t('sabnzbd nzb client kategorie import ordner')], ['raeume', 'raeume', t('Impulsantworten'), t('hall voxengo ir')],
+  ['geraet', 'name', t('Name im Netz'), t('hostname local adresse amberwave os gerät')], ['geraet', 'netz', t('Feste IP-Adresse'), t('netzwerk dhcp statisch ip router dns')],
+  ['geraet', 'musik', t('Wo liegt deine Musik?'), t('musikquelle nas freigabe smb usb platte festplatte')], ['geraet', 'kanal', t('Stabil oder Beta'), t('updates version kanal')],
+  ['geraet', 'strom', t('Gerät neu starten oder ausschalten'), t('neustart herunterfahren aus')], ['geraet', 'ssh', t('Fernzugang per SSH'), t('ssh konsole terminal schlüssel')],
   ['heimnetz', 'geraete', t('Geräte im Heimnetz'), t('dlna upnp receiver avr denon marantz yamaha onkyo pioneer fernseher tv streamer')],
   ['system', 'festgelegt', t('Was Amberwave festgelegt hat'), t('benutzer puid pgid ordner pfad appdata datenbank zeitzone schluessel')], ['sicherung', 'liste', t('Vorhandene Sicherungen'), t('backup wiederherstellen')], ['sicherung', 'update', t('Update einspielen'), t('version zip')],
 ];
@@ -1082,8 +1087,8 @@ function kopfChips(id) {
 }
 
 // ---------- Suche ----------
-function suchIndex(admin) {
-  const liste = SUCHE_PERSOENLICH.filter(([b]) => (b !== 'ausgabe' || nativ) && (admin || bereichVon(b).gruppe === 'persoenlich'))
+function suchIndex(admin, appOs = false) {
+  const liste = SUCHE_PERSOENLICH.filter(([b]) => (b !== 'ausgabe' || nativ) && (admin || bereichVon(b).gruppe === 'persoenlich') && (!bereichVon(b).nurOs || appOs))
     .map(([b, k, t, w]) => ({ b, k, t, w: `${t} ${w}`.toLowerCase() }));
   if (admin) for (const f of Object.values(FELD)) liste.push({ b: f.bereich, k: f.k, t: f.name, w: `${f.name} ${f.hinweis || ''} ${f.k.replace(/_/g, ' ')}`.toLowerCase() });
   return liste;
@@ -1093,7 +1098,7 @@ function sucheVerbinden(app, wurzel, admin) {
   const feld = wurzel.querySelector('[data-einst-suche]');
   const box = wurzel.querySelector('[data-einst-treffer]');
   const nav = wurzel.querySelector('[data-einst-nav]');
-  const index = suchIndex(admin);
+  const index = suchIndex(admin, !!app.ich.app.os);
   feld.addEventListener('input', () => {
     const q = feld.value.trim().toLowerCase();
     nav.hidden = !!q; box.hidden = !q;
@@ -1133,7 +1138,7 @@ function zuZeileSpringen(inhalt) {
 // ---------- Ansicht ----------
 export async function einstellungenAnsicht({ app, ziel, param, signal }) {
   const admin = app.ich.user.rolle === 'admin';
-  const sichtbar = BEREICHE.filter((b) => (b.gruppe === 'persoenlich' || admin) && (b.id !== 'ausgabe' || nativ));
+  const sichtbar = BEREICHE.filter((b) => (b.gruppe === 'persoenlich' || admin) && (b.id !== 'ausgabe' || nativ) && (!b.nurOs || app.ich.app.os));
   const gewaehlt = param?.[0] || '';
   const b = bereichVon(gewaehlt) && sichtbar.includes(bereichVon(gewaehlt)) ? bereichVon(gewaehlt) : bereichVon('wiedergabe');
   // Bereich hier nicht verfügbar (z. B. Windows-Ausgabe im Browser, Server-Bereich ohne Admin): Adresse passend zur Seite
@@ -1158,7 +1163,7 @@ export async function einstellungenAnsicht({ app, ziel, param, signal }) {
   </div>`;
   sucheVerbinden(app, ziel, admin);
   const inhalt = ziel.querySelector('[data-einst-karten]');
-  const zeichner = { konto: kontoZeichnen, wiedergabe: wiedergabeZeichnen, ausgabe: ausgabeZeichnen, bibliothek: bibliothekZeichnen, zugang: zugangZeichnen, raeume: raeumeZeichnen, downloads: downloadsZeichnen, heimnetz: heimnetzZeichnen, sicherung: sicherungZeichnen, system: systemZeichnen }[b.id]
+  const zeichner = { konto: kontoZeichnen, wiedergabe: wiedergabeZeichnen, ausgabe: ausgabeZeichnen, bibliothek: bibliothekZeichnen, zugang: zugangZeichnen, raeume: raeumeZeichnen, downloads: downloadsZeichnen, heimnetz: heimnetzZeichnen, sicherung: sicherungZeichnen, system: systemZeichnen, geraet: geraetZeichnen }[b.id]
     || ((a, i, s) => serverBereichZeichnen(a, i, b.id, s));
   await zeichner(app, inhalt, signal);
   if (signal?.aborted) return;

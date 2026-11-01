@@ -1,0 +1,14 @@
+[Unit]
+Description=Amberwave – feste Adresse aus den Einstellungen (vor dem Netzwerk)
+ConditionKernelCommandLine=!boot=live
+RequiresMountsFor=/daten
+DefaultDependencies=no
+After=local-fs.target
+Before=systemd-networkd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/amberwave/geraet.py --netz
+
+[Install]
+WantedBy=multi-user.target

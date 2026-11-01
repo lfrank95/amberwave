@@ -17,7 +17,7 @@ PAKETE=(systemd-sysv systemd-resolved systemd-timesyncd udev dbus kmod linux-ima
   grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub2-common efibootmgr gdisk e2fsprogs dosfstools rsync util-linux
   kbd console-setup-linux iproute2 iputils-ping avahi-daemon libnss-mdns ca-certificates curl python3
   docker.io docker-cli iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek firmware-misc-nonfree firmware-amd-graphics firmware-bnx2 firmware-bnx2x
-  amd64-microcode intel-microcode)
+  amd64-microcode intel-microcode unattended-upgrades openssh-server debian-archive-keyring)
 echo "== Grundsystem ($SUITE)"
 mmdebstrap --variant=minbase --components=main,contrib,non-free-firmware \
   --include="$(IFS=,; echo "${PAKETE[*]}")" \
@@ -39,10 +39,26 @@ cat > "$R/etc/hosts" <<H
 ::1 localhost ip6-localhost ip6-loopback
 H
 # Konsole: auf tty1 läuft die Anzeige (Adresse, Stand) statt einer Anmeldung; niemand muss sich je anmelden
-chroot "$R" systemctl enable systemd-networkd systemd-networkd-wait-online systemd-resolved systemd-timesyncd avahi-daemon aw-anzeige aw-installer aw-start aw-update.path >/dev/null
+chroot "$R" systemctl enable systemd-networkd systemd-networkd-wait-online systemd-resolved systemd-timesyncd avahi-daemon aw-anzeige aw-installer aw-start aw-update.path aw-geraet aw-netz >/dev/null
+chroot "$R" systemctl disable ssh.service ssh.socket >/dev/null 2>&1 || true   # SSH nur, wenn es jemand einschaltet
 chroot "$R" systemctl mask getty@tty1.service >/dev/null
 chroot "$R" passwd -l root >/dev/null
 ln -sf /run/systemd/resolve/stub-resolv.conf "$R/etc/resolv.conf"
+# Paketquellen mit Sicherheitsupdates; die beim Bau erzeugten SSH-Schlüssel wären auf jedem Gerät gleich → weg
+rm -f "$R/etc/apt/sources.list" "$R/etc/ssh/ssh_host_"*
+cat > "$R/etc/apt/sources.list.d/debian.sources" <<Q
+Types: deb
+URIs: http://deb.debian.org/debian
+Suites: $SUITE $SUITE-updates
+Components: main contrib non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://security.debian.org/debian-security
+Suites: $SUITE-security
+Components: main contrib non-free-firmware
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Q
 rm -rf "$R/var/cache/apt/archives/"*.deb "$R/var/lib/apt/lists/"* "$R/tmp/"*
 
 echo "== squashfs"

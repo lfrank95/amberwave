@@ -48,7 +48,10 @@ function update_abfragen(): ?array
     if (!is_array($liste)) {
         return null;
     }
-    $vorab = str_contains(app_version(), '-');
+    // Amberwave OS: der Kanal des Geräts entscheidet (Stabil → nur fertige Versionen), sonst die installierte Version
+    require_once __DIR__ . '/os_geraet.php';
+    $kanal = os_geraet_kanal();
+    $vorab = $kanal !== null ? $kanal === 'beta' : str_contains(app_version(), '-');
     $best = null;
     foreach (array_is_list($liste) ? $liste : [$liste] as $r) {
         if (!is_array($r) || !empty($r['draft']) || (!empty($r['prerelease']) && !$vorab)) {

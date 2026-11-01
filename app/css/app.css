@@ -4098,3 +4098,15 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .update-warten-karte p { margin: 8px 0 0; color: var(--text-muted); font-size: .92rem; }
 .update-kreis { display: inline-block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,181,71,.25); border-top-color: var(--accent-a); animation: update-dreh 1s linear infinite; }
 @keyframes update-dreh { to { transform: rotate(360deg); } }
+
+/* Einstellungen › Amberwave OS */
+.os-balken { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.os-balken small { white-space: nowrap; color: var(--text-muted); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.os-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.os-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.os-gruppe { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+.einst-regler .os-gruppe > .einst-feld { width: 170px; flex: 0 1 auto; min-width: 0; }
+.einst-regler .os-gruppe > .os-praefix { width: 66px; flex: none; }
+.os-probe { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.os-los .einst-text p { margin: 0; }
+@media (max-width: 640px) { .os-chips { justify-content: flex-start; } .os-gruppe { width: 100%; } .einst-regler .os-gruppe > .einst-feld:not(.os-praefix) { flex: 1; width: auto; } }

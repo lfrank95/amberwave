@@ -330,5 +330,10 @@
  "Offline in Originalqualität ist auf diesem Server nicht freigegeben.": "Saving offline in original quality is not enabled on this server.",
  "Offline-Qualität: 0, opus128, opus160, opus256 oder original.": "Offline quality: 0, opus128, opus160, opus256 or original.",
  "Der Auftrag ließ sich nicht ablegen (Schreibrechte im Cache-Ordner?).": "The request could not be saved (write access to the cache folder?).",
- "Nur beim Amberwave Windows Server.": "Only with Amberwave Windows Server."
+ "Nur beim Amberwave Windows Server.": "Only with Amberwave Windows Server.",
+ "Nur bei Amberwave OS.": "Only on Amberwave OS.",
+ "Der Gerätedienst antwortet nicht. Hilft ein Neustart des Geräts?": "The device service isn’t responding. Does restarting the device help?",
+ "Der Gerätedienst hat die Anfrage abgelehnt (Schlüssel passt nicht).": "The device service refused the request (key doesn’t match).",
+ "Unerwartete Antwort vom Gerätedienst.": "Unexpected answer from the device service.",
+ "Fehler im Gerätedienst: {meldung}": "Error in the device service: {meldung}"
 }
