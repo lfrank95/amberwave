@@ -255,7 +255,7 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     if (!/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/.test(n)) { $('[data-meldung]').textContent = tx('name_falsch'); return; }
     e.target.disabled = true;
     const p = platte();
-    const r = await api('installieren', { platte: p.name, behalten: p.amberwave && wahl.behalten, name: n, musik: wahl.musik, kanal: new URLSearchParams(location.search).get('kanal') || 'beta',
+    const r = await api('installieren', { platte: p.name, behalten: p.amberwave && wahl.behalten, name: n, musik: wahl.musik, kanal: new URLSearchParams(location.search).get('kanal') || undefined,
       zeitzone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin' }).catch(() => ({ ok: false }));
     e.target.disabled = false;
     if (!r.ok) { $('[data-meldung]').textContent = tx(r.fehler === 'name' ? 'name_falsch' : r.fehler === 'laeuft' ? 'laeuft_schon' : 'unbekannt'); return; }

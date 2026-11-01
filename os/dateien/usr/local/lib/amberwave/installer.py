@@ -42,6 +42,16 @@ def platten():
     return [z for z in ziele if z['groesse'] >= 16 * 1024**3], musik
 
 
+def kanal_standard():
+    """Kanal, mit dem dieses Image gebaut wurde (stabiles Release → latest, Beta → beta)"""
+    try:
+        with open('/etc/amberwave-kanal') as f:
+            k = f.read().strip()
+            return k if k in ('beta', 'latest', 'main') else 'beta'
+    except OSError:
+        return 'beta'
+
+
 def secure_boot():
     try:
         with open('/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c', 'rb') as f:
@@ -103,7 +113,7 @@ def installieren(w):
         return {'ok': False, 'fehler': 'name'}
     m = w.get('musik') or {}
     env = dict(os.environ, AW_PLATTE=ziel['name'], AW_BEHALTEN='1' if w.get('behalten') and ziel['amberwave'] else '0', AW_NAME=name,
-               AW_KANAL=w.get('kanal') if w.get('kanal') in ('beta', 'latest', 'main') else 'beta',
+               AW_KANAL=w.get('kanal') if w.get('kanal') in ('beta', 'latest', 'main') else kanal_standard(),
                AW_ZEITZONE=w.get('zeitzone') if re.match(r'^[A-Za-z_]+(/[A-Za-z_+-]+)*$', w.get('zeitzone') or '') else 'Europe/Berlin',
                AW_MUSIK_ART='intern')
     if m.get('art') == 'platte':

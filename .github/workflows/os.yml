@@ -17,7 +17,8 @@ on:
 permissions:
   contents: read
 env:
-  KANAL: ${{ inputs.kanal || 'beta' }}
+  # Image eines stabilen Releases holt „latest“, eines Beta-Releases „beta“; von Hand gestartet: die Eingabe
+  KANAL: ${{ inputs.kanal || (github.event_name == 'release' && !github.event.release.prerelease && 'latest') || 'beta' }}
 jobs:
   image:
     runs-on: ubuntu-latest
@@ -31,7 +32,7 @@ jobs:
       - name: Werkzeuge
         run: sudo apt-get update -qq && sudo apt-get install -y -qq mmdebstrap debian-archive-keyring squashfs-tools grub-efi-amd64-bin grub-common mtools gdisk dosfstools >/dev/null
       - name: Image bauen
-        run: sudo bash os/bauen.sh "$RUNNER_TEMP/os" && ls -la "$RUNNER_TEMP/os"
+        run: sudo AW_KANAL="$KANAL" bash os/bauen.sh "$RUNNER_TEMP/os" && ls -la "$RUNNER_TEMP/os"
       - uses: actions/upload-artifact@v4
         with:
           name: amberwave-os-img

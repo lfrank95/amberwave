@@ -30,6 +30,8 @@ mkdir -p "$R/usr/local/share/amberwave/installer/fonts"
 cp "$HIER/../app/fonts/"*.woff2 "$R/usr/local/share/amberwave/installer/fonts/"
 cp "$HIER/../app/img/logo.svg" "$R/usr/local/share/amberwave/installer/logo.svg"
 echo "$VERSION" > "$R/etc/amberwave-version"
+# welches Amberwave-Image das Gerät beim ersten Start holt: stabile Releases → latest, Betas → beta
+echo "${AW_KANAL:-beta}" > "$R/etc/amberwave-kanal"
 chmod +x "$R/usr/local/lib/amberwave/"*
 cat > "$R/etc/hosts" <<H
 127.0.0.1 localhost

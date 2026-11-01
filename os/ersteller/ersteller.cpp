@@ -47,7 +47,7 @@ static int englisch(void) { return (GetUserDefaultUILanguage() & 0x3ff) != LANG_
 #define WM_QUELLE (WM_APP + 3)
 
 enum { S_WAHL, S_LAEUFT, S_FERTIG };
-enum { Z_NICHTS = 0, Z_MIN, Z_ZU, Z_LOS, Z_DATEI, Z_GITHUB, Z_DLG_JA, Z_DLG_NEIN, Z_SCHLIESSEN, Z_STICK = 100 };
+enum { Z_NICHTS = 0, Z_MIN, Z_ZU, Z_LOS, Z_DATEI, Z_GITHUB, Z_BETA, Z_DLG_JA, Z_DLG_NEIN, Z_SCHLIESSEN, Z_STICK = 100 };
 enum { D_KEIN, D_LOESCHEN, D_INFO, D_ABBRECHEN };
 
 #define BREITE 720
@@ -174,33 +174,65 @@ static std::string http(const wchar_t *host, const wchar_t *pfad, HANDLE ziel = 
   return aus;
 }
 
-/** neuestes Release mit „amberwave-os-*.img“ (Vorabversionen eingeschlossen) */
+/** Release-Liste von GitHub: je Release Version, Beta ja/nein und das Image (falls angehängt) – neueste zuerst */
+struct Angebot { std::wstring version, url; uint64_t groesse; int beta; };
+static Angebot stabil = {}, beta_neuer = {};   // neueste stabile; neueste Beta, falls neuer als die stabile
+static int nimm_beta = 0;
+
 static DWORD WINAPI quelle_suchen(LPVOID) {
   std::string j = http(L"api.github.com", REPO);
-  std::string bestV, bestU; uint64_t bestG = 0;
+  std::vector<Angebot> liste;
   size_t p = 0;
-  while ((p = j.find("\"name\":\"amberwave-os-", p)) != std::string::npos) {
-    size_t e = j.find('"', p + 8); std::string name = j.substr(p + 8, e - p - 8);
-    size_t blockende = j.find('}', e);
-    if (name.size() > 4 && name.compare(name.size() - 4, 4, ".img") == 0) {
-      std::string v = name.substr(13, name.size() - 13 - 4);
-      size_t u = j.find("\"browser_download_url\":\"", e), gpos = j.find("\"size\":", e);
-      if (u != std::string::npos && u < blockende + 4000) {
-        u += 24; std::string url = j.substr(u, j.find('"', u) - u);
-        uint64_t gr = gpos != std::string::npos ? _strtoui64(j.c_str() + gpos + 7, NULL, 10) : 0;
-        if (bestV.empty()) { bestV = v; bestU = url; bestG = gr; }   // Releases kommen neueste zuerst
+  while ((p = j.find("\"tag_name\":\"", p)) != std::string::npos) {
+    size_t naechstes = j.find("\"tag_name\":\"", p + 12);
+    std::string block = j.substr(p, (naechstes == std::string::npos ? j.size() : naechstes) - p);
+    p += 12;
+    if (block.find("\"draft\":true") != std::string::npos) continue;
+    size_t a = block.find("\"name\":\"amberwave-os-");
+    while (a != std::string::npos) {
+      size_t e = block.find('"', a + 8); std::string name = block.substr(a + 8, e - a - 8);
+      if (name.size() > 4 && name.compare(name.size() - 4, 4, ".img") == 0) {
+        size_t u = block.find("\"browser_download_url\":\"", e), gpos = block.find("\"size\":", e);
+        if (u != std::string::npos) {
+          u += 24;
+          Angebot x;
+          x.version = breit8(name.substr(13, name.size() - 13 - 4).c_str());
+          x.url = breit8(block.substr(u, block.find('"', u) - u).c_str());
+          x.groesse = gpos != std::string::npos ? _strtoui64(block.c_str() + gpos + 7, NULL, 10) : 0;
+          x.beta = block.find("\"prerelease\":true") != std::string::npos;
+          liste.push_back(x);
+          break;
+        }
       }
+      a = block.find("\"name\":\"amberwave-os-", e);
     }
-    p = e;
   }
   EnterCriticalSection(&sperre);
-  if (!bestV.empty()) { quelle_version = breit8(bestV.c_str()); quelle_url = breit8(bestU.c_str()); quelle_groesse = bestG; quelle_fehler.clear(); }
+  stabil = {}; beta_neuer = {};
+  for (auto &x : liste) if (!x.beta) { stabil = x; break; }   // neueste stabile
+  for (auto &x : liste) {                                     // Beta nur, wenn sie vor der stabilen kommt (= neuer)
+    if (!x.beta) break;
+    beta_neuer = x; break;
+  }
+  // Gibt es noch keine stabile Version, ist die neueste Beta das Richtige
+  if (stabil.version.empty() && !beta_neuer.version.empty()) { stabil = beta_neuer; beta_neuer = {}; }
+  const Angebot &w = nimm_beta && !beta_neuer.version.empty() ? beta_neuer : stabil;
+  if (!w.version.empty()) { quelle_version = w.version; quelle_url = w.url; quelle_groesse = w.groesse; quelle_fehler.clear(); }
   else quelle_fehler = j.empty() ? TX(L"GitHub ist nicht erreichbar – Internet verbunden?", L"GitHub can't be reached – are you online?")
                                  : TX(L"Noch kein Amberwave-OS-Image veröffentlicht. Eine .img-Datei kannst du von Hand wählen.", L"No Amberwave OS image published yet. You can pick an .img file by hand.");
   quelle_laedt = 0;
   LeaveCriticalSection(&sperre);
   PostMessageW(fenster, WM_QUELLE, 0, 0);
   return 0;
+}
+
+/** zwischen stabiler Version und neuerer Beta umschalten */
+static void beta_umschalten(void) {
+  EnterCriticalSection(&sperre);
+  nimm_beta = !nimm_beta;
+  const Angebot &w = nimm_beta && !beta_neuer.version.empty() ? beta_neuer : stabil;
+  quelle_version = w.version; quelle_url = w.url; quelle_groesse = w.groesse;
+  LeaveCriticalSection(&sperre);
 }
 
 /* ---------- Schreiben ---------- */
@@ -460,7 +492,7 @@ static void seite_wahl(void) {
   Color qc = WARM;
   if (!qd.empty()) { const wchar_t *n = wcsrchr(qd.c_str(), L'\\'); q = std::wstring(TX(L"Datei: ", L"File: ")) + (n ? n + 1 : qd.c_str()); }
   else if (ql) q = TX(L"Suche die neueste Version auf GitHub …", L"Looking for the latest version on GitHub …");
-  else if (!qv.empty()) q = std::wstring(TX(L"Version ", L"Version ")) + qv + L" · " + groesse_text(qg) + TX(L" · wird von GitHub geladen", L" · downloaded from GitHub");
+  else if (!qv.empty()) q = std::wstring(TX(L"Version ", L"Version ")) + qv + (nimm_beta || qv.find(L'-') != std::wstring::npos ? TX(L" (Beta)", L" (beta)") : TX(L" (stabil)", L" (stable)")) + L" · " + groesse_text(qg) + TX(L" · wird von GitHub geladen", L" · downloaded from GitHub");
   else { q = qf; qc = ROT; }
   text(q.c_str(), tk, qc, 40, 400, BREITE - 300);
   Font tl(fam_fett, 12, FontStyleRegular, UnitPixel);
@@ -469,6 +501,17 @@ static void seite_wahl(void) {
   RectF dr(40, 420, dw, 18);
   text(dl, tl, ist_ueber(qd.empty() ? Z_DATEI : Z_GITHUB) ? TEXTFARBE : AMBER1, 40, 420);
   ziel_neu(qd.empty() ? Z_DATEI : Z_GITHUB, dr);
+  // neuere Beta vorhanden: umschaltbar (standardmäßig die stabile Version)
+  EnterCriticalSection(&sperre);
+  std::wstring bv = beta_neuer.version;
+  LeaveCriticalSection(&sperre);
+  if (qd.empty() && !bv.empty()) {
+    std::wstring bt = nimm_beta ? std::wstring(TX(L"Stabile Version nehmen", L"Use the stable version")) : std::wstring(TX(L"Neuere Beta ", L"Newer beta ")) + bv + TX(L" nehmen", L" instead");
+    float bx = 40 + dw + 18;
+    text(L"·", tl, LEISE, bx - 10, 420);
+    text(bt.c_str(), tl, ist_ueber(Z_BETA) ? TEXTFARBE : AMBER1, bx, 420);
+    ziel_neu(Z_BETA, RectF(bx, 420, breite(bt.c_str(), tl), 18));
+  }
   int bereit = gewaehlt >= 0 && (!qd.empty() || !qv.empty());
   knopf(Z_LOS, TX(L"Stick erstellen", L"Create stick"), BREITE - 40, 410, 1, bereit);
 }
@@ -597,6 +640,7 @@ static void klick(int id) {
     case Z_SCHLIESSEN: DestroyWindow(fenster); break;
     case Z_DATEI: datei_waehlen(); break;
     case Z_GITHUB: EnterCriticalSection(&sperre); quelle_datei.clear(); LeaveCriticalSection(&sperre); neu_malen(); break;
+    case Z_BETA: beta_umschalten(); break;
     case Z_LOS: {
       const Laufwerk *w = auswahl(); if (!w) break;
       wchar_t t[600];
