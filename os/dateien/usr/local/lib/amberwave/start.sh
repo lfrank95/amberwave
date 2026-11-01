@@ -39,6 +39,7 @@ if docker inspect amberwave >/dev/null 2>&1; then
   exit 0
 fi
 # laden – geduldig: direkt nach dem Start ist das Netz oft noch nicht ganz da, und Docker braucht einen Moment
+command -v docker >/dev/null || { stand "fehler:Docker fehlt im System – bitte neu installieren."; exit 1; }
 versuch=0
 until docker image inspect "$BILD" >/dev/null 2>&1; do
   versuch=$((versuch+1))

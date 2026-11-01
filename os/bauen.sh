@@ -16,7 +16,7 @@ rm -rf "$W"; mkdir -p "$W" "$AUS"
 PAKETE=(systemd-sysv systemd-resolved systemd-timesyncd udev dbus kmod linux-image-amd64 initramfs-tools live-boot
   grub-efi-amd64-bin grub2-common efibootmgr gdisk e2fsprogs dosfstools rsync util-linux
   iproute2 iputils-ping avahi-daemon libnss-mdns ca-certificates curl python3
-  docker.io iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek)
+  docker.io docker-cli iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek)
 echo "== Grundsystem ($SUITE)"
 mmdebstrap --variant=minbase --components=main,contrib,non-free-firmware \
   --include="$(IFS=,; echo "${PAKETE[*]}")" \
