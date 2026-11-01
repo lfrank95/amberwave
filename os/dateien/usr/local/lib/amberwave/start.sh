@@ -72,4 +72,7 @@ for i in $(seq 1 90); do
   curl -fsS -m 3 http://127.0.0.1/api/v1/ping >/dev/null 2>&1 && { stand "laeuft"; exit 0; }
   sleep 2
 done
-stand "laeuft"
+# antwortet nicht: Gründe auf die Konsole (Fehlersuche ohne Anmeldung), Amberwave läuft trotzdem weiter
+docker ps -a --format '{{.Names}} {{.Status}} {{.Ports}}' 2>&1
+docker logs --tail 40 amberwave 2>&1
+stand "fehler:Amberwave antwortet noch nicht – es startet vermutlich noch. Seite in ein paar Minuten neu laden."
