@@ -54,6 +54,8 @@ def warten(bedingung, sekunden, was):
             r = bedingung()
             if r:
                 return r
+        except RuntimeError:
+            raise
         except Exception:
             pass
         time.sleep(3)
@@ -105,7 +107,13 @@ try:
             return True
     warten(weg, 120, 'Das Gerät startet nach dem Abziehen des Sticks nicht neu')
     melden('notice', 'Neustart', f'{int(time.time() - t2)} s nach dem Abziehen des Sticks')
-    j = warten(lambda: (lambda x: x if x.get('app') == 'amberwave' else None)(holen('/api/v1/ping')), 1500, 'Amberwave antwortet nach dem Neustart nicht')
+    def bereit():
+        log = open(os.path.join(AUS, 'seriell.log'), errors='replace').read()
+        if log.count('Docker startet') > 120:
+            raise RuntimeError('Docker kommt nicht hoch')
+        x = holen('/api/v1/ping')
+        return x if x.get('app') == 'amberwave' else None
+    j = warten(bereit, 1500, 'Amberwave antwortet nach dem Neustart nicht')
     melden('notice', 'Erster Start', f"Amberwave {j.get('version')} antwortet {int(time.time() - t2)} s nach dem Abziehen des Sticks (inkl. Laden des Containers)")
     time.sleep(5); foto(q, '3-amberwave-laeuft')
     with urllib.request.urlopen(BASIS + '/', timeout=10) as r:
@@ -113,7 +121,9 @@ try:
 except Exception as e:
     melden('error', 'VM-Test', f'{type(e).__name__}: {e}')
     try:   # die letzten Zeilen der seriellen Konsole als Anmerkung (Logs des Laufs sind sonst nur im Browser zu sehen)
-        zeilen = [z for z in open(os.path.join(AUS, 'seriell.log'), errors='replace').read().replace('\r', '').splitlines() if z.strip()][-45:]
+        alle = [z for z in open(os.path.join(AUS, 'seriell.log'), errors='replace').read().replace('\r', '').splitlines() if z.strip()]
+        wichtig = [z for z in alle if 'Docker startet' not in z and any(w in z for w in ('docker', 'Docker', 'containerd', 'FAILED', 'level=', 'error', 'Error', 'amberwave]'))]
+        zeilen = (wichtig[-40:] or alle[-45:])
         print('::error title=Konsole des Geräts::' + '%0A'.join(z.replace('%', '%25')[:180] for z in zeilen), flush=True)
     except Exception:
         pass
