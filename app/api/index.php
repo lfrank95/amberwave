@@ -754,6 +754,11 @@ $routen = [
     }],
     ['PUT', '/admin/alben/{id}/edition', fn($p) => api_admin_album_edition(api_user(true), (int) $p['id'])],
     ['POST', '/admin/update', fn() => api_admin_update(api_user(true))],
+    ['POST', '/admin/update/windows', fn() => api_admin_windows_update(api_user(true))],
+    ['GET', '/admin/update/windows', function () {
+        api_user(true);
+        return api_admin_windows_update_stand();
+    }],
     ['GET', '/admin/system', function () {
         api_user(true);
         return einr_festlegungen();

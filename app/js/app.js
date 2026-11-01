@@ -22,6 +22,7 @@ import { falzBeobachten } from './falz.js';
 import { zoomSperren } from './zoomsperre.js';
 import { dateifelderBeobachten } from './dateifeld.js';
 import { feinschliffBeobachten } from './feinschliff.js';
+import { clientUpdateBeobachten } from './update_hinweis.js';
 import { nativ, ausgabeWeg } from './nativ.js';
 import { android, androidRufen, androidVersion } from './android.js';
 
@@ -118,6 +119,7 @@ class App {
     this.leiste = new PlayerLeiste(this, this.player);
     aktionenRegistrieren(this);
     offlineEinrichten(this);
+    clientUpdateBeobachten();
     auswahlStarten();
     this.klicksAbfangen();
     window.addEventListener('popstate', () => this.navigieren(location.pathname + location.search, false));

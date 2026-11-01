@@ -51,6 +51,13 @@ if (info && info.erlaubt) {
     spracheSetzen: (wert) => ipcRenderer.send('sprache-setzen', wert),   // 'de' | 'en' | 'auto'
     clientEinst: () => ipcRenderer.invoke('client-einst'),
     clientEinstSetzen: (w) => ipcRenderer.invoke('client-einst-setzen', w),
+    // Update in der App: info() = { version, installierbar, stand, prozent, fehler } oder null; installieren() lädt,
+    // startet den Installer still und beendet den Client; auf(f) meldet neue Versionen und den Fortschritt
+    update: {
+      info: () => ipcRenderer.invoke('update-info'),
+      installieren: () => ipcRenderer.invoke('update-installieren'),
+      auf: (f) => { const h = (_e, d) => f(d); ipcRenderer.on('update', h); return () => ipcRenderer.removeListener('update', h); },
+    },
   });
 }
 

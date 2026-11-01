@@ -522,6 +522,8 @@ const clientEinst = () => {
   return { tray: einst.tray !== false, autostart, sprache: i18n.einstellung() };
 };
 ipcMain.handle('client-einst', (e) => (erlaubt(e.senderFrame?.url || '') ? clientEinst() : null));
+ipcMain.handle('update-info', (e) => (erlaubt(e.senderFrame?.url || '') ? updateInfo() : null));
+ipcMain.handle('update-installieren', (e) => (erlaubt(e.senderFrame?.url || '') ? updateInstallieren() : false));
 ipcMain.handle('client-einst-setzen', (e, w) => {
   if (!erlaubt(e.senderFrame?.url || '') || !w || typeof w !== 'object') return null;
   if (typeof w.tray === 'boolean') { einst.tray = w.tray; einstSpeichern(); }
@@ -629,15 +631,69 @@ async function aufNeueVersionPruefen() {
       const v = String(x.tag_name || '').replace(/^v/i, '');
       // Direkt der Installer aus dem Release (sonst die Release-Seite)
       const exe = (Array.isArray(x.assets) ? x.assets : []).find((d) => /^Amberwave-Windows-Client-.*\.exe$/i.test(String(d?.name || '')));
-      if (/^\d+\.\d+\.\d+/.test(v) && (!best || versionVergleich(v, best.version) > 0)) best = { version: v, url: exe?.browser_download_url || x.html_url || RELEASES_SEITE };
+      if (/^\d+\.\d+\.\d+/.test(v) && (!best || versionVergleich(v, best.version) > 0)) best = { version: v, url: exe?.browser_download_url || x.html_url || RELEASES_SEITE, installer: exe?.browser_download_url || '', notizen: x.html_url || RELEASES_SEITE };
     }
     if (best && versionVergleich(best.version, VERSION) > 0 && best.version !== neueVersion?.version) {
       neueVersion = best;
       log.schreiben('INFO', `Neue Version verfügbar: ${best.version}`);
       trayAktualisieren();
-      try { tray?.displayBalloon({ title: t('Neue Version {version}', { version: best.version }), content: t('Rechtsklick aufs Amberwave-Symbol → herunterladen.'), iconType: 'info' }); } catch (e) { /* nur Windows */ }
+      senden('update', updateInfo());   // Hinweis im Fenster (neuere Web-App)
+      try { tray?.displayBalloon({ title: t('Neue Version {version}', { version: best.version }), content: t('Rechtsklick aufs Amberwave-Symbol → jetzt aktualisieren.'), iconType: 'info' }); } catch (e) { /* nur Windows */ }
     }
   } catch (e) { /* offline – später nochmal */ }
+}
+
+/* ---------- Update in der App: laden, still installieren, in der neuen Version weiter ---------- */
+let updateLaeuft = null;   // { stand: 'laedt'|'startet'|'fehler', prozent, fehler }
+function updateInfo() {
+  if (!neueVersion) return null;
+  return { version: neueVersion.version, installierbar: !!neueVersion.installer, notizen: neueVersion.notizen, ...(updateLaeuft || {}) };
+}
+function updateStand(w) {
+  updateLaeuft = { ...(updateLaeuft || {}), ...w };
+  senden('update', updateInfo());
+}
+async function updateInstallieren() {
+  if (!neueVersion?.installer || updateLaeuft?.stand === 'laedt' || updateLaeuft?.stand === 'startet') return false;
+  const v = neueVersion.version;
+  const ziel = path.join(app.getPath('temp'), `Amberwave-Windows-Client-${v}.exe`);
+  log.schreiben('INFO', `Update auf ${v}: lade ${neueVersion.installer}`);
+  updateStand({ stand: 'laedt', prozent: 0, fehler: '' });
+  try {
+    const u = new URL(neueVersion.installer);
+    if (u.protocol !== 'https:' || u.hostname !== 'github.com') throw new Error(t('Unerwartete Download-Adresse.'));
+    const r = await fetch(u, { headers: { 'User-Agent': `AmberwaveClient/${VERSION}` }, signal: AbortSignal.timeout(10 * 60 * 1000) });
+    if (!r.ok || !r.body) throw new Error(t('Download fehlgeschlagen (HTTP {status}).', { status: r.status }));
+    const gesamt = Number(r.headers.get('content-length')) || 0;
+    const datei = fs.createWriteStream(ziel);
+    let geladen = 0, zuletzt = 0;
+    for await (const stueck of r.body) {
+      geladen += stueck.length;
+      if (!datei.write(stueck)) await new Promise((ok) => datei.once('drain', ok));
+      const p = gesamt ? Math.floor((geladen / gesamt) * 100) : 0;
+      if (p !== zuletzt) { zuletzt = p; updateStand({ prozent: p }); }
+    }
+    await new Promise((ok, f) => datei.end((e) => (e ? f(e) : ok())));
+    const kopf = Buffer.alloc(2);
+    const fd = fs.openSync(ziel, 'r'); fs.readSync(fd, kopf, 0, 2, 0); fs.closeSync(fd);
+    if (kopf.toString('latin1') !== 'MZ' || (gesamt && geladen !== gesamt)) throw new Error(t('Die geladene Datei ist unvollständig.'));
+  } catch (e) {
+    log.schreiben('WARN', `Update-Download fehlgeschlagen: ${e.message}`);
+    updateStand({ stand: 'fehler', fehler: e.message || String(e) });
+    try { fs.unlinkSync(ziel); } catch (x) { /* egal */ }
+    return false;
+  }
+  // Installer still starten (/aktualisieren: ohne Klicks über die vorhandene Installation, danach startet Amberwave neu)
+  updateStand({ stand: 'startet', prozent: 100 });
+  log.schreiben('INFO', `Update auf ${v}: Installer startet, Client beendet sich`);
+  try {
+    spawn(ziel, ['/aktualisieren'], { detached: true, stdio: 'ignore' }).unref();
+  } catch (e) {
+    updateStand({ stand: 'fehler', fehler: e.message || String(e) });
+    return false;
+  }
+  setTimeout(() => { beenden = true; app.quit(); }, 600);
+  return true;
 }
 
 async function ueberZeigen() {
@@ -765,7 +821,8 @@ function trayAktualisieren() {
         label, type: 'radio', checked: i18n.einstellung() === wert, click: () => spracheSetzen(wert),
       })),
     },
-    ...(neueVersion ? [{ label: t('Neue Version {version} – herunterladen', { version: neueVersion.version }), click: () => shell.openExternal(neueVersion.url) }] : []),
+    ...(neueVersion ? [{ label: neueVersion.installer ? t('Neue Version {version} – jetzt aktualisieren', { version: neueVersion.version }) : t('Neue Version {version} – herunterladen', { version: neueVersion.version }),
+      click: () => (neueVersion.installer ? updateInstallieren() : shell.openExternal(neueVersion.url)) }] : []),
     { label: t('Über Amberwave …'), click: () => ueberZeigen() },
     { label: t('Version {version}', { version: VERSION }), enabled: false },
     { label: t('Beenden'), click: () => { beenden = true; app.quit(); } },

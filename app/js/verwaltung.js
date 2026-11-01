@@ -7,6 +7,7 @@ import { TYP_NAMEN, ZUSATZ_NAMEN, KUENSTLER_TYP, land, leer } from './bausteine.
 import { netzweg } from './netzweg.js';
 import { sortierPanel } from './sortieren.js';
 import { gemerktAus, merken, scrollSetzen } from './merker.js';
+import { serverUpdateInstallieren } from './update_hinweis.js';
 
 /** Zahl nach Sprache (leere Werte als 0, wie früher in ui.js) */
 const zahl = (v, nachkomma) => zahlI(v || 0, nachkomma);
@@ -269,7 +270,7 @@ function downloadsPanel(app, box, signal, sichtbar, zaehler) {
         const liste = r.schon_da.map((a) => `<li><b>${h(a.kuenstler)} – ${h(a.titel)}</b><ul>${a.editionen.map((e) => `<li><code>${h(e.ordner)}</code> <small class="hinweis">${[e.jahr, e.format, e.qualitaet, tn(e.dateien, '{n} Datei', '{n} Dateien')].filter(Boolean).map(h).join(' · ')}</small></li>`).join('')}</ul></li>`).join('');
         const w = await dialog({ titel: t('Das hast du schon'), inhalt: `<p>${t('In der Bibliothek liegt bereits:')}</p><ul class="dl-schon">${liste}</ul><p class="hinweis">${t('Eine andere Edition (z. B. Hi-Res statt CD) kannst du trotzdem holen – sie landet als eigene Edition neben der vorhandenen.')}</p>`,
           knoepfe: [{ text: t('Nicht holen'), wert: 'nein', art: 'zweit' }, { text: t('Trotzdem holen'), wert: 'ja', art: 'haupt' }] });
-        if (w !== 'ja') { b.disabled = false; b.textContent = t('Holen'); return; }
+        if (w?.wert !== 'ja') { b.disabled = false; b.textContent = t('Holen'); return; }
         r = await versuche(() => api.post('/admin/downloads/holen', { ...daten, trotzdem: true }));
         if (r?.ok) toast(t('An {client} übergeben', { client: r.client || 'SABnzbd' }));
       } else if (r?.ok) {
@@ -581,7 +582,7 @@ export const verwaltungsAnsichten = {
     if (!r.secret_key) hinweise.push(`<div class="fehler">${t('<b>Kein dauerhafter Schlüssel.</b> Amberwave kann seinen Schlüssel nicht im App-Daten-Ordner ablegen (keine Schreibrechte?). Gespeicherte Passwörter (E-Mail, API-Schlüssel) wären nach einem Neustart unlesbar und Geräte müssten sich neu verbinden – bitte die Rechte des App-Daten-Ordners prüfen oder APP_SECRET_KEY in der .env setzen.')}</div>`);
     if (!r.musikordner_ok) hinweise.push(`<div class="fehler">${t('Der Musikordner <code>{ordner}</code> ist im Container nicht vorhanden. Bitte <code>MUSIK_PFAD</code> in der .env prüfen.', { ordner: h(r.musikordner) })}</div>`);
     if (z.konten_wartend) hinweise.push(`<div class="hinweis-box">${tn(z.konten_wartend, '{n} Registrierung wartet auf Freigabe. <a href="/verwaltung/konten" data-link>Jetzt ansehen</a>', '{n} Registrierungen warten auf Freigabe. <a href="/verwaltung/konten" data-link>Jetzt ansehen</a>')}</div>`);
-    if (r.update) hinweise.push(`<div class="hinweis-box">${t('<b>Neue Version {version} verfügbar.</b>', { version: h(r.update.version) })} ${r.update.url ? `<a href="${h(r.update.url)}" target="_blank" rel="noopener">${t('Was ist neu?')}</a> · ` : ''}${r.image ? t('Update auf dem Server: <code>docker compose pull &amp;&amp; docker compose up -d</code>') : `<a href="/einstellungen/sicherung" data-link>${t('Update einspielen')}</a>`}</div>`);
+    if (r.update) hinweise.push(`<div class="hinweis-box">${t('<b>Neue Version {version} verfügbar.</b>', { version: h(r.update.version) })} ${r.update.url ? `<a href="${h(r.update.url)}" target="_blank" rel="noopener">${t('Was ist neu?')}</a> · ` : ''}${r.image ? t('Update auf dem Server: <code>docker compose pull &amp;&amp; docker compose up -d</code>') : r.windows ? `<button type="button" class="btn btn-klein" data-win-update style="margin-left:6px">${icon('download', 16)}<span>${t('Update installieren')}</span></button>` : `<a href="/einstellungen/sicherung" data-link>${t('Update einspielen')}</a>`}</div>`);
     if (r.proxy) {
       hinweise.push(`<div class="hinweis-box" data-proxy-box><b>${t('Reverse Proxy bestätigen')}</b><br>${t('Anfragen kommen über <code>{ip}</code> und bringen eine weitergeleitete Absenderadresse mit. Ist das dein Reverse Proxy (z. B. Nginx Proxy Manager, SWAG, Traefik, Caddy)? Nur dann darf Amberwave der mitgeschickten Adresse glauben – sonst könnte sich jemand eine falsche Adresse geben und die Login-Sperre umgehen.', { ip: h(r.proxy.ip) })}${r.proxy.gateway ? `<br><small>${t('{ip} ist die Docker-Brücke. Ein Reverse Proxy im Host-Netz kommt so an; Dockers eigene Portweiterleitung schickt diese Angabe nie mit. Hast du keinen Reverse Proxy, wähle „Nein“.', { ip: h(r.proxy.ip) })}</small>` : ''}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" data-proxy="vertrauen">${t('Ja, das ist mein Proxy')}</button><button type="button" class="btn btn-zweit" data-proxy="ablehnen">${t('Nein, nicht vertrauen')}</button></div></div>`);
@@ -607,6 +608,16 @@ export const verwaltungsAnsichten = {
           ${r.formate.length ? `<div class="pillen">${r.formate.map((f) => `<span class="pille" style="cursor:default">${h(f.format)} <small style="opacity:.7">${zahl(f.n)}</small></span>`).join('')}</div>` : `<p class="hinweis">${t('Noch keine Dateien.')}</p>`}
         </div>
       </div>`;
+    ziel.querySelector('[data-win-update]')?.addEventListener('click', async (e) => {
+      const ok = await dialog({
+        titel: t('Update auf {version} installieren?', { version: h(r.update.version) }),
+        inhalt: `<p>${t('Der Server lädt die neue Version, beendet sich kurz und startet in der neuen Version wieder. Laufende Wiedergaben brechen ab, Bibliothek, Konten und Einstellungen bleiben.')}</p>`,
+        knoepfe: [{ text: t('Abbrechen'), wert: 'nein', art: 'zweit' }, { text: t('Jetzt installieren'), wert: 'ja' }],
+      });
+      if (ok?.wert !== 'ja') return;
+      e.target.closest('button').disabled = true;
+      try { await serverUpdateInstallieren(r.update.version, r.version); } catch (x) { toast(x.message, 'fehler'); e.target.closest('button').disabled = false; }
+    }, { signal });
     ziel.querySelector('[data-proxy-box]')?.addEventListener('click', async (e) => {
       const b = e.target.closest('[data-proxy]');
       if (!b) return;
@@ -2032,6 +2043,7 @@ async function vergleichZeigen(app, ed, mbid) {
 
 /** Ereignisse im Sicherheitsprotokoll lesbar (unbekannte: Unterstriche zu Leerzeichen) */
 const EREIGNISSE = {
+  update_angestossen: () => t('Update angestoßen'),
   album_bearbeitet: () => t('Album bearbeitet'),
   app_anmeldung: () => t('App angemeldet'),
   cover_geaendert: () => t('Cover geändert'),

@@ -30,6 +30,7 @@ function api_admin_uebersicht(): array
         'version' => app_version(),
         'update' => (static function () { require_once __DIR__ . '/updatecheck.php'; return update_hinweis(false); })(),
         'image' => getenv('AMBERWAVE_IMAGE') === '1',
+        'windows' => getenv('AMBERWAVE_WINDOWS') === '1',   // Windows Server: Update über das Programm im Infobereich
         'musikordner' => konfig()['pfade']['musik'],
         'musikordner_ok' => is_dir(konfig()['pfade']['musik']),
         'secret_key' => empty(konfig()['app_secret_key_fluechtig']) && konfig()['app_secret_key'] !== '',
@@ -615,4 +616,32 @@ function api_admin_proxy(): array
         throw new ApiFehler(t('Unbekannte Aktion.'));
     }
     return ['ok' => true];
+}
+
+
+/* ---------- Windows Server: Update aus der Weboberfläche ----------
+   Die Seite legt einen Auftrag in den Cache-Ordner; das Programm im Infobereich (windows-server/tray) sieht alle paar
+   Sekunden nach, lädt den Installer von GitHub, beendet den Server und installiert still. Fehler schreibt es zurück. */
+function windows_update_datei(string $name): string
+{
+    return rtrim((string) konfig()['pfade']['cache'], '/\\') . '/' . $name;
+}
+
+function api_admin_windows_update(array $admin): array
+{
+    if (getenv('AMBERWAVE_WINDOWS') !== '1') {
+        throw new ApiFehler(t('Nur beim Amberwave Windows Server.'));
+    }
+    @unlink(windows_update_datei('update-stand.json'));
+    if (@file_put_contents(windows_update_datei('update-installieren'), (string) time()) === false) {
+        throw new ApiFehler(t('Der Auftrag ließ sich nicht ablegen (Schreibrechte im Cache-Ordner?).'));
+    }
+    log_sicherheitsereignis((int) $admin['id'], 'update_angestossen', 'Windows Server');
+    return ['ok' => true];
+}
+
+function api_admin_windows_update_stand(): array
+{
+    $s = json_decode((string) @file_get_contents(windows_update_datei('update-stand.json')), true);
+    return is_array($s) ? $s : ['stand' => is_file(windows_update_datei('update-installieren')) ? 'wartet' : ''];
 }

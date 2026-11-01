@@ -137,5 +137,10 @@
  "Lizenz: GNU AGPL-3.0. Enthält Electron/Chromium, dr_flac/dr_wav und die Schnittstellen des VST3-SDK – die Liste der Fremdkomponenten mit ihren Lizenzen liegt im Programmordner.": "License: GNU AGPL-3.0. Includes Electron/Chromium, dr_flac/dr_wav and the VST3 SDK interfaces – the list of third-party components and their licenses is in the program folder.",
  "Lizenzen anzeigen": "Show licenses",
  "Schließen": "Close",
- "Neue Version {version} – herunterladen": "New version {version} – download"
+ "Neue Version {version} – herunterladen": "New version {version} – download",
+ "Rechtsklick aufs Amberwave-Symbol → jetzt aktualisieren.": "Right-click the Amberwave icon → update now.",
+ "Neue Version {version} – jetzt aktualisieren": "New version {version} – update now",
+ "Unerwartete Download-Adresse.": "Unexpected download address.",
+ "Download fehlgeschlagen (HTTP {status}).": "Download failed (HTTP {status}).",
+ "Die geladene Datei ist unvollständig.": "The downloaded file is incomplete."
 }

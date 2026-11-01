@@ -1174,5 +1174,19 @@
  "Nein, nicht vertrauen": "No, don't trust it",
  "Proxy {ip} eingetragen – nur ihm wird die weitergeleitete Adresse geglaubt": "Proxy {ip} saved – only its forwarded addresses are trusted",
  "Reverse Proxy bestätigen": "Confirm reverse proxy",
- "{ip} ist die Docker-Brücke. Ein Reverse Proxy im Host-Netz kommt so an; Dockers eigene Portweiterleitung schickt diese Angabe nie mit. Hast du keinen Reverse Proxy, wähle „Nein“.": "{ip} is the Docker bridge. A reverse proxy on the host network arrives this way; Docker's own port forwarding never sends this information. If you don't run a reverse proxy, choose “No”."
+ "{ip} ist die Docker-Brücke. Ein Reverse Proxy im Host-Netz kommt so an; Dockers eigene Portweiterleitung schickt diese Angabe nie mit. Hast du keinen Reverse Proxy, wähle „Nein“.": "{ip} is the Docker bridge. A reverse proxy on the host network arrives this way; Docker's own port forwarding never sends this information. If you don't run a reverse proxy, choose “No”.",
+ "Amberwave wird aktualisiert": "Updating Amberwave",
+ "Amberwave {version} ist da": "Amberwave {version} is here",
+ "Das dauert ungewöhnlich lange. Sieh am Server-PC nach dem Amberwave-Symbol im Infobereich.": "This is taking unusually long. Check the Amberwave icon in the notification area on the server PC.",
+ "Der Server lädt Version {version} und startet neu. Das dauert meist ein bis zwei Minuten – diese Seite lädt danach von selbst.": "The server downloads version {version} and restarts. This usually takes one or two minutes – this page reloads by itself afterwards.",
+ "Der Server lädt die neue Version, beendet sich kurz und startet in der neuen Version wieder. Laufende Wiedergaben brechen ab, Bibliothek, Konten und Einstellungen bleiben.": "The server downloads the new version, stops briefly and starts again in the new version. Playback in progress stops; library, accounts and settings stay.",
+ "Ein Klick genügt: laden, installieren, neu starten – deine Einstellungen bleiben.": "One click: download, install, restart – your settings stay.",
+ "Jetzt aktualisieren": "Update now",
+ "Jetzt installieren": "Install now",
+ "Später": "Later",
+ "Update angestoßen": "Update started",
+ "Update auf {version} installieren?": "Install update to {version}?",
+ "Update installieren": "Install update",
+ "Wird geladen … {p} %": "Downloading … {p} %",
+ "Wird installiert – Amberwave startet gleich in der neuen Version.": "Installing – Amberwave restarts in the new version in a moment."
 }

@@ -45,6 +45,7 @@ static std::atomic<bool> g_ende{false};
 static HWND g_fenster = nullptr;
 static NOTIFYICONDATAW g_nid{};
 static UINT WM_TRAY = WM_APP + 1;
+static UINT WM_UPDATE_AUFTRAG = WM_APP + 2;   // Weboberfläche: „Update installieren“ (Auftragsdatei im Cache-Ordner)
 static int g_port = 9950, g_dbPort = 3399, g_httpsPort = 8443, g_php = 6;
 static wstring g_musik, g_downloads;
 static wstring g_status = L"Startet …";
@@ -531,24 +532,51 @@ static void updatePruefen()
         blase(APP, L"Version " + breit(best) + L" ist da – Rechtsklick aufs Symbol → Update installieren.");
     }
 }
-static void updateInstallieren(HWND h)
+/** Stand für die Weboberfläche (cache\update-stand.json): die Seite zeigt Fehler an, statt endlos zu warten */
+static void updateStand(const std::string &stand, const std::string &fehler = "")
+{
+    std::string j = "{\"stand\":\"" + stand + "\"" + (fehler.empty() ? "" : ",\"fehler\":\"" + fehler + "\"") + "}";
+    HANDLE f = CreateFileW(D(L"cache\\update-stand.json").c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    DWORD n = 0; WriteFile(f, j.data(), (DWORD)j.size(), &n, nullptr); CloseHandle(f);
+}
+/** still = aus der Weboberfläche angestoßen (dort schon bestätigt): keine Rückfragen, Fehler gehen an die Seite */
+static void updateInstallieren(HWND h, bool still = false)
 {
     wstring v, url;
     { std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; }
-    if (url.empty()) return;
+    if (url.empty() && still) { updatePruefen(); std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; }
+    if (url.empty()) {
+        if (still) updateStand("fehler", "Zu dieser Version gibt es noch keinen Windows-Installer. Bitte etwas sp\xC3\xA4ter noch einmal versuchen.");
+        return;
+    }
     wchar_t tmp[MAX_PATH]; GetTempPathW(MAX_PATH, tmp);
     wstring ziel = wstring(tmp) + L"Amberwave-Windows-Server-" + v + L".exe";
     statusSetzen(L"lädt Version " + v + L" …");
+    if (still) updateStand("laedt");
+    logz(L"Update auf " + v + L": lade " + url);
     if (URLDownloadToFileW(nullptr, url.c_str(), ziel.c_str(), 0, nullptr) != S_OK) {
         statusSetzen(L"läuft – " + adresse());
-        MessageBoxW(h, L"Das Update ließ sich nicht herunterladen. Später noch einmal versuchen – oder den Installer von GitHub laden.", APP, MB_OK | MB_ICONWARNING);
+        if (still) updateStand("fehler", "Das Update lie\xC3\x9F sich nicht herunterladen. Sp\xC3\xA4ter noch einmal versuchen.");
+        else MessageBoxW(h, L"Das Update ließ sich nicht herunterladen. Später noch einmal versuchen – oder den Installer von GitHub laden.", APP, MB_OK | MB_ICONWARNING);
         return;
     }
-    if (MessageBoxW(h, (L"Version " + v + L" ist geladen.\n\nDer Server wird jetzt beendet und die Installation startet. Bibliothek, Konten und Einstellungen bleiben.").c_str(),
+    if (!still && MessageBoxW(h, (L"Version " + v + L" ist geladen.\n\nDer Server wird jetzt kurz beendet und startet in der neuen Version wieder. Bibliothek, Konten und Einstellungen bleiben.").c_str(),
                     APP, MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) return;
+    if (still) updateStand("installiert");
+    logz(L"Update auf " + v + L": Server beendet sich, Installer startet still");
     herunterfahren();
-    ShellExecuteW(nullptr, L"open", ziel.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    // /aktualisieren: ohne Klicks über die vorhandene Installation, danach startet der Installer den Server wieder
+    ShellExecuteW(nullptr, L"open", ziel.c_str(), L"/aktualisieren", nullptr, SW_SHOWNORMAL);
     PostQuitMessage(0);
+}
+/** Liegt ein Auftrag aus der Weboberfläche bereit? Dann an das Fenster weitergeben (Installieren läuft im Fenster-Thread) */
+static void updateAuftragPruefen()
+{
+    wstring a = D(L"cache\\update-installieren");
+    if (!gibt(a)) return;
+    DeleteFileW(a.c_str());
+    PostMessageW(g_fenster, WM_UPDATE_AUFTRAG, 0, 0);
 }
 
 enum { M_OEFFNEN = 1, M_MUSIK, M_AUTOSTART, M_LOGS, M_NEUSTART, M_ENDE, M_UPDATE };
@@ -604,6 +632,7 @@ static LRESULT CALLBACK fensterProc(HWND h, UINT msg, WPARAM w, LPARAM l)
         else if (LOWORD(l) == WM_RBUTTONUP || LOWORD(l) == WM_CONTEXTMENU) menue(h);
         return 0;
     }
+    if (msg == WM_UPDATE_AUFTRAG) { updateInstallieren(h, true); return 0; }
     if (msg == WM_QUERYENDSESSION) return TRUE;
     if (msg == WM_ENDSESSION && w) { herunterfahren(); return 0; }
     if (msg == WM_DESTROY) { Shell_NotifyIconW(NIM_DELETE, &g_nid); PostQuitMessage(0); return 0; }
@@ -685,8 +714,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int)
         if (!ok) { blase(APP, g_status); return; }
         std::thread(wache).detach();
         std::thread([] {   // nach einer Minute, dann täglich
-            for (int i = 0; i < 600 && !g_ende; i++) Sleep(100);
-            while (!g_ende) { updatePruefen(); for (int i = 0; i < 864000 && !g_ende; i++) Sleep(100); }
+            // alle 2 s: Auftrag aus der Weboberfläche? (auch in der ersten Minute)
+            for (int i = 0; i < 600 && !g_ende; i++) { Sleep(100); if (i % 20 == 0) updateAuftragPruefen(); }
+            while (!g_ende) { updatePruefen(); for (int i = 0; i < 864000 && !g_ende; i++) { Sleep(100); if (i % 20 == 0) updateAuftragPruefen(); } }
         }).detach();
         if (!gibt(D(L"cache\\geheimnisse\\eingerichtet"))) {
             blase(APP, L"Fast fertig – richte Amberwave im Browser ein.");

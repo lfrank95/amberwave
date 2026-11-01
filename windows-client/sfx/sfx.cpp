@@ -10,6 +10,9 @@
 // (eine ältere Version dort wird ersetzt; Einstellungen liegen in %APPDATA% und bleiben). Startmenü-Eintrag, auf Wunsch eine
 // Desktop-Verknüpfung, Eintrag unter Einstellungen → Apps (deinstallieren über „Amberwave deinstallieren.exe“).
 // Mit /portabel: gleicher Assistent, aber nur auspacken (Ordner neben dem Paket, keine Verknüpfungen, kein Eintrag unter Apps).
+// Mit /aktualisieren (vom Programm selbst gestartet, wenn der Nutzer „Jetzt aktualisieren“ gewählt hat): ohne Klicks über die
+// vorhandene Installation – nur die Fortschrittsseite, dann startet Amberwave in der neuen Version. Ohne vorhandene
+// Installation läuft der normale Assistent.
 //
 // Gezeichnet wird in logischen Pixeln (Fenster 760 × 480); die Umrechnung auf die Bildschirm-DPI übernimmt die GDI+-Transformation.
 #ifndef UNICODE
@@ -89,7 +92,7 @@ static HWND fenster, pfad_feld;
 static HFONT pfad_schrift;
 static HBRUSH pfad_pinsel;
 static float k = 1.0f;   // DPI-Faktor
-static int seite = S_WILLKOMMEN, portabel = 0, laeuft = 0, erfolgreich = 0, akzeptiert = 0, liz_deutsch = 0;
+static int seite = S_WILLKOMMEN, portabel = 0, aktualisieren = 0, laeuft = 0, erfolgreich = 0, akzeptiert = 0, liz_deutsch = 0;
 static int mit_startmenue = 1, mit_desktop = 1, prozent = 0, animation = 1;
 static DWORD inst_beginn = 0, anim_beginn = 0;
 static wchar_t ziel[MAX_PATH * 2], fehler[512], vorhanden_version[64], aktuelle_datei[260];
@@ -282,6 +285,8 @@ static DWORD WINAPI installieren(LPVOID) {
 #else
     const wchar_t *laeuft_text = TX(L"Amberwave läuft noch (oder eine Datei im Ordner ist geöffnet). Bitte Amberwave schließen – auch im Infobereich neben der Uhr – und dann noch einmal „Installieren“ wählen.", L"Amberwave is still running (or a file in the folder is open). Please quit Amberwave – also in the notification area next to the clock – and then choose “Install” again.");
 #endif
+    // beim stillen Update hat sich das Programm gerade erst beendet – bis zu 30 s warten, bis seine Dateien frei sind
+    for (int warten = aktualisieren ? 60 : 0; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
     if (!ordner_frei(ziel)) { wcscpy(fehler, laeuft_text); goto ende; }
     DWORD tick = GetTickCount();
     _snwprintf(auspack, MAX_PATH * 2, L"%ls.neu-%lu", ziel, tick);
@@ -1341,7 +1346,11 @@ static LRESULT CALLBACK fensterproc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_STAND: if ((int)w != prozent) { prozent = (int)w; if (!animation) InvalidateRect(h, NULL, FALSE); } return 0;
     case WM_FERTIG: {
       laeuft = 0;
-      if (w) { erfolgreich = 1; prozent = 100; seite_setzen(S_FERTIG); }
+      if (w) {
+        erfolgreich = 1; prozent = 100;
+        if (aktualisieren) { amberwave_starten(); DestroyWindow(h); return 0; }   // still: gleich in der neuen Version weiter
+        seite_setzen(S_FERTIG);
+      }
       else {
         seite_setzen(S_OPTIONEN);
         dialog(D_INFO, TX(L"Das hat nicht geklappt", L"That didn't work"), fehler[0] ? fehler : TX(L"Die Installation ist fehlgeschlagen.", L"Setup failed."));
@@ -1366,6 +1375,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int) {
   inst = hi;
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);   // keine „Kein Datenträger“-Meldungen beim Prüfen von Pfaden
   portabel = cmd && (wcsstr(cmd, L"/portabel") || wcsstr(cmd, L"/portable"));
+  aktualisieren = !portabel && cmd && (wcsstr(cmd, L"/aktualisieren") || wcsstr(cmd, L"/update"));
   InitializeCriticalSection(&datei_sperre);
   wchar_t selbst[MAX_PATH * 2];
   GetModuleFileNameW(NULL, selbst, MAX_PATH * 2);
@@ -1391,6 +1401,13 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int) {
   } else {
     if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, lokal))) _snwprintf(ziel, MAX_PATH * 2, L"%ls" STANDARD_UNTERORDNER, lokal);
     vorhandene_lesen(ziel, sizeof ziel);
+  }
+  if (!vorhanden_version[0]) aktualisieren = 0;   // nichts da zum Aktualisieren: normaler Assistent
+  if (aktualisieren) {
+    // Verknüpfungen nur erneuern, wo schon welche sind (eine gelöschte Desktop-Verknüpfung bleibt weg)
+    wchar_t lnk[MAX_PATH * 2];
+    mit_desktop = SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, lnk)) && (wcsncat(lnk, LNK, MAX_PATH * 2 - wcslen(lnk) - 1), GetFileAttributesW(lnk) != INVALID_FILE_ATTRIBUTES);
+    akzeptiert = 1;
   }
 
   CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -1452,6 +1469,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int) {
   pfad_schrift_neu();
   pfad_feld_legen();
   seite_setzen(S_WILLKOMMEN);
+  if (aktualisieren) installation_starten();
   ShowWindow(fenster, SW_SHOW);
   UpdateWindow(fenster);
   MSG m;

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Updates from inside the app (Windows):**
+  - Windows client: when a new version is out, a card in the window offers "Update now" – the client downloads the
+    installer, installs it without any clicks and comes back up in the new version. The tray menu does the same.
+  - Windows server: admins get an "Install update" button under Administration › Overview – also from a phone. The
+    program in the notification area downloads the installer, stops the server, installs silently and starts again;
+    the page waits and reloads by itself in the new version.
+  - The installers accept `/aktualisieren` (or `/update`) for this silent update over an existing installation.
+- Fix: in Downloads, "Get anyway" in the "You already have this" dialog did nothing.
 - Windows: every program file (client, engine, VST3 host, server, renderer, installers) now carries complete file
   details – publisher, description, version, licence and amberwave.app. Umlauts and special characters in these details
   are no longer garbled.

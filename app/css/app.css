@@ -4077,3 +4077,24 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
   table.protokoll-karten td:nth-child(2) { font-weight: 700; }
   table.protokoll-karten td[data-k]:nth-child(2)::before { content: none; }
 }
+
+/* Update-Hinweis (js/update_hinweis.js): Karte über der Spielerleiste, Warteschirm beim Server-Update */
+.update-karte { position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: calc(var(--player-hoehe) + var(--tabs-hoehe) + var(--nerd-h) + 18px);
+  z-index: 250; width: min(360px, calc(100vw - 32px)); padding: 16px 18px; border-radius: var(--radius-md); background: rgba(40, 28, 18, .97);
+  border: 1px solid rgba(255, 181, 71, .35); box-shadow: 0 16px 40px rgba(0,0,0,.55); animation: rein .25s ease; }
+.update-kopf { display: flex; align-items: center; gap: 10px; color: var(--accent-text); }
+.update-kopf b { color: var(--text-primary); font-family: var(--font-display); }
+.update-karte p { margin: 8px 0 0; font-size: .88rem; color: var(--text-secondary, var(--text-muted)); }
+.update-fehler { color: var(--danger); }
+.update-knoepfe { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.update-knoepfe .btn { white-space: nowrap; }
+.update-knoepfe .btn-ico { margin-left: auto; }
+.update-balken { height: 4px; margin-top: 12px; border-radius: 2px; background: rgba(255,244,230,.1); overflow: hidden; }
+.update-balken i { display: block; height: 100%; background: var(--accent-gradient); transition: width .3s ease; }
+@media (max-width: 700px) { .update-karte { right: 16px; left: 16px; width: auto; bottom: calc(var(--player-hoehe) + var(--tabs-hoehe) + 14px); } }
+.update-warten { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: 16px; background: rgba(10, 7, 5, .82); backdrop-filter: blur(6px); }
+.update-warten-karte { max-width: 420px; padding: 28px; border-radius: var(--radius-md); background: rgba(40, 28, 18, .98); border: 1px solid var(--glass-border); text-align: center; }
+.update-warten-karte b { display: block; margin-top: 14px; font-family: var(--font-display); font-size: 1.2rem; }
+.update-warten-karte p { margin: 8px 0 0; color: var(--text-muted); font-size: .92rem; }
+.update-kreis { display: inline-block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,181,71,.25); border-top-color: var(--accent-a); animation: update-dreh 1s linear infinite; }
+@keyframes update-dreh { to { transform: rotate(360deg); } }

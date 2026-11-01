@@ -82,3 +82,29 @@ jobs:
           if ($dateien.Count -lt 5) { Write-Host "::error title=Windows client::nur $($dateien.Count) Programmdateien gefunden"; exit 1 }
           if ($fehlt) { Write-Host "::error title=Windows client::unvollständige Dateiangaben: $($fehlt -join ', ')"; exit 1 }
           Write-Host "::notice title=Windows client::$($dateien.Count) Programmdateien vollständig beschriftet"
+      - name: Stilles Update (/aktualisieren)
+        shell: pwsh
+        timeout-minutes: 6
+        run: |
+          # eine „alte“ Installation vortäuschen: Ordner mit Programm und Eintrag unter Apps (HKCU, wie der Installer ihn anlegt)
+          $ort = "$env:LOCALAPPDATA\Programs\Amberwave"
+          New-Item -ItemType Directory -Force $ort | Out-Null
+          Copy-Item "$env:WINDIR\System32\whoami.exe" "$ort\Amberwave Client.exe"
+          Set-Content "$ort\alt.txt" "alte Version"
+          $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AmberwaveClient'
+          New-Item -Force $k | Out-Null
+          Set-ItemProperty $k InstallLocation $ort
+          Set-ItemProperty $k DisplayVersion '0.0.1'
+          $exe = Get-ChildItem "$env:RUNNER_TEMP\a\Amberwave-Windows-Client-*.exe" | Select-Object -First 1
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList '/aktualisieren' -PassThru
+          if (-not $p.WaitForExit(240000)) { Write-Host "::error title=Stilles Update::Installer nach 4 Minuten nicht fertig (wartet er auf einen Klick?)"; exit 1 }
+          Start-Sleep -Seconds 5
+          $v = (Get-ItemProperty $k).DisplayVersion
+          $pkg = Get-Content "$ort\resources\app\package.json" -Raw | ConvertFrom-Json
+          $laeuft = Get-Process -Name 'Amberwave Client' -ErrorAction SilentlyContinue
+          Write-Host "Eintrag: $v · Paket: $($pkg.version) · alt.txt noch da: $(Test-Path "$ort\alt.txt") · Client gestartet: $([bool]$laeuft)"
+          $laeuft | Stop-Process -Force -ErrorAction SilentlyContinue
+          if ($v -ne $pkg.version -or $v -eq '0.0.1') { Write-Host "::error title=Stilles Update::Version nicht aktualisiert ($v)"; exit 1 }
+          if (Test-Path "$ort\alt.txt") { Write-Host "::error title=Stilles Update::alte Dateien nicht ersetzt"; exit 1 }
+          if (-not $laeuft) { Write-Host "::error title=Stilles Update::Client nach dem Update nicht gestartet"; exit 1 }
+          Write-Host "::notice title=Stilles Update::ohne Klicks von 0.0.1 auf $v, Client danach gestartet"

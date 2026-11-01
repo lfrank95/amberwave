@@ -328,5 +328,7 @@
  "Im Musikordner wurden keine Dateien gefunden, die Bibliothek kennt aber {n} – ist das Array gestartet und MUSIK_PFAD richtig eingehängt? Es wurde nichts verändert.": "No files were found in the music folder, but the library knows {n} – is the array started and MUSIK_PFAD mounted correctly? Nothing was changed.",
  "Downloads sind auf diesem Server nicht freigegeben.": "Downloads are not enabled on this server.",
  "Offline in Originalqualität ist auf diesem Server nicht freigegeben.": "Saving offline in original quality is not enabled on this server.",
- "Offline-Qualität: 0, opus128, opus160, opus256 oder original.": "Offline quality: 0, opus128, opus160, opus256 or original."
+ "Offline-Qualität: 0, opus128, opus160, opus256 oder original.": "Offline quality: 0, opus128, opus160, opus256 or original.",
+ "Der Auftrag ließ sich nicht ablegen (Schreibrechte im Cache-Ordner?).": "The request could not be saved (write access to the cache folder?).",
+ "Nur beim Amberwave Windows Server.": "Only with Amberwave Windows Server."
 }
