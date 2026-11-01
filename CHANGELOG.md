@@ -6,6 +6,9 @@
   stick, boot it, choose the internal drive and the music source in the browser, unplug the stick. Secure Boot can stay
   on. The device shows its address on screen and on the network as `amberwave.local`; Amberwave itself is loaded from
   GitHub on the first start. See `os/README.md`.
+- **Amberwave USB Creator (Windows):** picks the USB stick (only USB sticks and SD cards are shown, never the Windows
+  drive), downloads the latest Amberwave OS image from GitHub (or takes an .img file), writes and verifies it. Releases
+  get the image and the creator attached automatically.
 - **Updates from inside the app (Windows):**
   - Windows client: when a new version is out, a card in the window offers "Update now" – the client downloads the
     installer, installs it without any clicks and comes back up in the new version. The tray menu does the same.
