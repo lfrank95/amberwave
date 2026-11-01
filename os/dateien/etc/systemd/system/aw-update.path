@@ -1,0 +1,10 @@
+[Unit]
+Description=Amberwave – auf einen Update-Auftrag aus der App warten
+ConditionKernelCommandLine=!boot=live
+RequiresMountsFor=/daten
+
+[Path]
+PathExists=/daten/appdata/cache/update-installieren
+
+[Install]
+WantedBy=multi-user.target

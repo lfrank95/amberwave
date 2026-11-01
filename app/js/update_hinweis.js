@@ -1,7 +1,7 @@
 // Updates aus der App heraus:
 //  • Windows Client: neue Version gefunden → Karte unten rechts „Jetzt aktualisieren“. Der Client lädt den Installer, startet
 //    ihn ohne Klicks und geht in der neuen Version wieder auf (main.js, Installer mit /aktualisieren).
-//  • Windows Server (Admins, Verwaltung › Übersicht): „Update installieren“ sagt dem Programm im Infobereich Bescheid; die
+//  • Windows Server und Amberwave OS (Admins, Verwaltung › Übersicht): „Update installieren“ sagt dem Programm im Infobereich Bescheid; die
 //    Seite wartet, bis der Server in der neuen Version antwortet, und lädt dann neu.
 import { api } from './api.js';
 import { t } from './i18n.js';
@@ -58,7 +58,7 @@ export function clientUpdateBeobachten() {
 }
 
 /** Windows Server: Update über das Programm im Infobereich anstoßen und auf die neue Version warten */
-export async function serverUpdateInstallieren(version, vorher) {
+export async function serverUpdateInstallieren(version, vorher, os = false) {
   await api.post('/admin/update/windows', {});
   const band = document.createElement('div');
   band.className = 'update-warten';
@@ -78,7 +78,8 @@ export async function serverUpdateInstallieren(version, vorher) {
       if (s?.fehler) { band.remove(); toast(s.fehler, 'fehler', 9000); return; }
     }
     if (Date.now() - beginn > 10 * 60 * 1000) {
-      text.textContent = t('Das dauert ungewöhnlich lange. Sieh am Server-PC nach dem Amberwave-Symbol im Infobereich.');
+      text.textContent = os ? t('Das dauert ungewöhnlich lange. Ist das Gerät mit dem Internet verbunden?')
+        : t('Das dauert ungewöhnlich lange. Sieh am Server-PC nach dem Amberwave-Symbol im Infobereich.');
     }
   }
 }

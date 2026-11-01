@@ -715,5 +715,6 @@
  "Anderen Server wählen?": "Choose another server?",
  "Die Offline-Musik auf diesem Handy gehört zu diesem Server und wird beim Wechsel gelöscht.": "The offline music on this phone belongs to this server and is deleted when you switch.",
  "Server wählen": "Choose server",
- "Amberwave/Version ( deine Adresse )": "Amberwave/version ( your address )"
+ "Amberwave/Version ( deine Adresse )": "Amberwave/version ( your address )",
+ "Gibt es eine neue Version, steht unter Verwaltung › Übersicht „Update installieren“. Amberwave lädt sie, startet in der neuen Version und geht von selbst zurück, falls sie nicht startet – Bibliothek, Konten und Einstellungen bleiben.": "When a new version is available, “Install update” appears under Administration › Overview. Amberwave downloads it, restarts in the new version and switches back on its own if it fails to start – library, accounts and settings stay."
 }

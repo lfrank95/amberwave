@@ -31,6 +31,7 @@ function api_admin_uebersicht(): array
         'update' => (static function () { require_once __DIR__ . '/updatecheck.php'; return update_hinweis(false); })(),
         'image' => getenv('AMBERWAVE_IMAGE') === '1',
         'windows' => getenv('AMBERWAVE_WINDOWS') === '1',   // Windows Server: Update über das Programm im Infobereich
+        'os' => getenv('AMBERWAVE_OS') === '1',             // Amberwave OS: Update über aw-update auf dem Gerät
         'musikordner' => konfig()['pfade']['musik'],
         'musikordner_ok' => is_dir(konfig()['pfade']['musik']),
         'secret_key' => empty(konfig()['app_secret_key_fluechtig']) && konfig()['app_secret_key'] !== '',
@@ -619,9 +620,10 @@ function api_admin_proxy(): array
 }
 
 
-/* ---------- Windows Server: Update aus der Weboberfläche ----------
-   Die Seite legt einen Auftrag in den Cache-Ordner; das Programm im Infobereich (windows-server/tray) sieht alle paar
-   Sekunden nach, lädt den Installer von GitHub, beendet den Server und installiert still. Fehler schreibt es zurück. */
+/* ---------- Windows Server und Amberwave OS: Update aus der Weboberfläche ----------
+   Die Seite legt einen Auftrag in den Cache-Ordner. Windows: das Programm im Infobereich (windows-server/tray) sieht alle
+   paar Sekunden nach, lädt den Installer von GitHub, beendet den Server und installiert still. Amberwave OS: aw-update.path
+   auf dem Gerät startet aktualisieren.sh (neues Paket laden, Container tauschen, bei Fehler zurück). Fehler kommen zurück. */
 function windows_update_datei(string $name): string
 {
     return rtrim((string) konfig()['pfade']['cache'], '/\\') . '/' . $name;
@@ -629,14 +631,15 @@ function windows_update_datei(string $name): string
 
 function api_admin_windows_update(array $admin): array
 {
-    if (getenv('AMBERWAVE_WINDOWS') !== '1') {
+    $os = getenv('AMBERWAVE_OS') === '1';
+    if (getenv('AMBERWAVE_WINDOWS') !== '1' && !$os) {
         throw new ApiFehler(t('Nur beim Amberwave Windows Server.'));
     }
     @unlink(windows_update_datei('update-stand.json'));
     if (@file_put_contents(windows_update_datei('update-installieren'), (string) time()) === false) {
         throw new ApiFehler(t('Der Auftrag ließ sich nicht ablegen (Schreibrechte im Cache-Ordner?).'));
     }
-    log_sicherheitsereignis((int) $admin['id'], 'update_angestossen', 'Windows Server');
+    log_sicherheitsereignis((int) $admin['id'], 'update_angestossen', $os ? 'Amberwave OS' : 'Windows Server');
     return ['ok' => true];
 }
 

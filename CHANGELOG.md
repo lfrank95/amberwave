@@ -1,6 +1,7 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta.6 – Amberwave OS, in-app updates
+- Amberwave OS: "Install update" under Administration › Overview – downloads the new version, swaps the container and switches back automatically if the new one does not start.
 - Faster library scan: MP3, M4A, OGG, WAV etc. are now read by several ffprobe processes at once (about 2–4× faster on multi-core devices); the all-in-one database no longer waits for the disk after every write.
 - Amberwave OS: "Remove stick and restart" now forces the restart if a service hangs.
 

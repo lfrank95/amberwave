@@ -1188,5 +1188,6 @@
  "Update auf {version} installieren?": "Install update to {version}?",
  "Update installieren": "Install update",
  "Wird geladen … {p} %": "Downloading … {p} %",
- "Wird installiert – Amberwave startet gleich in der neuen Version.": "Installing – Amberwave restarts in the new version in a moment."
+ "Wird installiert – Amberwave startet gleich in der neuen Version.": "Installing – Amberwave restarts in the new version in a moment.",
+ "Das dauert ungewöhnlich lange. Ist das Gerät mit dem Internet verbunden?": "This is taking unusually long. Is the device connected to the internet?"
 }

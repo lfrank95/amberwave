@@ -927,10 +927,12 @@ async function sicherungZeichnen(app, inhalt, signal) {
     <div class="einst-teil einst-teil-update"><span>${t('Update')}</span>${chip(t('installiert: {version}', { version: app.ich.app.version }))}</div>
     ${app.ich.app.windows ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
       <p class="einst-karten-hinweis">${t('Der Windows-Server sucht täglich selbst nach neuen Versionen. Gibt es eine, steht im Menü des Amberwave-Symbols im Infobereich „Update installieren“ – Bibliothek, Konten und Einstellungen bleiben.')}</p></div>` : ''}
-    ${app.ich.app.image && !app.ich.app.windows ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
+    ${app.ich.app.os ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
+      <p class="einst-karten-hinweis">${t('Gibt es eine neue Version, steht unter Verwaltung › Übersicht „Update installieren“. Amberwave lädt sie, startet in der neuen Version und geht von selbst zurück, falls sie nicht startet – Bibliothek, Konten und Einstellungen bleiben.')}</p></div>` : ''}
+    ${app.ich.app.image && !app.ich.app.windows && !app.ich.app.os ? `<div class="einst-karte" data-k="update"><h2><span>${t('Neue Version einspielen')}</span></h2>
       <p class="einst-karten-hinweis">${t('Diese Installation läuft als fertiges Docker-Image. Update auf dem Server:')}</p><pre class="log">docker compose pull &amp;&amp; docker compose up -d</pre>
       <p class="einst-karten-hinweis">${t('Daten, Einstellungen und Musik bleiben erhalten; Datenbank-Änderungen laufen beim Start automatisch.')}</p></div>` : ''}
-    <form class="einst-karte einst-update" data-k="update" data-update ${app.ich.app.image || app.ich.app.windows ? 'hidden' : ''}>
+    <form class="einst-karte einst-update" data-k="update" data-update ${app.ich.app.image || app.ich.app.windows || app.ich.app.os ? 'hidden' : ''}>
       <h2><span>${t('Neue Version einspielen')}</span></h2>
       ${zeile('update', t('Update-Paket (.zip)'), t('Vorher wird automatisch gesichert (Datenbank und Code – es bleibt immer die letzte). Danach werden ausstehende Datenbank-Änderungen angewendet. Die App ist dabei kurz nicht erreichbar.'),
         `<label class="einst-ablage" for="einst-update-zip" data-ablage>${t('Paket auswählen …')}</label><input id="einst-update-zip" type="file" name="archiv" accept=".zip,application/zip" hidden>`)}

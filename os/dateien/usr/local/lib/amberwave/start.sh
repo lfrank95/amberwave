@@ -3,12 +3,7 @@
 # Amberwave-Container starten – beim ersten Mal wird er von GitHub geladen. Alles Nutzer-Eigene liegt unter /daten,
 # das System selbst kann jederzeit frisch aufgespielt werden.
 set -u
-S=/run/amberwave/stand; mkdir -p /run/amberwave
-stand() { echo "$1" > "$S"; echo "[amberwave] $1"; }
-E=/daten/system/einstellungen
-[ -f "$E" ] && . "$E"
-AW_NAME="${AW_NAME:-amberwave}"; AW_KANAL="${AW_KANAL:-beta}"; AW_MUSIK_ART="${AW_MUSIK_ART:-intern}"
-BILD="ghcr.io/lfrank95/amberwave-aio:$AW_KANAL"
+. /usr/local/lib/amberwave/gemeinsam.sh
 
 # Name im Netz (amberwave.local)
 if [ "$(hostname)" != "$AW_NAME" ]; then
@@ -39,6 +34,10 @@ status_aus() { [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null; wait 
 trap status_aus EXIT
 
 # Amberwave: vorhanden → starten, sonst laden und anlegen
+# (Strom weg mitten im Update: der alte Container heißt noch amberwave-alt → zurückbenennen)
+if ! docker inspect amberwave >/dev/null 2>&1 && docker inspect amberwave-alt >/dev/null 2>&1; then
+  docker rename amberwave-alt amberwave
+fi
 if docker inspect amberwave >/dev/null 2>&1; then
   docker start amberwave >/dev/null && stand "laeuft"
   exit 0
@@ -71,16 +70,8 @@ until docker image inspect "$BILD" >/dev/null 2>&1; do
 done
 stand "Amberwave startet …"
 status_aus   # Port 80 freigeben
-# Netz des Geräts direkt (kein Docker-NAT): Amberwave ist auf Port 80 (http://amberwave.local) und 8443 (Direktzugang)
-# erreichbar, Heimnetz-Funktionen (DLNA, Cast, Suche der Apps) sehen das echte Netz
-docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 --network host \
-  -v /daten/appdata:/appdata -v /musik:/musik \
-  -e TZ="${AW_ZEITZONE:-Europe/Berlin}" -e AMBERWAVE_OS=1 -e EINRICHTUNG_FENSTER_MINUTEN=0 \
-  "$BILD" >/dev/null || { stand "fehler:Amberwave ließ sich nicht starten."; exit 1; }
-for i in $(seq 1 90); do
-  curl -fsS -m 3 http://127.0.0.1/api/v1/ping >/dev/null 2>&1 && { stand "laeuft"; exit 0; }
-  sleep 2
-done
+amberwave_anlegen || { stand "fehler:Amberwave ließ sich nicht starten."; exit 1; }
+amberwave_antwortet 180 && { stand "laeuft"; exit 0; }
 # antwortet nicht: Gründe auf die Konsole (Fehlersuche ohne Anmeldung), Amberwave läuft trotzdem weiter
 docker ps -a --format '{{.Names}} {{.Status}} {{.Ports}}' 2>&1
 docker logs --tail 40 amberwave 2>&1

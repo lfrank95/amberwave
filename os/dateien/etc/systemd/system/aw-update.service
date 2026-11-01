@@ -1,0 +1,8 @@
+[Unit]
+Description=Amberwave – Update installieren
+After=docker.service aw-start.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/amberwave/aktualisieren.sh
