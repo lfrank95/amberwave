@@ -122,8 +122,8 @@ except Exception as e:
     melden('error', 'VM-Test', f'{type(e).__name__}: {e}')
     try:   # die letzten Zeilen der seriellen Konsole als Anmerkung (Logs des Laufs sind sonst nur im Browser zu sehen)
         alle = [z for z in open(os.path.join(AUS, 'seriell.log'), errors='replace').read().replace('\r', '').splitlines() if z.strip()]
-        wichtig = [z for z in alle if 'Docker startet' not in z and any(w in z for w in ('docker', 'Docker', 'containerd', 'FAILED', 'level=', 'error', 'Error', 'amberwave]'))]
-        zeilen = (wichtig[-40:] or alle[-45:])
+        wichtig = [z for z in alle if 'Docker startet' not in z and any(w in z for w in ('docker', 'Docker', 'containerd', 'FAILED', 'level=', 'error', 'Error', 'amberwave]', 'start.sh['))]
+        zeilen = (wichtig[-60:] or alle[-45:])
         print('::error title=Konsole des Geräts::' + '%0A'.join(z.replace('%', '%25')[:180] for z in zeilen), flush=True)
     except Exception:
         pass
