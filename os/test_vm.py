@@ -98,6 +98,13 @@ try:
     foto(q, '2-installiert')
     q.rufen('device_del', id='stickgeraet')   # Stick abziehen → das Gerät startet von selbst neu
     t2 = time.time()
+    def weg():
+        try:
+            holen('/api/info', zeit=3); return None
+        except Exception:
+            return True
+    warten(weg, 120, 'Das Gerät startet nach dem Abziehen des Sticks nicht neu')
+    melden('notice', 'Neustart', f'{int(time.time() - t2)} s nach dem Abziehen des Sticks')
     j = warten(lambda: (lambda x: x if x.get('app') == 'amberwave' else None)(holen('/api/v1/ping')), 1500, 'Amberwave antwortet nach dem Neustart nicht')
     melden('notice', 'Erster Start', f"Amberwave {j.get('version')} antwortet {int(time.time() - t2)} s nach dem Abziehen des Sticks (inkl. Laden des Containers)")
     time.sleep(5); foto(q, '3-amberwave-laeuft')
@@ -105,6 +112,11 @@ try:
         melden('notice', 'Weboberfläche', f'{r.status} {r.geturl().replace(BASIS, "")}')
 except Exception as e:
     melden('error', 'VM-Test', f'{type(e).__name__}: {e}')
+    try:   # die letzten Zeilen der seriellen Konsole als Anmerkung (Logs des Laufs sind sonst nur im Browser zu sehen)
+        zeilen = [z for z in open(os.path.join(AUS, 'seriell.log'), errors='replace').read().replace('\r', '').splitlines() if z.strip()][-45:]
+        print('::error title=Konsole des Geräts::' + '%0A'.join(z.replace('%', '%25')[:180] for z in zeilen), flush=True)
+    except Exception:
+        pass
     try: foto(q, '9-fehler')
     except Exception: pass
     vm.kill()

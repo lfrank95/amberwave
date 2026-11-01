@@ -10,6 +10,8 @@ Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=infinity
 ExecStart=/usr/local/lib/amberwave/start.sh
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target
