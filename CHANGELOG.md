@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1-beta.9 – Amberwave OS: storage, manual update check, writable music folder
+- Amberwave OS › Updates: **"Check now"** asks GitHub right away instead of waiting for the twice-daily check, and shows when it last looked.
+- Amberwave OS › Storage: the internal drive as one bar with what takes the space – Amberwave OS, Amberwave itself (app and offline update package), library (database, covers, artist images), backups, music on the device, room for updates and free space. Music on a USB drive or NAS gets its own bar.
+- Amberwave OS: the music folder is now writable for Amberwave – "on this device" belongs to Amberwave and writing is allowed there right away (needed for Amberwave Connect, tags, tidying up, downloads); USB drives with FAT/exFAT/NTFS and NAS shares are mounted so Amberwave may write once you allow it in the app.
+- Amberwave OS: the storage breakdown and the writable music folder come with the new OS image (install from the stick); devices updated in the app show the storage as before.
+
 ## 0.9.1-beta.8 – Amberwave Connect
 - **Amberwave Connect:** pair Amberwave servers – the one at home with a smaller one in the caravan, or your sister's. Show a six-digit code on one server, enter it on the other (or pick it from "Search home network"); from then on the two find each other by themselves – directly in the home network, otherwise via direct access or the Cloudflare tunnel – and everything between them is end-to-end encrypted (also through the tunnel).
 - Connect: new **Connect** tab (phone: under More) with all paired servers. Browse a server like your own library – albums, artists, shared playlists, search – and listen right away; your server fetches the track and passes it on, always as Opus 256 to spare the connection (Windows Client: FLAC 16/44.1, as its engine has no Opus).
