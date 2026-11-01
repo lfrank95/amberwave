@@ -63,7 +63,18 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
 <body>
 <div class="rahmen">
   <div class="kopf"><img src="logo.svg" alt=""><b>Amberwave</b><small data-version></small></div>
-  <div class="schritte" data-schritte><i></i><i></i><i></i><i></i></div>
+  <div class="schritte" data-schritte><i></i><i></i><i></i><i></i><i></i></div>
+
+  <!-- 0 Sprache (Standard Englisch, wie die Einrichtung von Amberwave selbst) -->
+  <section data-s="sprache" hidden>
+    <h1>Welcome · Willkommen</h1>
+    <p>Choose your language. · Wähle deine Sprache.</p>
+    <div class="karte" data-sprachen>
+      <button class="wahl" data-sprache="en" aria-pressed="true"><i class="sym">EN</i><span><b>English</b><small>Set up Amberwave in English</small></span></button>
+      <button class="wahl" data-sprache="de" aria-pressed="false"><i class="sym">DE</i><span><b>Deutsch</b><small>Amberwave auf Deutsch einrichten</small></span></button>
+    </div>
+    <div class="knoepfe"><button class="los" data-weiter="platte" data-t="weiter">Weiter</button></div>
+  </section>
 
   <!-- 1 Zielplatte -->
   <section data-s="platte">
@@ -121,10 +132,10 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
 
   <!-- 5 Fertig -->
   <section data-s="fertig" hidden>
-    <h1 data-t="t_fertig">Fertig! Jetzt den USB-Stick abziehen</h1>
-    <p data-t="p_fertig">Das Gerät startet dann von selbst neu und lädt Amberwave (einmalig, etwa 400 MB – mit schnellem Internet wenige Minuten). Danach geht es hier weiter:</p>
+    <h1 data-t="t_fertig">Fertig!</h1>
+    <p data-t="p_fertig">Zieh den USB-Stick ab – das Gerät startet dann von selbst neu. Oder starte es gleich hier neu. Danach lädt es Amberwave (einmalig, etwa 400 MB – mit schnellem Internet wenige Minuten) und es geht hier weiter:</p>
     <div class="karte"><span class="adresse" data-ende-adresse>http://amberwave.local</span><p style="margin:8px 0 0" data-t="p_fertig2">Diese Seite wechselt von selbst dorthin, sobald Amberwave bereit ist.</p></div>
-    <div class="knoepfe"><button class="zurueck" data-neustart data-t="neustart">Stick ist ab – jetzt neu starten</button></div>
+    <div class="knoepfe"><button class="los" data-neustart data-t="neustart">Jetzt neu starten</button></div>
   </section>
 
   <!-- Fehler -->
@@ -137,9 +148,9 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
 </div>
 <script>
 (() => {
-  const de = !/^en/i.test(navigator.language || '') ? true : false;
+  let de = false;   // Standard Englisch; die Wahl kommt auf der ersten Seite
   const EN = {
-    weiter: 'Next', zurueck: 'Back', installieren: 'Install', nochmal: 'Try again', neustart: 'Stick is out – restart now',
+    weiter: 'Next', zurueck: 'Back', installieren: 'Install', nochmal: 'Try again', neustart: 'Restart now',
     t_platte: 'Where should Amberwave go?', p_platte: 'Choose the internal drive (ideally an SSD) to install Amberwave on.',
     t_musik: 'Where is your music?', p_musik: 'You can change this any time later.',
     m_platte: 'On another drive', m_platte2: 'Built in or plugged in via USB', m_nas: 'On a NAS on the network', m_nas2: 'A share on e.g. Synology, QNAP or Unraid',
@@ -147,7 +158,7 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     nas_pfad: 'Address of the share', nas_benutzer: 'User name', nas_passwort: 'Password',
     t_name: 'Almost done', p_name: 'This is the name Amberwave has on your network.', name: 'Name on the network',
     t_laeuft: 'Installing Amberwave', p_laeuft: 'This takes a few minutes. Please don’t switch the device off.',
-    t_fertig: 'Done! Now unplug the USB stick', p_fertig: 'The device then restarts by itself and downloads Amberwave (once, about 400 MB – a few minutes with fast internet). Then it continues here:',
+    t_fertig: 'Done!', p_fertig: 'Unplug the USB stick – the device then restarts by itself. Or restart it right here. It then downloads Amberwave (once, about 400 MB – a few minutes with fast internet) and continues here:',
     p_fertig2: 'This page switches there by itself as soon as Amberwave is ready.',
     t_fehler: 'That didn’t work', p_fehler: 'Nothing is broken. Try again – or choose another drive.',
   };
@@ -165,18 +176,28 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     laeuft_schon: ['Die Installation läuft schon.', 'Setup is already running.'], unbekannt: ['Unbekannter Fehler.', 'Unknown error.'],
   };
   const tx = (k, w = {}) => (T[k] ? T[k][de ? 0 : 1] : k).replace(/\{(\w+)\}/g, (_, x) => w[x] ?? '');
-  if (!de) { document.documentElement.lang = 'en'; document.querySelectorAll('[data-t]').forEach((e) => { if (EN[e.dataset.t]) e.textContent = EN[e.dataset.t]; }); document.title = 'Set up Amberwave'; }
+  // Texte: Deutsch steht im HTML, Englisch in EN – beim Umschalten wird jedes [data-t] neu gesetzt
+  document.querySelectorAll('[data-t]').forEach((e) => { e.dataset.de = e.textContent; });
+  function spracheSetzen(neu) {
+    de = neu;
+    document.documentElement.lang = de ? 'de' : 'en';
+    document.title = de ? 'Amberwave einrichten' : 'Set up Amberwave';
+    document.querySelectorAll('[data-t]').forEach((e) => { e.textContent = de ? e.dataset.de : (EN[e.dataset.t] || e.dataset.de); });
+    document.querySelectorAll('[data-sprache]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.sprache === 'de') === de)));
+  }
+  spracheSetzen(false);
+  document.querySelector('[data-sprachen]').addEventListener('click', (e) => { const b = e.target.closest('[data-sprache]'); if (b) spracheSetzen(b.dataset.sprache === 'de'); });
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const gb = (b) => (b >= 1e12 ? `${(b / 1e12).toFixed(1)} TB` : `${Math.round(b / 1e9)} GB`);
   const api = async (pfad, daten) => (await fetch('/api/' + pfad, daten ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten) } : {})).json();
   const wahl = { platte: null, behalten: true, musik: { art: '' }, name: 'amberwave' };
   let info = null;
-  const SCHRITTE = ['platte', 'musik', 'name', 'laeuft'];
+  const SCHRITTE = ['sprache', 'platte', 'musik', 'name', 'laeuft'];
   function zeigen(s) {
     document.querySelectorAll('[data-s]').forEach((x) => { x.hidden = x.dataset.s !== s; });
     const i = SCHRITTE.indexOf(s === 'fertig' ? 'laeuft' : s);
-    document.querySelectorAll('[data-schritte] i').forEach((x, j) => x.classList.toggle('an', j <= (s === 'fertig' ? 3 : i)));
+    document.querySelectorAll('[data-schritte] i').forEach((x, j) => x.classList.toggle('an', j <= (s === 'fertig' ? 4 : i)));
     scrollTo(0, 0);
   }
   const platte = () => info?.platten.find((p) => p.name === wahl.platte);
@@ -247,7 +268,7 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
 
   document.addEventListener('click', (e) => {
     const w = e.target.closest('[data-weiter]'), z = e.target.closest('[data-zurueck]');
-    if (w && !w.disabled) { if (w.dataset.weiter === 'musik') musikZeichnen(); if (w.dataset.weiter === 'name') nameZeichnen(); zeigen(w.dataset.weiter); }
+    if (w && !w.disabled) { if (w.dataset.weiter === 'platte') plattenZeichnen(); if (w.dataset.weiter === 'musik') musikZeichnen(); if (w.dataset.weiter === 'name') nameZeichnen(); zeigen(w.dataset.weiter); }
     if (z) { if (z.dataset.zurueck === 'platte') laden(); zeigen(z.dataset.zurueck); }
   });
   $('[data-installieren]').addEventListener('click', async (e) => {
@@ -262,7 +283,12 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     wahl.name = n;
     zeigen('laeuft'); verfolgen();
   });
-  $('[data-neustart]').addEventListener('click', () => api('neustart', {}));
+  // Neustart von Hand: das Gerät startet direkt von der neuen Platte (der Installer hat das in der Firmware vorgemerkt)
+  $('[data-neustart]').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    e.target.textContent = de ? 'Startet neu …' : 'Restarting …';
+    await api('neustart', {}).catch(() => null);
+  });
 
   async function verfolgen() {
     const s = await api('stand').catch(() => null);
@@ -278,7 +304,7 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
   // Bekommt das Gerät eine neue IP, hilft die angezeigte .local-Adresse.
   function warten() {
     const probe = () => fetch('/api/v1/ping', { cache: 'no-store' }).then((r) => r.json())
-      .then((j) => { if (j.app === 'amberwave') location.href = '/'; else setTimeout(probe, 4000); })
+      .then((j) => { if (j.app === 'amberwave') location.href = '/einrichtung.php?sprache=' + (de ? 'de' : 'en'); else setTimeout(probe, 4000); })
       .catch(() => setTimeout(probe, 4000));
     setTimeout(probe, 8000);
   }
@@ -287,8 +313,7 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     info = await api('info');
     $('[data-version]').textContent = info.version;
     if (info.stand && !info.stand.fehler) { zeigen(info.stand.fertig ? 'fertig' : 'laeuft'); verfolgen(); return; }
-    plattenZeichnen();
-    zeigen('platte');
+    zeigen('sprache');
   }
   laden();
   // Platten können angesteckt werden, während die Seite offen ist

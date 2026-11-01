@@ -33,6 +33,11 @@ case "$AW_MUSIK_ART" in
     mkdir -p /daten/musik; mountpoint -q /musik || mount --bind /daten/musik /musik ;;
 esac
 
+# Bis Amberwave selbst antwortet: Statusseite auf Port 80 (wer die Adresse schon öffnet, sieht, was passiert)
+status_an() { python3 /usr/local/lib/amberwave/status.py & STATUS_PID=$!; }
+status_aus() { [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null; wait "$STATUS_PID" 2>/dev/null; STATUS_PID=; sleep 1; }
+trap status_aus EXIT
+
 # Amberwave: vorhanden → starten, sonst laden und anlegen
 if docker inspect amberwave >/dev/null 2>&1; then
   docker start amberwave >/dev/null && stand "laeuft"
@@ -40,6 +45,7 @@ if docker inspect amberwave >/dev/null 2>&1; then
 fi
 # laden – geduldig: direkt nach dem Start ist das Netz oft noch nicht ganz da, und Docker braucht einen Moment
 command -v docker >/dev/null || { stand "fehler:Docker fehlt im System – bitte neu installieren."; exit 1; }
+status_an
 versuch=0
 until docker image inspect "$BILD" >/dev/null 2>&1; do
   versuch=$((versuch+1))
@@ -64,6 +70,7 @@ until docker image inspect "$BILD" >/dev/null 2>&1; do
   sleep 30
 done
 stand "Amberwave startet …"
+status_aus   # Port 80 freigeben
 # Netz des Geräts direkt (kein Docker-NAT): Amberwave ist auf Port 80 (http://amberwave.local) und 8443 (Direktzugang)
 # erreichbar, Heimnetz-Funktionen (DLNA, Cast, Suche der Apps) sehen das echte Netz
 docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 --network host \

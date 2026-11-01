@@ -101,7 +101,8 @@ try:
         raise
     melden('notice', 'Installation', f'fertig nach {int(time.time() - t1)} s')
     foto(q, '2-installiert')
-    q.rufen('device_del', id='stickgeraet')   # Stick abziehen → das Gerät startet von selbst neu
+    # „Jetzt neu starten“ mit noch steckendem Stick: die Firmware muss trotzdem von der SSD starten (BootNext)
+    holen('/api/neustart', {})
     t2 = time.time()
     def weg():
         try:
@@ -109,15 +110,21 @@ try:
         except Exception:
             return True
     warten(weg, 120, 'Das Gerät startet nach dem Abziehen des Sticks nicht neu')
-    melden('notice', 'Neustart', f'{int(time.time() - t2)} s nach dem Abziehen des Sticks')
+    melden('notice', 'Neustart', f'{int(time.time() - t2)} s nach „Jetzt neu starten“ (Stick steckt noch)')
+    status_gesehen = []
     def bereit():
         log = open(os.path.join(AUS, 'seriell.log'), errors='replace').read()
         if log.count('Docker startet') > 120:
             raise RuntimeError('Docker kommt nicht hoch')
         x = holen('/api/v1/ping')
+        if x.get('einrichtung'):
+            raise RuntimeError('Nach dem Neustart läuft wieder die Einrichtung vom Stick – die Firmware hat nicht von der SSD gestartet')
+        if x.get('app') == 'amberwave-os' and not status_gesehen:
+            status_gesehen.append(int(time.time() - t2))
         return x if x.get('app') == 'amberwave' else None
     j = warten(bereit, 1500, 'Amberwave antwortet nach dem Neustart nicht')
-    melden('notice', 'Erster Start', f"Amberwave {j.get('version')} antwortet {int(time.time() - t2)} s nach dem Abziehen des Sticks (inkl. Laden des Containers)")
+    melden('notice', 'Erster Start', f"Amberwave {j.get('version')} antwortet {int(time.time() - t2)} s nach dem Neustart (inkl. Laden des Containers)"
+           + (f", Statusseite auf Port 80 schon nach {status_gesehen[0]} s" if status_gesehen else ', Statusseite nicht gesehen'))
     time.sleep(5); foto(q, '3-amberwave-laeuft')
     with urllib.request.urlopen(BASIS + '/', timeout=10) as r:
         melden('notice', 'Weboberfläche', f'{r.status} {r.geturl().replace(BASIS, "")}')

@@ -78,8 +78,20 @@ menuentry "Amberwave (vorheriger Kernel)" {
   initrd /initrd.img.old
 }
 G
-# auch über einen Starteintrag in der Firmware (falls die Platte nicht von selbst gefunden wird)
-chroot /mnt/aw efibootmgr -q -c -d "$D" -p 1 -L Amberwave -l '\EFI\BOOT\BOOTX64.EFI' >/dev/null 2>&1 || true
+# Starteintrag in der Firmware: alte Amberwave-Einträge weg, neuer an den Anfang der Startreihenfolge und als „nächster
+# Start“ vorgemerkt – so startet das Gerät nach der Installation von der Platte, auch wenn der Stick noch steckt
+if [ -d /sys/firmware/efi/efivars ]; then
+  for alt in $(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)[* ] Amberwave.*/\1/p'); do efibootmgr -q -b "$alt" -B >/dev/null 2>&1 || true; done
+  if efibootmgr -q -c -d "$D" -p 1 -L Amberwave -l '\EFI\BOOT\BOOTX64.EFI' >/dev/null 2>&1; then
+    NR=$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)[* ] Amberwave.*/\1/p' | head -1)
+    if [ -n "$NR" ]; then
+      REST=$(efibootmgr 2>/dev/null | sed -n 's/^BootOrder: //p' | tr ',' '\n' | grep -vi "^$NR$" | paste -sd, - || true)
+      efibootmgr -q -o "$NR${REST:+,$REST}" >/dev/null 2>&1 || true
+      efibootmgr -q -n "$NR" >/dev/null 2>&1 || true
+      echo "Starteintrag Boot$NR angelegt, als nächster Start vorgemerkt"
+    fi
+  fi
+fi
 for x in run sys proc dev; do umount -R -l /mnt/aw/$x 2>/dev/null || true; done
 
 stand "Einstellungen speichern" 92
