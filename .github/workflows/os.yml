@@ -138,6 +138,17 @@ jobs:
           Write-Host "Laufwerk $lw, Bezeichnung $($vol.FileSystemLabel), Dateisystem $($vol.FileSystem)"
           if (-not $ok) { Write-Host "::error title=USB-Ersteller::Stick enthält nicht die erwarteten Dateien"; exit 1 }
           Write-Host "::notice title=USB-Ersteller::Image geschrieben und geprüft ($([int]((Get-Date) - $s).TotalSeconds) s), Stick als AMBERWAVE mit Startdateien lesbar; Nicht-USB-Laufwerk abgewiesen"
+          # Denselben Stick noch einmal beschreiben – wie bei einem schon erstellten Amberwave-Stick, dessen EFI-Partition
+          # Windows ohne Laufwerksbuchstaben eingehängt hat (früher: „Schreiben fehlgeschlagen“)
+          $teil | Remove-PartitionAccessPath -AccessPath "$lw\" -ErrorAction SilentlyContinue
+          Start-Sleep 2
+          Write-Host "Volumes auf der Platte vor dem 2. Schreiben:"; Get-Partition -DiskNumber $nr | Get-Volume | Format-Table -AutoSize | Out-String | Write-Host
+          $s = Get-Date
+          $p = Start-Process $exe -ArgumentList '--test', $img, $nr, "$t\test2.txt", '--alle-laufwerke' -Wait -PassThru
+          $erg = Get-Content "$t\test2.txt" -Raw
+          Write-Host $erg
+          if ($p.ExitCode -ne 0) { Write-Host "::error title=USB-Ersteller::Erneutes Beschreiben: $erg"; exit 1 }
+          Write-Host "::notice title=USB-Ersteller::Schon beschriebenen Stick erneut geschrieben und geprüft ($([int]((Get-Date) - $s).TotalSeconds) s)"
       - name: Fenster fotografieren
         if: always()
         shell: pwsh

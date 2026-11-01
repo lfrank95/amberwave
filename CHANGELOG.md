@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- USB Creator: writing over a stick that already holds Amberwave OS failed – Windows mounts its EFI partition without a drive letter, and that volume was not unmounted before writing.
+
 ## 0.9.1-beta.6 – Amberwave OS, in-app updates
 - Amberwave OS: new settings area "Amberwave OS" – name on the network, fixed or automatic address (a new fixed address must be confirmed within 3 minutes, otherwise the device switches back), music source (on the device, USB drive, NAS share with connection test), storage, stable/beta channel, nightly Debian security updates, restart/shut down, troubleshooting log download and optional SSH access (key only).
 - Amberwave OS: "Install update" under Administration › Overview – downloads the new version, swaps the container and switches back automatically if the new one does not start.

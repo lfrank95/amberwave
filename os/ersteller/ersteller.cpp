@@ -247,26 +247,46 @@ static void fehler_setzen(const wchar_t *s, DWORD code = 0) {
   fehler_text = t;
 }
 
+/** Alle Volumes (\\?\Volume{…}, auch ohne Laufwerksbuchstaben), die auf dem Laufwerk nr liegen */
+static std::vector<std::wstring> volumes_des_laufwerks(int nr) {
+  std::vector<std::wstring> l;
+  wchar_t name[MAX_PATH];
+  HANDLE f = FindFirstVolumeW(name, MAX_PATH);
+  if (f == INVALID_HANDLE_VALUE) return l;
+  do {
+    std::wstring v = name;
+    if (!v.empty() && v.back() == L'\\') v.pop_back();   // ohne Schrägstrich am Ende: das Volume selbst
+    HANDLE h = CreateFileW(v.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) continue;
+    BYTE puffer[1024]; DWORD n = 0;
+    if (DeviceIoControl(h, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, NULL, 0, puffer, sizeof puffer, &n, NULL)) {
+      VOLUME_DISK_EXTENTS *e = (VOLUME_DISK_EXTENTS *)puffer;
+      for (DWORD i = 0; i < e->NumberOfDiskExtents; i++)
+        if ((int)e->Extents[i].DiskNumber == nr) { l.push_back(v); break; }
+    }
+    CloseHandle(h);
+  } while (FindNextVolumeW(f, name, MAX_PATH));
+  FindVolumeClose(f);
+  return l;
+}
+
 /** Image (Datei) auf das Laufwerk nr schreiben und zurücklesen; 1 = gut */
 static int schreiben(const wchar_t *img, int nr) {
   HANDLE q = CreateFileW(img, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
   if (q == INVALID_HANDLE_VALUE) { fehler_setzen(TX(L"Das Image lässt sich nicht öffnen.", L"The image can't be opened."), GetLastError()); return 0; }
   LARGE_INTEGER gr; GetFileSizeEx(q, &gr);
   uint64_t groesse = (uint64_t)gr.QuadPart;
-  // Volumes des Sticks sperren und aushängen, damit Windows nicht dazwischenschreibt
+  // Alle Volumes des Sticks sperren und aushängen, damit Windows nicht dazwischenschreibt – auch die ohne
+  // Laufwerksbuchstaben (ein schon beschriebener Amberwave-Stick hat eine EFI-Partition, die Windows ohne Buchstaben
+  // einhängt; ohne Aushängen verweigert Windows das Schreiben in diesen Bereich).
   std::vector<HANDLE> volumes;
-  for (wchar_t b = L'A'; b <= L'Z'; b++) {
-    if (volume_laufwerk(b) != nr) continue;
-    wchar_t p[8]; _snwprintf(p, 8, L"\\\\.\\%c:", b);
-    HANDLE v = CreateFileW(p, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+  for (const std::wstring &vol : volumes_des_laufwerks(nr)) {
+    HANDLE v = CreateFileW(vol.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     if (v == INVALID_HANDLE_VALUE) continue;
     DWORD n = 0; int ok = 0;
     for (int i = 0; i < 20 && !ok; i++) { ok = DeviceIoControl(v, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0, &n, NULL); if (!ok) Sleep(250); }
-    if (!ok) {
-      CloseHandle(v); for (HANDLE x : volumes) CloseHandle(x); CloseHandle(q);
-      fehler_setzen(TX(L"Der Stick wird gerade benutzt (Explorer-Fenster oder Programm offen?). Bitte schließen und noch einmal versuchen.", L"The stick is in use (an Explorer window or program open?). Please close it and try again."));
-      return 0;
-    }
+    // Gesperrt oder nicht: aushängen. Ohne Sperre erzwingt das Aushängen das Schließen offener Dateien – der Stick
+    // wird ohnehin komplett überschrieben, und das wurde vorher bestätigt.
     DeviceIoControl(v, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0, &n, NULL);
     volumes.push_back(v);
   }
