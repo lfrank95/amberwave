@@ -35,6 +35,22 @@ function update_hinweis(bool $holen = false): ?array
     return ['version' => ltrim($neu, 'vV'), 'url' => (string) ($stand['url'] ?? ''), 'name' => (string) ($stand['name'] ?? '')];
 }
 
+/** Von Hand „Jetzt suchen“: sofort bei GitHub fragen (auch wenn der Hinweis abgeschaltet ist) */
+function update_jetzt_suchen(): array
+{
+    $gefunden = update_abfragen();
+    $stand = ['zeit' => time()] + ($gefunden ?? ['fehler' => true]);
+    @file_put_contents(update_datei(), json_encode($stand, JSON_UNESCAPED_SLASHES));
+    $neu = $gefunden && version_compare($gefunden['version'], app_version(), '>') ? $gefunden : null;
+    return ['ok' => $gefunden !== null, 'update' => $neu, 'version' => app_version(), 'neueste' => $gefunden['version'] ?? null];
+}
+
+/** Wann zuletzt bei GitHub nachgesehen wurde (Unix-Zeit, 0 = nie) */
+function update_zuletzt_gesucht(): int
+{
+    return (int) ((json_decode((string) @file_get_contents(update_datei()), true) ?: [])['zeit'] ?? 0);
+}
+
 /** Neueste passende Veröffentlichung; Vorabversionen nur, wenn die installierte selbst eine ist */
 function update_abfragen(): ?array
 {

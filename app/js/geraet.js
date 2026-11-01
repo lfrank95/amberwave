@@ -2,7 +2,7 @@
 // Name im Netz, Netzwerk (mit Probezeit für eine feste Adresse), Musikquelle, Speicher, Updates, Strom, Protokoll, SSH.
 // Die App spricht dafür über /admin/geraet mit dem Gerätedienst auf dem Gerät (os/…/geraet.py).
 import { api } from './api.js';
-import { h, icon, toast, dialog, bestaetigen, groesse } from './ui.js';
+import { h, icon, toast, dialog, bestaetigen, groesse, datumZeit } from './ui.js';
 import { t, zahl } from './i18n.js';
 import { serverUpdateInstallieren } from './update_hinweis.js';
 
@@ -131,8 +131,9 @@ export async function geraetZeichnen(app, inhalt, signal) {
     ${karte(t('Updates'), `
       ${zeile('update', 'Amberwave', g.update
         ? t('Installiert {alt} · neu: {neu}', { alt: h(g.app_version), neu: `<b>${h(g.update.version)}</b>` }) + (g.update.url ? ` · <a href="${h(g.update.url)}" target="_blank" rel="noopener">${t('Was ist neu?')}</a>` : '')
-        : t('{version} – auf dem neuesten Stand', { version: h(g.app_version) }),
-        g.update ? `<button type="button" class="btn btn-klein" data-update-los>${icon('download', 16)}<span>${t('Update installieren')}</span></button>` : '')}
+        : t('{version} – auf dem neuesten Stand', { version: h(g.app_version) }) + (g.update_gesucht ? ` · ${t('zuletzt gesucht {datum}', { datum: h(datumZeit(g.update_gesucht)) })}` : ''),
+        `<div class="os-knoepfe" style="margin:0"><button type="button" class="btn btn-zweit btn-klein" data-update-suchen>${icon('suche', 16)}<span>${t('Jetzt suchen')}</span></button>
+         ${g.update ? `<button type="button" class="btn btn-klein" data-update-los>${icon('download', 16)}<span>${t('Update installieren')}</span></button>` : ''}</div>`)}
       ${zeile('kanal', t('Welche Versionen?'), t('Stabil ist erprobt. Beta bringt Neues früher – und ab und zu einen Fehler. Zurück auf eine ältere Version geht es dabei nie.'),
         segment([['latest', t('Stabil')], ['beta', t('Beta')]], g.kanal, 'data-kanal'))}
       ${zeile('sicherheitsupdates', t('Sicherheitsupdates des Systems'), t('Nachts automatisch installieren. Braucht eines einen Neustart, steht das hier.'), schalter(g.sicherheitsupdates, 'data-sicherheit'))}
@@ -291,6 +292,18 @@ export async function geraetZeichnen(app, inhalt, signal) {
   });
 
   // Updates
+  $('[data-update-suchen]')?.addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    b.querySelector('span').textContent = t('Suche …');
+    try {
+      const r = await api.post('/admin/update/suchen');
+      if (!r.ok) toast(t('GitHub ist gerade nicht erreichbar – später noch einmal versuchen.'), 'fehler');
+      else if (r.update) toast(t('Neue Version {version} gefunden.', { version: r.update.version }));
+      else toast(t('Auf dem neuesten Stand ({version}).', { version: r.version }));
+      geraetZeichnen(app, inhalt, signal);
+    } catch (x) { toast(x.message, 'fehler'); b.disabled = false; b.querySelector('span').textContent = t('Jetzt suchen'); }
+  });
   $('[data-update-los]')?.addEventListener('click', async (e) => {
     const ok = await dialog({
       titel: t('Update auf {version} installieren?', { version: h(g.update.version) }),

@@ -892,5 +892,11 @@
  "Im Heimnetz ohne Grenze": "No limit in the home network",
  "kennung fingerabdruck schlüssel connect": "id fingerprint key connect",
  "connect koppeln code zweiter server wohnwagen familie": "connect pair code second server caravan family",
- "connect server finden": "connect find server"
+ "connect server finden": "connect find server",
+ "Auf dem neuesten Stand ({version}).": "Up to date ({version}).",
+ "GitHub ist gerade nicht erreichbar – später noch einmal versuchen.": "GitHub can't be reached right now – try again later.",
+ "Jetzt suchen": "Check now",
+ "Neue Version {version} gefunden.": "New version {version} found.",
+ "Suche …": "Checking …",
+ "zuletzt gesucht {datum}": "last checked {datum}"
 }

@@ -73,6 +73,7 @@ function api_admin_os_geraet(): array
     $i = os_geraet_anfrage('GET', '/info');
     $i['app_version'] = app_version();
     $i['update'] = update_hinweis(false);
+    $i['update_gesucht'] = update_zuletzt_gesucht() ? iso(date('Y-m-d H:i:s', update_zuletzt_gesucht())) : null;
     return $i;
 }
 

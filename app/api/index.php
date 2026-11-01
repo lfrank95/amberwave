@@ -901,6 +901,11 @@ $routen = [
     ['PUT', '/admin/alben/{id}/edition', fn($p) => api_admin_album_edition(api_user(true), (int) $p['id'])],
     ['POST', '/admin/update', fn() => api_admin_update(api_user(true))],
     ['POST', '/admin/update/windows', fn() => api_admin_windows_update(api_user(true))],
+    ['POST', '/admin/update/suchen', function () {
+        api_user(true);
+        require_once __DIR__ . '/../includes/updatecheck.php';
+        return update_jetzt_suchen();
+    }],
     ['GET', '/admin/geraet', function () {
         api_user(true);
         return api_admin_os_geraet();
