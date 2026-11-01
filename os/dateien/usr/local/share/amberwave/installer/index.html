@@ -58,6 +58,16 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
 .adresse { font: 700 1.3rem "Space Grotesk", system-ui, sans-serif; color: var(--akzent); }
 .leer { color: var(--leise); padding: 6px 2px; }
 [hidden] { display: none !important; }
+.ablauf { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ablauf li { display: grid; grid-template-columns: 14px 1fr auto; gap: 4px 12px; align-items: baseline; color: var(--leise); }
+.ablauf li::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: rgba(255,244,230,.12); align-self: center; }
+.ablauf li.jetzt { color: var(--text); font-weight: 600; }
+.ablauf li.jetzt::before { background: var(--akzent); box-shadow: 0 0 0 4px rgba(255,169,77,.18); }
+.ablauf li.fertig { color: var(--gut); }
+.ablauf li.fertig::before { background: var(--gut); }
+.ablauf li small { color: var(--leise); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ablauf li .mehr { grid-column: 2 / -1; font-size: .88rem; font-weight: 400; color: var(--leise); font-variant-numeric: tabular-nums; }
+.gesamt { display: flex; justify-content: space-between; gap: 12px; font-size: .88rem; color: var(--leise); font-variant-numeric: tabular-nums; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -147,8 +157,9 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
   <!-- 4 Installation -->
   <section data-s="laeuft" hidden>
     <h1 data-t="t_laeuft">Amberwave wird installiert</h1>
-    <p data-schritt>…</p>
     <div class="balken"><i data-balken></i></div>
+    <div class="gesamt"><span data-prozent>0 %</span><span data-dauer></span></div>
+    <div class="karte"><ol class="ablauf" data-ablauf></ol></div>
     <p data-t="p_laeuft">Das dauert ein paar Minuten. Bitte das Gerät nicht ausschalten.</p>
   </section>
 
@@ -375,10 +386,45 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     await api('neustart', {}).catch(() => null);
   });
 
+  // Ablauf der Installation: jeder Schritt mit Haken und Dauer, beim Kopieren MB, Tempo und Restzeit
+  const ABLAUF = [['vorbereiten', 'Platte vorbereiten', 'Preparing the drive'], ['dateisysteme', 'Dateisysteme anlegen', 'Creating file systems'],
+    ['system', 'System kopieren', 'Copying the system'], ['startmenue', 'Startmenü einrichten', 'Setting up the boot menu'],
+    ['einstellungen', 'Einstellungen speichern', 'Saving settings'], ['paket', 'Amberwave-Paket kopieren', 'Copying the Amberwave package']];
+  const beginn = {}, dauerS = {}; let start = 0, tempo = 0, letzte = null, aktuell = '';
+  const uhr = (x) => { x = Math.max(0, Math.round(x)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`; };
+  const zahlMB = (x) => (x >= 1000 ? `${(x / 1024).toFixed(2)} GB` : `${x} MB`).replace('.', de ? ',' : '.');
+  function ablaufZeichnen(s) {
+    const jetzt = Date.now() / 1000;
+    if (!start) start = jetzt;
+    if (s.schritt !== aktuell) {
+      if (aktuell && beginn[aktuell]) dauerS[aktuell] = jetzt - beginn[aktuell];
+      aktuell = s.schritt; beginn[aktuell] = beginn[aktuell] || jetzt; tempo = 0; letzte = null;
+    }
+    if (s.mb_gesamt > 0) {   // Tempo geglättet aus den MB-Schritten
+      if (letzte && jetzt - letzte.t >= 1 && s.mb >= letzte.mb) { const v = (s.mb - letzte.mb) / (jetzt - letzte.t); tempo = tempo ? tempo * 0.7 + v * 0.3 : v; }
+      if (!letzte || jetzt - letzte.t >= 1) letzte = { t: jetzt, mb: s.mb };
+    }
+    const idx = ABLAUF.findIndex((a) => a[0] === s.schritt);
+    const zeigen = ABLAUF.filter((a, i) => a[0] !== 'paket' || s.schritt === 'paket' || i < idx);
+    $('[data-ablauf]').innerHTML = zeigen.map(([id, d, e]) => {
+      const i = ABLAUF.findIndex((a) => a[0] === id);
+      const fertig = s.fertig || (idx >= 0 && i < idx), jetztS = !s.fertig && id === s.schritt;
+      let mehr = '';
+      if (jetztS && s.mb_gesamt > 0) {
+        mehr = `${zahlMB(s.mb)} ${de ? 'von' : 'of'} ${zahlMB(s.mb_gesamt)}`;
+        if (tempo > 0.5) mehr += ` · ${tempo.toFixed(0)} MB/s · ${de ? 'noch etwa' : 'about'} ${uhr((s.mb_gesamt - s.mb) / tempo)}${de ? '' : ' left'}`;
+      }
+      const rechts = fertig && dauerS[id] != null ? `<small>${uhr(dauerS[id])}</small>` : jetztS ? `<small>${uhr(jetzt - beginn[id])}</small>` : '<small></small>';
+      return `<li class="${fertig ? 'fertig' : jetztS ? 'jetzt' : ''}"><span>${de ? d : e}</span>${rechts}${mehr ? `<span class="mehr">${mehr}</span>` : ''}</li>`;
+    }).join('');
+    $('[data-prozent]').textContent = `${s.prozent || 0} %`;
+    $('[data-dauer]').textContent = `${de ? 'Bisher' : 'Elapsed'} ${uhr(jetzt - start)}`;
+  }
+
   async function verfolgen() {
     const s = await api('stand').catch(() => null);
     if (s) {
-      $('[data-schritt]').textContent = s.schritt || '…';
+      if (!s.fehler) ablaufZeichnen(s);
       $('[data-balken]').style.width = `${Math.max(2, s.prozent || 0)}%`;
       if (s.fehler) { $('[data-fehler]').textContent = s.fehler; zeigen('fehler'); return; }
       if (s.fertig) { $('[data-ende-adresse]').textContent = `http://${wahl.name}.local`; zeigen('fertig'); warten(); return; }

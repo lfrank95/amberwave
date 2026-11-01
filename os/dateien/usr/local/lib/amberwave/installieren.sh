@@ -6,7 +6,8 @@
 # Einstellungen AW_NAME, AW_KANAL, AW_ZEITZONE, AW_MUSIK_ART, AW_MUSIK_UUID, AW_NAS_PFAD, AW_NAS_BENUTZER, AW_NAS_PASSWORT.
 set -euo pipefail
 ST=/run/amberwave/installation.json; mkdir -p /run/amberwave
-stand() { printf '{"schritt":"%s","prozent":%s,"fertig":%s,"fehler":%s}\n' "$1" "$2" "${3:-false}" "${4:-null}" > "$ST.neu"; mv "$ST.neu" "$ST"; echo "[installieren] $2 % $1"; }
+# Stand für die Seite: Schritt (Kennung, die Seite übersetzt), Prozent, fertig, Fehler, dazu MB bei Kopier-Schritten
+stand() { printf '{"schritt":"%s","prozent":%s,"fertig":%s,"fehler":%s,"mb":%s,"mb_gesamt":%s}\n' "$1" "$2" "${3:-false}" "${4:-null}" "${MB:-0}" "${MB_GESAMT:-0}" > "$ST.neu"; mv "$ST.neu" "$ST"; echo "[installieren] $2 % $1 ${MB:+$MB/$MB_GESAMT MB}"; }
 fehler() { stand "fehler" 0 false "\"$(echo "$1" | sed 's/"/\\"/g')\""; echo "fehler:$1" > /run/amberwave/stand; exit 1; }
 trap 'fehler "Unerwarteter Fehler in Zeile $LINENO ($BASH_COMMAND)."' ERR
 
@@ -17,7 +18,7 @@ QUELLE=/run/live/rootfs/filesystem.squashfs
 [ -d "$QUELLE/usr" ] || QUELLE=/
 echo "Installation auf $D läuft …" > /run/amberwave/stand
 
-stand "Platte vorbereiten" 3
+stand vorbereiten 3
 umount -R /mnt/aw 2>/dev/null || true
 mkdir -p /mnt/aw
 if [ "${AW_BEHALTEN:-0}" = 1 ] && [ "$(lsblk -no PARTLABEL "$(teil 3)" 2>/dev/null)" = aw-daten ]; then
@@ -31,22 +32,24 @@ else
   mkfs.ext4 -q -F -L aw-daten "$(teil 3)"
 fi
 udevadm settle
-stand "Dateisysteme anlegen" 8
+stand dateisysteme 8
 mkfs.vfat -F 32 -n AW-EFI "$(teil 1)" >/dev/null
 mkfs.ext4 -q -F -L aw-system "$(teil 2)"
 
-stand "System kopieren" 10
+stand system 10
 mount "$(teil 2)" /mnt/aw
 GESAMT=$(du -sxm "$QUELLE" 2>/dev/null | cut -f1 || true)
 ( rsync -aHAXx --exclude=/mnt/* --exclude=/media/* --exclude=/proc/* --exclude=/sys/* --exclude=/dev/* --exclude=/run/* --exclude=/tmp/* "$QUELLE/" /mnt/aw/ ) &
 KOPIE=$!
 while kill -0 $KOPIE 2>/dev/null; do
   sleep 2; JETZT=$(du -sxm /mnt/aw 2>/dev/null | cut -f1 || true); JETZT=${JETZT:-0}
-  [ "${GESAMT:-0}" -gt 0 ] && stand "System kopieren" $(( 10 + 70 * JETZT / GESAMT > 80 ? 80 : 10 + 70 * JETZT / GESAMT ))
+  MB=$JETZT MB_GESAMT=${GESAMT:-0}
+  [ "${GESAMT:-0}" -gt 0 ] && stand system $(( 10 + 70 * JETZT / GESAMT > 80 ? 80 : 10 + 70 * JETZT / GESAMT ))
 done
 wait $KOPIE
+MB=; MB_GESAMT=
 
-stand "Startmenü einrichten" 84
+stand startmenue 84
 mkdir -p /mnt/aw/boot/efi /mnt/aw/daten
 mount "$(teil 1)" /mnt/aw/boot/efi
 SYS_UUID=$(blkid -s PARTUUID -o value "$(teil 2)"); FS_UUID=$(blkid -s UUID -o value "$(teil 2)")
@@ -97,7 +100,7 @@ if [ -d /sys/firmware/efi/efivars ]; then
 fi
 for x in run sys proc dev; do umount -R -l /mnt/aw/$x 2>/dev/null || true; done
 
-stand "Einstellungen speichern" 92
+stand einstellungen 92
 mkdir -p /mnt/aw/daten
 mount "$(teil 3)" /mnt/aw/daten
 mkdir -p /mnt/aw/daten/system /mnt/aw/daten/appdata /mnt/aw/daten/musik
@@ -108,10 +111,16 @@ if [ -n "$STICK" ] && [ "${AW_PAKET_LADEN:-1}" = 1 ]; then
   mkdir -p /run/amberwave/stick
   if mount -o ro "$STICK" /run/amberwave/stick 2>/dev/null; then
     if [ -f /run/amberwave/stick/amberwave/amberwave-aio.tar.zst ]; then
-      stand "Amberwave-Paket kopieren" 94
-      cp /run/amberwave/stick/amberwave/amberwave-aio.tar.zst /mnt/aw/daten/system/amberwave-aio.tar.zst.teil \
-        && mv /mnt/aw/daten/system/amberwave-aio.tar.zst.teil /mnt/aw/daten/system/amberwave-aio.tar.zst \
-        || rm -f /mnt/aw/daten/system/amberwave-aio.tar.zst.teil
+      Q=/run/amberwave/stick/amberwave/amberwave-aio.tar.zst; Z=/mnt/aw/daten/system/amberwave-aio.tar.zst
+      MB_GESAMT=$(( $(stat -c %s "$Q") / 1048576 )) MB=0
+      stand paket 93
+      cp "$Q" "$Z.teil" & KOPIE=$!
+      while kill -0 $KOPIE 2>/dev/null; do
+        sleep 1; MB=$(( $(stat -c %s "$Z.teil" 2>/dev/null || echo 0) / 1048576 ))
+        stand paket $(( 93 + 6 * MB / (MB_GESAMT > 0 ? MB_GESAMT : 1) ))
+      done
+      if wait $KOPIE; then mv "$Z.teil" "$Z"; else rm -f "$Z.teil"; fi
+      MB=; MB_GESAMT=
     fi
     umount /run/amberwave/stick || umount -l /run/amberwave/stick
   fi
@@ -134,5 +143,5 @@ fi
 sync
 umount -R /mnt/aw 2>/dev/null || { sleep 2; umount -R -l /mnt/aw; }
 trap - ERR
-stand "fertig" 100 true
+stand fertig 100 true
 echo "Fertig – Stick abziehen, das Gerät startet dann von selbst neu." > /run/amberwave/stand

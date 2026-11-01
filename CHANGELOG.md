@@ -3,6 +3,7 @@
 ## Unreleased
 - **USB Creator** (renamed from "USB-Ersteller"; file `Amberwave-USB-Creator-<version>.exe`) is now in English and shows more while it works: downloaded/written MB of the total, speed, time left and elapsed, and how long each finished step took.
 - Amberwave OS: the setup hotspot is now called "Amberwave-Setup".
+- Amberwave OS setup in the browser: the installation shows every step with a tick and how long it took; while copying, MB of the total, speed and time left – and the steps are now translated (they were always German).
 
 ## 0.9.1-beta.7 – Amberwave OS over Wi-Fi, offline install
 - **Amberwave OS installs without a download:** the stick image now carries Amberwave itself – after installing, the device unpacks it instead of downloading ~400 MB, and setup works without internet. Updates still come from the app.
