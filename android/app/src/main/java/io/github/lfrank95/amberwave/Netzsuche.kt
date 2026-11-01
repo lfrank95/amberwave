@@ -78,7 +78,7 @@ object Netzsuche {
         val f = suchen(c)
         for (i in 0 until f.length()) {
             val x = f.getJSONObject(i)
-            if (x.optString("schluessel") == ausweis && x.optString("lan") != Einstellungen.server) return x.optString("lan")
+            if (x.optString("schluessel") == ausweis && x.optString("lan") != Einstellungen.server && Netz.ausweisBelegt(x.optString("lan"), ausweis)) return x.optString("lan")
         }
         return null
     }

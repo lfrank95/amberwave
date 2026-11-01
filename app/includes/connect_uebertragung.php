@@ -400,9 +400,10 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
 function connect_stream_senden(int $serverId, int $track): void
 {
     $peer = connect_server($serverId);
-    $q = (string) ($_GET['q'] ?? 'opus160');
-    if (!in_array($q, CONNECT_QUALITAETEN, true)) {
-        $q = 'opus160';
+    // Reinhören immer Opus 256 – AAC 256 für Browser ohne Opus, FLAC 16/44,1 für die Windows-Engine (kann kein Opus)
+    $q = (string) ($_GET['q'] ?? 'opus256');
+    if (!in_array($q, ['opus256', 'aac256', 'flac1644'], true)) {
+        $q = 'opus256';
     }
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();

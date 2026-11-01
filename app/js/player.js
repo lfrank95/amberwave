@@ -904,14 +904,9 @@ export class Player extends EventTarget {
    */
   async connectLaden(trk, ab, abspielen, erzwingen) {
     this.motor.stop();
-    let q = erzwingen || (this.qualitaet === 'auto' ? this.autoQualitaet().q : this.qualitaet);
-    if (nativ) q = 'original';
-    else if (q === 'original') {
-      const fmt = trk.format?.datei;
-      if (fmt && !(kann[fmt] || (fmt === 'm4a' && kann.m4a && trk.format.codec !== 'alac'))) q = 'opus256';
-    }
-    if (q !== 'original' && !['opus256', 'opus160', 'opus128', 'aac256', 'aac160'].includes(q)) q = 'opus256';
-    if (q.startsWith('opus') && !kann.opus) q = q === 'opus128' ? 'aac160' : 'aac256';
+    // Reinhören immer als Opus 256 (schont die Leitung zwischen den Servern, klingt wie das Original). Browser ohne Opus
+    // bekommen AAC 256; die Windows-Engine spielt nur FLAC/WAV – dort FLAC 16/44,1 als kleinstes verlustfreies Format.
+    let q = nativ ? 'flac1644' : (kann.opus ? 'opus256' : 'aac256');
     this.modus = { art: 'original', qualitaet: q, connect: true };
     this.offset = 0;
     this.letzteZeit = 0;

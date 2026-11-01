@@ -61,6 +61,12 @@ object Oberflaeche {
     private fun hauptseite(): WebResourceResponse? {
         offline = false
         if (Netz.serverErreichbar()) return null
+        if (Netz.fremd) {
+            // Unter der Adresse antwortet ein anderer Amberwave (neue IP vergeben?) – den eigenen über seinen Ausweis suchen
+            MainActivity.aktiv?.let { a -> a.runOnUiThread { a.serverWiederfinden() } }
+            return WebResourceResponse("text/html", "utf-8", 200, "OK", mapOf("Cache-Control" to "no-store"),
+                ByteArrayInputStream("<!doctype html><html><body style=\"background:#120d0a\"></body></html>".toByteArray()))
+        }
         offline = true
         val f = Speicher.huelleDatei
         if (!f.exists()) return null

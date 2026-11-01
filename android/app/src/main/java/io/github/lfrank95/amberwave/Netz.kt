@@ -57,20 +57,38 @@ object Netz {
 
     /**
      * Antwortet der Server – und ist es noch derselbe? (kurz – sonst startet die App mit dem Gespeicherten)
-     * Beim ersten Mal merkt sich die App seinen Ausweis; ein anderer Amberwave unter derselben Adresse zählt als „nicht da“.
+     * Beim ersten Mal merkt sich die App seinen Ausweis; danach muss er ihn per Unterschrift belegen. Ein anderer
+     * Amberwave unter derselben Adresse (z. B. hat ein anderes Gerät die alte IP bekommen) zählt als „nicht da“.
      */
     fun serverErreichbar(server: String = Einstellungen.server, zeit: Int = 3000): Boolean {
+        fremd = false
         if (server.isEmpty() || !verbunden()) return false
         val j = ping(server, zeit) ?: return false
-        return ausweisPasst(j, server == Einstellungen.server)
+        val ok = ausweisPasst(server, j, server == Einstellungen.server, zeit)
+        fremd = !ok
+        return ok
     }
 
-    /** Passt der Ausweis aus /ping zum gemerkten? Ohne gemerkten wird er übernommen (nur für den eingestellten Server). */
-    fun ausweisPasst(j: org.json.JSONObject, merken: Boolean = true): Boolean {
+    /** Beim letzten serverErreichbar() hat unter der Adresse ein anderer Amberwave geantwortet */
+    @Volatile var fremd = false
+
+    /** Passt der Ausweis zum gemerkten (mit Unterschrift belegt)? Ohne gemerkten wird er nach Beleg übernommen. */
+    fun ausweisPasst(server: String, j: org.json.JSONObject, merken: Boolean = true, zeit: Int = 3000): Boolean {
         val s = j.optString("schluessel")
         if (s.isEmpty()) return true   // ältere Server ohne Ausweis
         val bekannt = Einstellungen.ausweis
-        if (bekannt.isEmpty()) { if (merken) Einstellungen.ausweis = s; return true }
-        return bekannt == s
+        if (bekannt.isNotEmpty() && bekannt != s) return false
+        if (!ausweisBelegt(server, s, zeit)) return false
+        if (bekannt.isEmpty() && merken) Einstellungen.ausweis = s
+        return true
     }
+
+    /** Der Server unterschreibt eine frische Zufallszahl mit seinem geheimen Schlüssel – nachmachen kann das nur der echte */
+    fun ausweisBelegt(server: String, schluessel: String, zeit: Int = 3000): Boolean = runCatching {
+        val z = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+        val c = oeffnen("$server/api/v1/ausweis?z=$z", zeit, zeit, mitCookie = false)
+        val b = try { if (c.responseCode == 200) org.json.JSONObject(c.inputStream.bufferedReader().readText()) else null } finally { c.disconnect() }
+        b != null && b.optString("schluessel") == schluessel && b.optString("zufall") == z &&
+            Ed25519.pruefen(Ed25519.hex(schluessel), "amberwave-ausweis-v1|$z|$schluessel".toByteArray(Charsets.UTF_8), Ed25519.hex(b.optString("unterschrift")))
+    }.getOrDefault(false)
 }
