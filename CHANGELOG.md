@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- **Connect back channel:** a server that can't be reached from outside – behind CGNAT like Starlink, without a tunnel – now keeps a connection open to a paired server that can (e.g. your Unraid with its Cloudflare tunnel). Through it the other server reaches it anyway: browse, listen and copy work in both directions, with nothing to set up. Settings show when a server uses it; the connection shows as "Back channel". Idle it costs a few kilobits per second.
+- Connect: copying from another server now also brings **artist images, artist biographies and album descriptions** along – applied once the music is read in, and only where your server has nothing yet.
 - Amberwave Connect: **pairing always shares both ways** – paired servers may browse, listen and copy from each other; the per-server switches are gone.
 - Connect: things you **already have** are marked while browsing another server – albums get "You have it", tracks a small tick, and an album page says whether you have all or some of its tracks.
 - Connect: **every server's name can be edited** under Settings › Amberwave Connect › This server; paired servers and the apps pick up the new name.

@@ -4124,6 +4124,7 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .cn-server-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cn-server-text b { font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cn-server-text small { color: var(--text-muted); font-size: .8rem; }
+.cn-server-weg { display: flex; margin-top: 6px; }
 .cn-filter { align-items: center; }
 .cn-suche { display: flex; align-items: center; gap: 8px; padding: 0 12px; min-height: 40px; border-radius: 999px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-muted); min-width: 0; flex: 0 1 280px; }
 .cn-suche input { border: 0; background: transparent; color: var(--text-primary); font: inherit; min-width: 0; flex: 1; outline: none; padding: 8px 0; }

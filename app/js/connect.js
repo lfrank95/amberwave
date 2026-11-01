@@ -16,7 +16,7 @@ export const QUALITAETEN = () => [
   ['aac160', 'AAC 160', t('für Geräte ohne Opus, kleiner')],
 ];
 const qualiName = (q) => QUALITAETEN().find((x) => x[0] === q)?.[1] || q;
-const WEG = () => ({ heimnetz: t('Heimnetz'), direkt: t('Direktzugang'), tunnel: t('Tunnel') });
+const WEG = () => ({ heimnetz: t('Heimnetz'), direkt: t('Direktzugang'), tunnel: t('Tunnel'), rueckkanal: t('Rückkanal') });
 
 // ---------- Hilfen ----------
 
@@ -242,8 +242,7 @@ export const connectAnsichten = {
     const admin = istAdmin(app);
     const karte = (s) => `<a class="cn-server" href="${pfad(s.id)}" data-link>
         <span class="cn-server-sym">${icon('connect', 26)}</span>
-        <span class="cn-server-text"><b>${h(s.name)}</b><small>${h(s.kennung)}${s.version ? ` · ${h(s.version)}` : ''}</small></span>
-        ${wegChip(s)}
+        <span class="cn-server-text"><b>${h(s.name)}</b><small>${h(s.kennung)}${s.version ? ` · ${h(s.version)}` : ''}</small><span class="cn-server-weg">${wegChip(s)}</span></span>
       </a>`;
     ziel.innerHTML = kopf('Amberwave Connect', t('Dein Server {name} · Ausweis {kennung}', { name: h(r.ausweis.name), kennung: `<code>${h(r.ausweis.kennung)}</code>` }),
       admin ? `<a class="btn btn-zweit" href="/einstellungen/connect" data-link>${icon('einstellungen', 18)}<span>${t('Server koppeln')}</span></a>` : '') + `
@@ -438,7 +437,10 @@ export async function connectEinstellungenZeichnen(app, inhalt, signal) {
         `<form class="cn-name" data-name><input type="text" class="einst-feld" name="name" value="${h(r.ausweis.name)}" maxlength="60" required ${r.name_fest ? 'disabled' : ''} aria-label="${h(t('Name'))}">
           <button type="submit" class="btn btn-klein" hidden>${t('Speichern')}</button></form>`)}
       ${zeile('kennung', t('Ausweis'), t('Daran erkennen gekoppelte Server und Apps diesen Server wieder – auch mit neuer IP-Adresse oder neuem Namen.'), `<code class="cn-kennung">${h(r.ausweis.kennung)}</code>`)}
-      ${zeile('adressen', t('Erreichbar unter'), adressen.length ? '' : t('Noch keine Adresse bekannt – öffne Amberwave einmal über die Adresse im Heimnetz (z. B. http://192.168.178.20:8095).'),
+      ${zeile('adressen', t('Erreichbar unter'), [
+          adressen.length ? '' : t('Noch keine Adresse bekannt – öffne Amberwave einmal über die Adresse im Heimnetz (z. B. http://192.168.178.20:8095).'),
+          r.rueckkanal?.length ? h(t('Von außen nicht direkt erreichbar – gekoppelte Server erreichen ihn trotzdem: Er hält über {namen} einen Rückkanal offen.', { namen: r.rueckkanal.join(', ') })) : '',
+        ].filter(Boolean).join(' '),
         adressen.length ? `<div class="os-chips">${adressen.map(([a, u]) => `<span class="einst-chip" title="${h(a)}">${h(u.replace(/^https?:\/\//, ''))}</span>`).join('')}</div>` : '')}`)}
     ${karte(t('Gekoppelte Server'), r.server.length
       ? `<p class="einst-karten-hinweis">${t('Gekoppelte Server teilen ihre Musik gegenseitig: stöbern, reinhören und herüberladen – in beide Richtungen.')}</p><div class="cn-peers">${r.server.map(serverZeile).join('')}</div>`

@@ -607,5 +607,7 @@
  "So sehen ihn gekoppelte Server und deine Apps.": "This is how paired servers and your apps see it.",
  "Trennen …": "Disconnect …",
  "hast du": "have it",
- "{n} von {gesamt} Titeln hast du schon": "You already have {n} of {gesamt} tracks"
+ "{n} von {gesamt} Titeln hast du schon": "You already have {n} of {gesamt} tracks",
+ "Rückkanal": "Back channel",
+ "Von außen nicht direkt erreichbar – gekoppelte Server erreichen ihn trotzdem: Er hält über {namen} einen Rückkanal offen.": "Not directly reachable from outside – paired servers still reach it: it keeps a back channel open via {namen}."
 }

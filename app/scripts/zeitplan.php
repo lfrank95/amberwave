@@ -49,6 +49,8 @@ try {
     if (db_wert("SELECT 1 FROM connect_auftraege WHERE status IN ('wartet', 'laeuft') LIMIT 1")) {
         connect_arbeiter_anstossen();
     }
+    connect_rueckkanal_anstossen();   // von außen nicht erreichbar? Dann über gekoppelte Server mit Adresse
+    connect_beiwerk_anwenden();       // mitgebrachte Künstlerbilder und Texte übernehmen, sobald die Musik eingelesen ist
 } catch (Throwable $e) {
     echo date('c') . ' Connect: ' . log_sauber($e->getMessage()) . "\n";
 }

@@ -112,6 +112,12 @@ $routen = [
     }],
     // ---------- Amberwave Connect ----------
     // Öffentlich: verschlüsselte Aufrufe gekoppelter Server und das Koppeln mit Code (nur solange einer gilt)
+    // Rückkanal: Antwort eines Servers ohne Adresse von außen auf eine Anfrage, die er bei uns abgeholt hat
+    ['POST', '/connect/rueck/{id}', function ($p) {
+        require_once __DIR__ . '/../includes/connect.php';
+        connect_rueck_antwort((string) $p['id']);
+        return ['ok' => true];
+    }],
     ['POST', '/connect', function () {
         require_once __DIR__ . '/../includes/connect.php';
         connect_empfangen();
@@ -128,6 +134,7 @@ $routen = [
             $r['adressen'] = connect_eigene_adressen();
             $r['einladung'] = connect_einladung_aktiv();
             $r['name_fest'] = trim((string) getenv('CLIENT_SERVERNAME')) !== '';
+            $r['rueckkanal'] = array_map(static fn($p) => (string) $p['name'], connect_rueck_partner());
         }
         return $r;
     }],

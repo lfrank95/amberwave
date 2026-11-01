@@ -35,7 +35,7 @@ starten() {   # name port app_url extra…
         -v "$W/${n#aw-}/appdata:/appdata" -v "$W/${n#aw-}/musik:/musik" "$IMG" >/dev/null
 }
 starten aw-a 19951 http://aw-a
-starten aw-b 19952 http://aw-b -e MUSIK_SCHREIBEN=1
+starten aw-b 19952 http://aw-b -e MUSIK_SCHREIBEN=1 -e CONNECT_RUECKKANAL=immer   # B tut so, als wäre er hinter CGNAT
 warten() { for i in $(seq 1 90); do curl -fs "http://127.0.0.1:$1/api/v1/ping" 2>/dev/null | grep -q amberwave && return 0; sleep 2; done; return 1; }
 warten 19951 && ok "A läuft" || fehler "A antwortet nicht"
 warten 19952 && ok "B läuft" || fehler "B antwortet nicht"
@@ -120,7 +120,13 @@ api 19952 "$TB" PUT /connect/name '{"name":"Wohnwagen Süd"}' >/dev/null
 [ "$(curl -fs http://127.0.0.1:19952/api/v1/ping | j "d['name']")" = "Wohnwagen Süd" ] && ok "B heißt jetzt „Wohnwagen Süd“" || fehler "Umbenennen schlägt fehl"
 [ "$(api 19951 "$TA" GET /connect/server | j "d['server'][0]['name']")" = "Wohnwagen Süd" ] && ok "A kennt den neuen Namen" || fehler "A kennt den neuen Namen nicht"
 BID="$(api 19951 "$TA" GET /connect/server | j "d['server'][0]['id']")"
-[ "$(api 19951 "$TA" GET "/connect/server/$BID/lesen/alben" | j "d['gesamt']")" = "2" ] && ok "A stöbert bei B (beide Richtungen)" || fehler "A kann bei B nicht stöbern"
+echo "== Rückkanal (B ist „von außen nicht erreichbar“ und hält über A einen Rückkanal offen)"
+for i in $(seq 1 60); do [ "$(api 19951 "$TA" GET /connect/server | j "d['server'][0]['weg']['art']")" = "rueckkanal" ] && break; sleep 3; done
+[ "$(api 19951 "$TA" GET /connect/server | j "d['server'][0]['weg']['art']")" = "rueckkanal" ] && ok "A erreicht B über den Rückkanal" || fehler "kein Rückkanal: $(api 19951 "$TA" GET /connect/server | head -c 300)"
+[ "$(api 19951 "$TA" GET "/connect/server/$BID/lesen/alben" | j "d['gesamt']")" = "2" ] && ok "A stöbert bei B (beide Richtungen, über den Rückkanal)" || fehler "A kann bei B nicht stöbern"
+BTID="$(api 19951 "$TA" GET "/connect/server/$BID/lesen/album?id=$(api 19951 "$TA" GET "/connect/server/$BID/lesen/alben" | j "d['alben'][0]['id']")" | j "d['tracks'][0]['id']")"
+CODE_HTTP="$(curl -s -o "$W/rueck.ogg" -w '%{http_code}' -H "Authorization: Bearer $TA" -H 'Range: bytes=0-' "http://127.0.0.1:19951/api/v1/connect/server/$BID/stream/$BTID?q=opus256")"
+[ "$CODE_HTTP" = "206" ] && head -c 4 "$W/rueck.ogg" | grep -q OggS && ok "A hört bei B rein (über den Rückkanal)" || fehler "Reinhören über den Rückkanal: HTTP $CODE_HTTP"
 api 19952 "$TB" DELETE "/connect/server/$SID" >/dev/null
 [ "$(api 19952 "$TB" GET /connect/server | j "len(d['server'])")" = "0" ] && ok "Getrennt" || fehler "Trennen schlägt fehl"
 

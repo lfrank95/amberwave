@@ -383,6 +383,12 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
         db_tun('UPDATE connect_auftraege SET fertig = fertig + 1 WHERE id = :id', ['id' => $a['id']]);
     }
     db_tun("UPDATE connect_auftraege SET status = 'fertig', fehler = '', fertig_am = NOW(), bytes = gesamt WHERE id = :id", ['id' => $a['id']]);
+    // Beiwerk mitnehmen: Künstlerbilder, Biografien, Albumtexte (übernommen, sobald die Bibliothek die Musik kennt)
+    try {
+        connect_beiwerk_holen($peer, $a);
+    } catch (Throwable $e) {
+        error_log('Connect: Beiwerk: ' . log_sauber($e->getMessage()));
+    }
     // Einlesen, damit es gleich in der Bibliothek steht
     try {
         require_once __DIR__ . '/scanner.php';
@@ -566,3 +572,251 @@ function connect_lesen(int $serverId, string $methode, array $args): array
     $daten['_server'] = connect_server_objekt(connect_server($serverId));
     return $daten;
 }
+
+// ---------- Rückkanal: die Seite ohne Adresse von außen ----------
+
+function connect_rueckkanal_anstossen(): void
+{
+    if (!connect_rueck_partner()) {
+        return;
+    }
+    $fp = @fopen(connect_ordner() . '/rueckkanal.sperre', 'c');
+    if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        aw_hintergrund(aw_arg(aw_php()) . ' ' . aw_arg(__DIR__ . '/../scripts/connect_rueckkanal.php'), konfig()['pfade']['cache'] . '/tmp/connect_rueckkanal.log', true);
+    } elseif ($fp) {
+        fclose($fp);
+    }
+}
+
+/**
+ * Hält bei jedem erreichbaren Partner eine Anfrage „warten“ offen (alle gleichzeitig) und führt aus, was zurückkommt.
+ * Läuft bis zu ~55 Minuten, dann startet der Zeitplan ihn neu (frische Partnerliste, frischer Prozess).
+ */
+function connect_rueckkanal_laufen(): void
+{
+    $fp = fopen(connect_ordner() . '/rueckkanal.sperre', 'c');
+    if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
+        return;
+    }
+    $ende = time() + 3300;
+    $partner = [];
+    $liste_am = 0;
+    $pause = [];   // id => nicht vor (nach Fehlern)
+    $mh = curl_multi_init();
+    $griffe = [];  // id => curl
+    try {
+        while (time() < $ende) {
+            if (time() - $liste_am > 120) {
+                $partner = [];
+                foreach (connect_rueck_partner() as $p) {
+                    $partner[(int) $p['id']] = $p;
+                }
+                $liste_am = time();
+                if (!$partner && !$griffe) {
+                    break;   // (nicht mehr) nötig
+                }
+            }
+            // für jeden Partner ohne offene Anfrage eine neue „warten“ stellen
+            foreach ($partner as $id => $p) {
+                if (isset($griffe[$id]) || ($pause[$id] ?? 0) > time()) {
+                    continue;
+                }
+                $basis = connect_rueck_basis($p);
+                if ($basis === null) {
+                    $pause[$id] = time() + 30;
+                    continue;
+                }
+                $ch = connect_curl($basis, connect_anfrage_bauen($p, 'warten', []), 45);
+                curl_setopt($ch, CURLOPT_PRIVATE, (string) $id);
+                curl_multi_add_handle($mh, $ch);
+                $griffe[$id] = $ch;
+            }
+            if (!$griffe) {
+                sleep(2);
+                continue;
+            }
+            curl_multi_exec($mh, $laufend);
+            curl_multi_select($mh, 1.0);
+            curl_multi_exec($mh, $laufend);
+            while ($info = curl_multi_info_read($mh)) {
+                $ch = $info['handle'];
+                $id = (int) curl_getinfo($ch, CURLINFO_PRIVATE);
+                $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+                $roh = curl_multi_getcontent($ch);
+                curl_multi_remove_handle($mh, $ch);
+                curl_close($ch);
+                unset($griffe[$id]);
+                $p = $partner[$id] ?? db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $id]);
+                $r = $p && $info['result'] === CURLE_OK && $code === 200 ? connect_antwort_oeffnen($p, $roh) : null;
+                if (!$r || empty($r[0]['ok'])) {
+                    $pause[$id] = time() + 10;   // Partner gerade weg: kurz warten, dann neu (und Weg neu suchen)
+                    db_tun("UPDATE connect_server SET weg_am = NULL WHERE id = :id", ['id' => $id]);
+                    continue;
+                }
+                foreach ((array) ($r[0]['auftraege'] ?? []) as $auf) {
+                    connect_rueck_ausfuehren($p, (string) ($auf['id'] ?? ''), (string) base64_decode((string) ($auf['anfrage'] ?? ''), true));
+                }
+            }
+        }
+    } finally {
+        foreach ($griffe as $ch) {
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh);
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+}
+
+/** Über welche Adresse erreichen wir den Partner gerade? (bekannter Weg oder neu gesucht) */
+function connect_rueck_basis(array $p): ?string
+{
+    if ($p['weg'] !== '' && $p['weg'] !== 'rueckkanal' && $p['weg_am'] && time() - strtotime((string) $p['weg_am']) < 600) {
+        return $p['weg'];
+    }
+    try {
+        $p = connect_weg_suchen($p, false);
+        return $p['weg'] !== '' && $p['weg'] !== 'rueckkanal' ? $p['weg'] : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** Eine hereingereichte Anfrage ausführen und die Antwort zum Partner hochladen */
+function connect_rueck_ausfuehren(array $p, string $id, string $anfrage): void
+{
+    if (!preg_match('/^\d+-[0-9a-f]{32}$/', $id) || $anfrage === '') {
+        return;
+    }
+    $r = connect_verarbeiten($anfrage, false);
+    if ($r === null) {
+        return;
+    }
+    [$aus, $mitDaten] = $r;
+    if ($mitDaten) {
+        connect_tempo_warten('hoch', strlen($aus), false);   // Tempogrenze für das Hochladen gilt auch hier
+    }
+    $basis = connect_rueck_basis($p);
+    if ($basis === null) {
+        return;
+    }
+    $ch = curl_init(rtrim($basis, '/') . '/api/v1/connect/rueck/' . $id);
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $aus, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 300,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/octet-stream', 'User-Agent: Amberwave-Connect/' . app_version()],
+        CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0]);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
+// ---------- Beiwerk: was außer den Dateien mitkommt ----------
+
+function connect_beiwerk_datei(): string
+{
+    return connect_ordner() . '/beiwerk.json';
+}
+
+/** Künstlerbilder, Biografien und Albumtexte zu einem Auftrag bei der Gegenstelle abholen und vormerken */
+function connect_beiwerk_holen(array $peer, array $a): void
+{
+    try {
+        [$b] = connect_rufen($peer, 'beiwerk', ['art' => $a['art'], 'id' => (int) $a['ref']], 60);
+    } catch (ApiFehler $e) {
+        return;   // ältere Gegenstelle ohne Beiwerk
+    }
+    $ordner = connect_ordner() . '/beiwerk';
+    @mkdir($ordner, 0700, true);
+    $liste = json_decode((string) @file_get_contents(connect_beiwerk_datei()), true) ?: [];
+    foreach ((array) ($b['kuenstler'] ?? []) as $k) {
+        if (!is_array($k) || trim((string) ($k['name'] ?? '')) === '') {
+            continue;
+        }
+        $bild = '';
+        if (preg_match('/^[A-Za-z0-9_.-]{1,80}$/', (string) ($k['bild'] ?? ''))) {
+            try {
+                [, $roh] = connect_rufen($peer, 'bild', ['art' => 'kuenstler', 'schluessel' => $k['bild'], 'g' => 1200], 60);
+                if (strlen($roh) > 100) {
+                    $bild = sha1($roh) . '.jpg';
+                    file_put_contents($ordner . '/' . $bild, $roh);
+                }
+            } catch (Throwable $e) {
+                $bild = '';
+            }
+        }
+        $liste[] = ['art' => 'kuenstler', 'name' => (string) $k['name'], 'mbid' => (string) ($k['mbid'] ?? ''), 'bild' => $bild,
+            'bio' => (string) ($k['bio'] ?? ''), 'bio_quelle' => (string) ($k['bio_quelle'] ?? ''), 'bio_maschinell' => !empty($k['bio_maschinell']), 'seit' => time()];
+    }
+    foreach ((array) ($b['alben'] ?? []) as $al) {
+        if (is_array($al) && trim((string) ($al['beschreibung'] ?? '')) !== '') {
+            $liste[] = ['art' => 'album', 'titel' => (string) ($al['titel'] ?? ''), 'kuenstler' => (string) ($al['kuenstler'] ?? ''),
+                'beschreibung' => (string) $al['beschreibung'], 'quelle' => (string) ($al['beschreibung_quelle'] ?? ''), 'maschinell' => !empty($al['beschreibung_maschinell']), 'seit' => time()];
+        }
+    }
+    file_put_contents(connect_beiwerk_datei(), json_encode($liste, JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+/**
+ * Vorgemerktes Beiwerk übernehmen, sobald die Bibliothek die Künstler und Alben kennt (Zeitplan, jede Minute).
+ * Nur wo bei uns noch nichts ist – eigene Bilder und Texte werden nie überschrieben. Nach zwei Tagen ohne Treffer: verworfen.
+ */
+function connect_beiwerk_anwenden(): void
+{
+    $liste = json_decode((string) @file_get_contents(connect_beiwerk_datei()), true);
+    if (!is_array($liste) || !$liste) {
+        return;
+    }
+    require_once __DIR__ . '/bilder.php';
+    require_once __DIR__ . '/hilfen.php';
+    $ordner = connect_ordner() . '/beiwerk';
+    $rest = [];
+    foreach ($liste as $e) {
+        $erledigt = false;
+        if (($e['art'] ?? '') === 'kuenstler') {
+            $k = ($e['mbid'] ?? '') !== '' ? db_zeile('SELECT * FROM kuenstler WHERE mbid = :m LIMIT 1', ['m' => $e['mbid']]) : null;
+            $k = $k ?: db_zeile('SELECT * FROM kuenstler WHERE name_norm = :n ORDER BY (mbid IS NULL), id LIMIT 1', ['n' => mb_substr(name_norm((string) $e['name']), 0, 255)]);
+            if ($k) {
+                $datei = ($e['bild'] ?? '') !== '' ? $ordner . '/' . basename((string) $e['bild']) : '';
+                if ((string) $k['bild_datei'] === '' && $datei !== '' && is_file($datei)) {
+                    $schl = bild_speichern('kuenstler', 'k' . $k['id'], (string) file_get_contents($datei));
+                    if ($schl) {
+                        db_tun("UPDATE kuenstler SET bild_datei = :b, bild_quelle = 'connect' WHERE id = :id AND bild_datei = ''", ['b' => $schl, 'id' => $k['id']]);
+                    }
+                }
+                if (trim((string) ($k['bio'] ?? '')) === '' && trim((string) ($e['bio'] ?? '')) !== '') {
+                    db_tun('UPDATE kuenstler SET bio = :b, bio_quelle = :q, bio_maschinell = :m WHERE id = :id',
+                        ['b' => $e['bio'], 'q' => mb_substr((string) $e['bio_quelle'], 0, 500), 'm' => !empty($e['bio_maschinell']) ? 1 : 0, 'id' => $k['id']]);
+                }
+                if ($datei !== '') {
+                    @unlink($datei);
+                }
+                $erledigt = true;
+            }
+        } elseif (($e['art'] ?? '') === 'album') {
+            $ziel = connect_schluessel((string) $e['kuenstler'], (string) $e['titel']);
+            foreach (db_alle("SELECT a.id, a.titel, a.beschreibung, k.name FROM alben a JOIN credit_namen cn ON cn.credit_id = a.credit_id
+                    JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE a.titel = :t", ['t' => $e['titel']]) as $al) {
+                if (connect_schluessel((string) $al['name'], (string) $al['titel']) === $ziel) {
+                    if (trim((string) ($al['beschreibung'] ?? '')) === '') {
+                        db_tun('UPDATE alben SET beschreibung = :b, beschreibung_quelle = :q, beschreibung_maschinell = :m WHERE id = :id',
+                            ['b' => $e['beschreibung'], 'q' => mb_substr((string) $e['quelle'], 0, 500), 'm' => !empty($e['maschinell']) ? 1 : 0, 'id' => $al['id']]);
+                    }
+                    $erledigt = true;
+                    break;
+                }
+            }
+        }
+        if (!$erledigt && time() - (int) ($e['seit'] ?? 0) < 2 * 86400) {
+            $rest[] = $e;
+        } elseif (!$erledigt && ($e['bild'] ?? '') !== '') {
+            @unlink($ordner . '/' . basename((string) $e['bild']));
+        }
+    }
+    if ($rest) {
+        file_put_contents(connect_beiwerk_datei(), json_encode($rest, JSON_UNESCAPED_UNICODE), LOCK_EX);
+    } else {
+        @unlink(connect_beiwerk_datei());
+    }
+}
+

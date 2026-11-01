@@ -211,21 +211,45 @@ function connect_schon_gesehen(string $z): bool
 function connect_empfangen(): void
 {
     $roh = (string) file_get_contents('php://input', false, null, 0, 1024 * 1024);
-    $kein = static function (): void {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    $r = connect_verarbeiten($roh, connect_anfrage_im_heimnetz());
+    if ($r === null) {
         http_response_code(404);
         header('Content-Type: application/json');
         echo '{"ok":false,"fehler":"Unbekannter Pfad."}';
         exit;
-    };
+    }
+    [$aus, $mitDaten] = $r;
+    db_schliessen();
+    header('Content-Type: application/octet-stream');
+    header('Cache-Control: no-store');
+    header('Content-Length: ' . strlen($aus));
+    if ($mitDaten) {
+        require_once __DIR__ . '/connect_uebertragung.php';
+        connect_ausgeben($aus, 'hoch', connect_anfrage_im_heimnetz());   // Tempogrenze für das Hochladen
+    } else {
+        echo $aus;
+    }
+    exit;
+}
+
+/**
+ * Eine versiegelte Anfrage einer Gegenstelle ausführen – direkt über HTTP oder über den Rückkanal hereingereicht.
+ * Gibt [versiegelte Antwort, enthält Dateidaten] zurück oder null (unbekannt, ungültig, zu alt, schon gesehen).
+ */
+function connect_verarbeiten(string $roh, bool $heimnetz = false): ?array
+{
     if (strlen($roh) < 4 + 32 + 40 || substr($roh, 0, 4) !== CONNECT_MAGIE) {
-        $kein();
+        return null;
     }
     $pk = substr($roh, 4, 32);
     $peer = db_zeile('SELECT * FROM connect_server WHERE schluessel = :s', ['s' => bin2hex($pk)]);
     $klar = $peer ? connect_oeffnen(substr($roh, 36), $pk) : null;
     $a = $klar !== null ? json_decode($klar, true) : null;
     if (!$peer || !is_array($a) || abs(time() - (int) ($a['t'] ?? 0)) > CONNECT_ZEITFENSTER || connect_schon_gesehen((string) ($a['z'] ?? ''))) {
-        $kein();
+        return null;
     }
     // Gegenstelle lebt: Adressbuch und Stand auffrischen
     $upd = ['id' => $peer['id'], 'v' => mb_substr((string) ($a['v'] ?? ''), 0, 40)];
@@ -239,9 +263,6 @@ function connect_empfangen(): void
         $upd['n'] = mb_substr($a['name'], 0, 120);
     }
     db_tun($sql . ' WHERE id = :id', $upd);
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        session_write_close();
-    }
     try {
         [$kopf, $binaer] = connect_methode($peer, (string) ($a['m'] ?? ''), is_array($a['a'] ?? null) ? $a['a'] : []);
         $kopf = ['ok' => true] + $kopf;
@@ -251,18 +272,7 @@ function connect_empfangen(): void
         error_log('Connect ' . ($a['m'] ?? '') . ': ' . log_sauber($e->getMessage()));
         [$kopf, $binaer] = [['ok' => false, 'fehler' => t('Interner Fehler auf dem anderen Server.')], ''];
     }
-    $aus = CONNECT_MAGIE . connect_versiegeln(connect_packen($kopf, $binaer), $pk);
-    db_schliessen();
-    header('Content-Type: application/octet-stream');
-    header('Cache-Control: no-store');
-    header('Content-Length: ' . strlen($aus));
-    if ($binaer !== '') {
-        require_once __DIR__ . '/connect_uebertragung.php';
-        connect_ausgeben($aus, 'hoch', connect_anfrage_im_heimnetz());   // Tempogrenze für das Hochladen
-    } else {
-        echo $aus;
-    }
-    exit;
+    return [CONNECT_MAGIE . connect_versiegeln(connect_packen($kopf, $binaer), $pk), $binaer !== ''];
 }
 
 function connect_adressen_saeubern(array $ad): array
@@ -313,6 +323,10 @@ function connect_methode(array $peer, string $m, array $a): array
     require_once __DIR__ . '/api_bibliothek.php';
     require_once __DIR__ . '/api_nutzer.php';
     switch ($m) {
+        case 'warten':
+            // Rückkanal: die Gegenstelle ist von außen nicht erreichbar und hält diese Anfrage offen –
+            // wir geben ihr, was wir von ihr wollen (oder nach 25 s nichts)
+            return [['auftraege' => connect_rueck_warten($peer)], ''];
         case 'hallo':
             return [['name' => connect_eigener_name(), 'kennung' => ausweis_kennung(), 'version' => app_version(),
                 'adressen' => connect_eigene_adressen(), 'rechte' => $r,
@@ -354,6 +368,10 @@ function connect_methode(array $peer, string $m, array $a): array
             }
             require_once __DIR__ . '/connect_uebertragung.php';
             return connect_datei_liefern((int) ($a['track'] ?? 0), $q, (int) ($a['ab'] ?? 0), (int) ($a['laenge'] ?? CONNECT_STUECK));
+        case 'beiwerk':
+            // Was zu einem Auftrag außer den Dateien mitkommt: Künstler (Bild, Biografie) und Albumtexte
+            $darf('holen');
+            return [connect_beiwerk((string) ($a['art'] ?? ''), (int) ($a['id'] ?? 0), (int) $peer['id']), ''];
         case 'liste':
             // Welche Titel gehören zu einem Album / einer Playlist (zum Holen)
             $darf('holen');
@@ -396,6 +414,37 @@ function connect_freigaben(int $peerId, ?int $neu = null): array
         @file_put_contents($datei, json_encode($alle), LOCK_EX);
     }
     return array_map('intval', array_keys($alle[$peerId] ?? []));
+}
+
+/** Beiwerk zu Album, Titel oder Playlist: beteiligte Künstler (Bild-Schlüssel, Biografie) und Albumtexte */
+function connect_beiwerk(string $art, int $id, int $peerId = 0): array
+{
+    $liste = connect_titel_liste($art, $id, $peerId)['titel'] ?? [];
+    $tids = array_slice(array_map(static fn($t) => (int) $t['track'], $liste), 0, 300);
+    if (!$tids) {
+        return ['kuenstler' => [], 'alben' => []];
+    }
+    $in = implode(',', $tids);
+    $kids = array_map('intval', array_column(db_alle("SELECT DISTINCT cn.kuenstler_id FROM tracks t JOIN credit_namen cn ON cn.credit_id = t.credit_id WHERE t.id IN ($in)
+        UNION SELECT DISTINCT cn.kuenstler_id FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id
+        JOIN alben a ON a.id = e.album_id JOIN credit_namen cn ON cn.credit_id = a.credit_id WHERE t.id IN ($in)"), 'kuenstler_id'));
+    $kuenstler = [];
+    foreach (array_slice($kids, 0, 60) as $kid) {
+        $k = db_zeile('SELECT name, mbid, bio, bio_quelle, bio_maschinell, bild_datei FROM kuenstler WHERE id = :id', ['id' => $kid]);
+        if ($k && $k['name'] !== '[unbekannt]' && ($k['bild_datei'] !== '' || trim((string) $k['bio']) !== '')) {
+            $kuenstler[] = ['name' => $k['name'], 'mbid' => (string) $k['mbid'], 'bild' => (string) $k['bild_datei'],
+                'bio' => (string) $k['bio'], 'bio_quelle' => (string) $k['bio_quelle'], 'bio_maschinell' => (bool) $k['bio_maschinell']];
+        }
+    }
+    $alben = [];
+    foreach (db_alle("SELECT DISTINCT a.id, a.titel, a.beschreibung, a.beschreibung_quelle, a.beschreibung_maschinell,
+            (SELECT k.name FROM credit_namen cn JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE cn.credit_id = a.credit_id ORDER BY cn.pos LIMIT 1) AS kuenstler
+            FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id JOIN alben a ON a.id = e.album_id
+            WHERE t.id IN ($in) AND a.beschreibung IS NOT NULL AND a.beschreibung <> '' LIMIT 40") as $al) {
+        $alben[] = ['titel' => $al['titel'], 'kuenstler' => (string) $al['kuenstler'], 'beschreibung' => $al['beschreibung'],
+            'beschreibung_quelle' => $al['beschreibung_quelle'], 'beschreibung_maschinell' => (bool) $al['beschreibung_maschinell']];
+    }
+    return ['kuenstler' => $kuenstler, 'alben' => $alben];
 }
 
 /** Titel zum Holen: Album (angezeigte Edition), Playlist oder einzelner Titel – mit dem Nötigsten für Ordner und Namen */
@@ -493,6 +542,15 @@ function connect_kandidaten(array $peer): array
  */
 function connect_weg_suchen(array $peer, bool $heimnetz_suchen = true): array
 {
+    if (connect_rueck_aktiv($peer)) {
+        $t0 = microtime(true);
+        [$kopf] = connect_rufen($peer, 'hallo', [], 20);
+        db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_ms = :ms, weg_am = NOW(), zuletzt_am = NOW() WHERE id = :id",
+            ['ms' => (int) round((microtime(true) - $t0) * 1000), 'id' => $peer['id']]);
+        $peer = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $peer['id']]);
+        $peer['_hallo'] = $kopf;
+        return $peer;
+    }
     $kand = connect_kandidaten($peer);
     $treffer = connect_parallel_hallo($peer, $kand);
     if (!$treffer && $heimnetz_suchen) {
@@ -619,6 +677,17 @@ function connect_heimnetz_absuchen(array $peer): array
  */
 function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): array
 {
+    if (connect_rueck_aktiv($peer)) {
+        $r = connect_antwort_oeffnen($peer, connect_rueck_rufen($peer, connect_anfrage_bauen($peer, $m, $a), $zeit));
+        if (!$r) {
+            throw new ApiFehler(t('„{name}“ antwortet nicht richtig.', ['name' => $peer['name']]), 503);
+        }
+        [$kopf, $binaer] = $r;
+        if (empty($kopf['ok'])) {
+            throw new ApiFehler((string) ($kopf['fehler'] ?? t('Der andere Server hat abgelehnt.')), (int) ($kopf['code'] ?? 400) ?: 400);
+        }
+        return [$kopf, $binaer];
+    }
     $alt = $peer['weg'] !== '' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300;
     if (!$alt) {
         $peer = connect_weg_suchen($peer);
@@ -874,3 +943,149 @@ function connect_heimnetz_finden(): array
     }
     return ['server' => array_values($funde), 'netze' => array_keys($netze)];
 }
+
+// ---------- Rückkanal ----------
+// Ein Server ohne Adresse von außen (z. B. hinter CGNAT/Starlink, ohne Tunnel) hält bei gekoppelten Servern, die von
+// außen erreichbar sind, ständig eine Anfrage „warten“ offen. Will so ein Server etwas von ihm, legt er die (schon
+// versiegelte) Anfrage in eine Warteschlange; sie geht als Antwort auf „warten“ hinaus, die Antwort kommt per Upload
+// an /api/v1/connect/rueck/<id> zurück. Alles bleibt Ende zu Ende verschlüsselt – der Weg ist nur umgedreht.
+
+function connect_rueck_ordner(int $peerId): string
+{
+    $d = connect_ordner() . '/rueck/' . $peerId;
+    if (!is_dir($d)) {
+        @mkdir($d, 0700, true);
+    }
+    return $d;
+}
+
+/** Hält die Gegenstelle gerade einen Rückkanal zu uns offen? (zuletzt vor höchstens 75 s) */
+function connect_rueck_aktiv(array $peer): bool
+{
+    $m = @filemtime(connect_ordner() . '/rueck/' . (int) $peer['id'] . '/lebt');
+    return $m !== false && time() - $m < 75;
+}
+
+/** „warten“ der Gegenstelle: bis zu 25 s auf Anfragen an sie warten, dann zurückgeben, was anliegt */
+function connect_rueck_warten(array $peer): array
+{
+    $d = connect_rueck_ordner((int) $peer['id']);
+    @touch($d . '/lebt');
+    db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_am = NOW() WHERE id = :id", ['id' => $peer['id']]);
+    db_schliessen();
+    @set_time_limit(60);
+    $ende = microtime(true) + 25;
+    do {
+        $liste = glob($d . '/*.anfrage') ?: [];
+        if ($liste) {
+            $aus = [];
+            $groesse = 0;
+            foreach ($liste as $f) {
+                $id = basename($f, '.anfrage');
+                $roh = (string) @file_get_contents($f);
+                if (!@rename($f, $d . '/' . $id . '.geholt')) {
+                    continue;   // hat schon ein anderes „warten“ genommen
+                }
+                $aus[] = ['id' => $id, 'anfrage' => base64_encode($roh)];
+                $groesse += strlen($roh);
+                if (count($aus) >= 8 || $groesse > 2 * 1024 * 1024) {
+                    break;
+                }
+            }
+            if ($aus) {
+                return $aus;
+            }
+        }
+        usleep(100000);
+        @touch($d . '/lebt');
+    } while (microtime(true) < $ende && !connection_aborted());
+    return [];
+}
+
+/** Anfrage über den Rückkanal schicken und auf die Antwort warten (rohe Bytes, oder null nach Ablauf) */
+function connect_rueck_rufen(array $peer, string $anfrage, int $zeit = 60): ?string
+{
+    $d = connect_rueck_ordner((int) $peer['id']);
+    $id = (int) $peer['id'] . '-' . bin2hex(random_bytes(16));
+    file_put_contents($d . '/' . $id . '.tmp', $anfrage);
+    rename($d . '/' . $id . '.tmp', $d . '/' . $id . '.anfrage');
+    db_schliessen();
+    $ende = microtime(true) + $zeit;
+    $antwort = $d . '/' . $id . '.antwort';
+    while (microtime(true) < $ende) {
+        if (is_file($antwort)) {
+            $roh = (string) file_get_contents($antwort);
+            @unlink($antwort);
+            @unlink($d . '/' . $id . '.geholt');
+            return $roh;
+        }
+        usleep(50000);
+    }
+    foreach (['anfrage', 'geholt'] as $e) {
+        @unlink($d . '/' . $id . '.' . $e);
+    }
+    return null;
+}
+
+/** Antwort der Gegenstelle auf eine Rückkanal-Anfrage annehmen (POST /api/v1/connect/rueck/<id>) */
+function connect_rueck_antwort(string $id): void
+{
+    if (!preg_match('/^(\d+)-[0-9a-f]{32}$/', $id, $m)) {
+        throw new ApiFehler(t('Ungültige Anfrage.'), 400);
+    }
+    $d = connect_ordner() . '/rueck/' . (int) $m[1];
+    if (!is_file($d . '/' . $id . '.geholt')) {
+        throw new ApiFehler(t('Ungültige Anfrage.'), 404);   // nur Antworten auf Anfragen, die wirklich abgeholt wurden
+    }
+    $in = fopen('php://input', 'rb');
+    $tmp = $d . '/' . $id . '.teil';
+    $out = fopen($tmp, 'wb');
+    $n = stream_copy_to_stream($in, $out, 20 * 1024 * 1024 + 1);
+    fclose($out);
+    if ($n === false || $n > 20 * 1024 * 1024) {
+        @unlink($tmp);
+        throw new ApiFehler(t('Ungültige Anfrage.'), 413);
+    }
+    rename($tmp, $d . '/' . $id . '.antwort');
+}
+
+/** Ist dieser Server von außen erreichbar (Tunnel oder öffentliche Adresse)? Ohne: Rückkanal zu Partnern mit Adresse */
+function connect_von_aussen_erreichbar(): bool
+{
+    $modus = strtolower(trim((string) getenv('CONNECT_RUECKKANAL')));
+    if ($modus === 'immer') {
+        return false;
+    }
+    if ($modus === 'nie') {
+        return true;
+    }
+    $ad = connect_eigene_adressen();
+    return !empty($ad['tunnel']) || (!empty($ad['oeffentlich']) && connect_adresse_oeffentlich($ad['oeffentlich']));
+}
+
+/** Zeigt eine Adresse ins Internet (kein Heimnetz, kein localhost, kein .local)? */
+function connect_adresse_oeffentlich(string $url): bool
+{
+    $h = strtolower((string) parse_url($url, PHP_URL_HOST));
+    if ($h === '' || $h === 'localhost' || str_ends_with($h, '.local') || !str_contains($h, '.')) {
+        return false;
+    }
+    if (filter_var($h, FILTER_VALIDATE_IP)) {
+        return filter_var($h, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+    }
+    return true;
+}
+
+/** Gekoppelte Server, über die wir einen Rückkanal halten (leer, wenn wir selbst erreichbar sind) */
+function connect_rueck_partner(): array
+{
+    if (connect_von_aussen_erreichbar()) {
+        return [];
+    }
+    $erzwungen = strtolower(trim((string) getenv('CONNECT_RUECKKANAL'))) === 'immer';
+    return array_values(array_filter(db_alle('SELECT * FROM connect_server ORDER BY id'), static function ($p) use ($erzwungen) {
+        $ad = json_decode((string) ($p['adressen'] ?? ''), true) ?: [];
+        return $erzwungen || !empty($ad['tunnel']) || (!empty($ad['oeffentlich']) && connect_adresse_oeffentlich($ad['oeffentlich']));
+    }));
+}
+
