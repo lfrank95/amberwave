@@ -4137,21 +4137,52 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .cn-fehler { color: var(--accent-text) !important; }
 .cn-auftrag[data-status="fertig"] { opacity: .78; }
 @media (max-width: 600px) { .cn-auftrag { grid-template-columns: minmax(0, 1fr) auto; } .cn-auftrag-knoepfe { grid-column: 1 / -1; justify-content: flex-end; } }
-.cn-kennung { font-size: 1.05rem; letter-spacing: .06em; padding: 4px 10px; border-radius: 8px; background: rgba(0,0,0,.25); user-select: all; }
-.cn-gekoppelt { align-items: flex-start; }
-.cn-gekoppelt .einst-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.cn-dir { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.cn-rechte { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 12px; }
-.cn-rechte b { flex-basis: 100%; font-size: .86rem; color: var(--text-muted); font-weight: 600; }
-.cn-recht { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; cursor: pointer; }
-.cn-knoepfe { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
-.cn-code { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
-.cn-code-ziffern { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; letter-spacing: .14em; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+.cn-kennung { font-size: 1.02rem; letter-spacing: .06em; padding: 5px 10px; border-radius: 8px; background: rgba(0,0,0,.25); user-select: all; white-space: nowrap; }
+.cn-name { display: flex; gap: 8px; align-items: center; }
+.cn-name .einst-feld { width: 240px; max-width: 100%; }
+/* Gekoppelte Server: eine ruhige Zeile je Server */
+.cn-peers { display: flex; flex-direction: column; padding: 0 12px 12px; }
+.cn-peer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 10px; border-top: 1px solid rgba(255,236,214,.08); }
+.cn-peer:first-child { border-top: 0; }
+.cn-peer .cn-server-sym { width: 42px; height: 42px; border-radius: 12px; }
+.cn-peer-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cn-peer-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cn-peer-name b { font-size: 1rem; }
+.cn-peer-text small { color: var(--text-muted); font-size: .8rem; line-height: 1.4; }
+.cn-peer-knoepfe { display: flex; align-items: center; gap: 6px; }
+/* Koppeln: zwei Wege nebeneinander (am Handy untereinander) */
+.cn-koppel-wege { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; padding: 4px 22px 22px; }
+.cn-weg { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: rgba(0,0,0,.14); min-width: 0; }
+.cn-weg h3 { font-size: .98rem; margin: 0; }
+.cn-weg > p { margin: 0; color: var(--text-muted); font-size: .84rem; line-height: 1.45; }
+.cn-code { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cn-code-ziffern { font-family: var(--font-display); font-size: 2rem; font-weight: 700; letter-spacing: .14em; color: var(--accent-text); font-variant-numeric: tabular-nums; }
 .cn-code small { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.cn-koppeln { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-.cn-koppeln .einst-feld { width: 240px; max-width: 100%; }
-.cn-koppeln .cn-code-feld { width: 110px; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
-@media (max-width: 700px) { .cn-gekoppelt { flex-direction: column; } .cn-knoepfe { flex-direction: row; } .cn-koppeln { justify-content: stretch; } .cn-koppeln .einst-feld { flex: 1 1 100%; width: auto; } }
+.cn-koppeln { display: flex; flex-direction: column; gap: 8px; }
+.cn-koppeln .einst-feld { width: 100%; }
+.cn-koppeln-zeile { display: flex; gap: 8px; }
+.cn-koppeln-zeile .cn-code-feld { flex: 1; min-width: 0; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
+.cn-link { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; border: 0; background: none; padding: 2px 0; color: var(--accent-text); font: inherit; font-size: .86rem; cursor: pointer; }
+.cn-link:disabled { color: var(--text-muted); cursor: default; }
+.cn-funde { display: flex; flex-direction: column; gap: 6px; }
+.cn-fund { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: var(--glass-bg); color: inherit; font: inherit; cursor: pointer; }
+.cn-fund:hover:not(:disabled) { border-color: rgba(255,181,71,.45); }
+.cn-fund:disabled { cursor: default; opacity: .8; }
+.cn-fund b { grid-column: 1; font-size: .92rem; }
+.cn-fund small { grid-column: 1; color: var(--text-muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-fund > :last-child { grid-column: 2; grid-row: 1 / span 2; }
+.cn-fund-los { color: var(--accent-text); font-size: .84rem; font-weight: 600; }
+.cn-hinweis { margin: 0; color: var(--text-muted); font-size: .84rem; }
+@media (max-width: 600px) { .cn-peer { grid-template-columns: auto minmax(0, 1fr); } .cn-peer-knoepfe { grid-column: 2; } .cn-name { flex-wrap: wrap; } .cn-name .einst-feld { width: 100%; } }
+/* Was wir selbst schon haben */
+.kachel.cn-da .kachel-bild { position: relative; }
+.kachel.cn-da .kachel-bild::after { content: ""; position: absolute; inset: 0; background: rgba(10,7,5,.38); border-radius: inherit; pointer-events: none; }
+.kachel.cn-da .kachel-hinweis { color: var(--success); }
+.kachel.cn-da .kachel-hinweis::before { content: "✓ "; }
+.track.cn-da .track-titel { color: var(--text-muted); }
+.cn-da-marke { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: .7rem; font-weight: 600; color: var(--success); border: 1px solid rgba(95,220,164,.4); vertical-align: 2px; white-space: nowrap; }
+.cn-da-hinweis { display: inline-flex; align-self: flex-start; width: fit-content; align-items: center; gap: 6px; margin: 6px 0 2px; padding: 4px 12px; border-radius: 999px; font-size: .84rem; font-weight: 600; color: var(--success); border: 1px solid rgba(95,220,164,.4); background: rgba(95,220,164,.08); }
+.cn-da-hinweis.teil { color: var(--text-muted); border-color: var(--glass-border); background: transparent; }
 
 /* Amberwave OS › Speicher: die Platte als ein Balken mit Legende */
 .os-speicher .einst-name { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }

@@ -48,10 +48,10 @@ function connect_server(int $id): array
     return $z;
 }
 
+/** Gekoppelt heißt: beide Seiten dürfen alles – stöbern, reinhören, holen (auch verlustfrei) und schicken */
 function connect_rechte(array $z): array
 {
-    $r = json_decode((string) ($z['rechte'] ?? ''), true);
-    return array_merge(CONNECT_RECHTE_STANDARD, is_array($r) ? array_intersect_key(array_map('boolval', $r), CONNECT_RECHTE_STANDARD) : []);
+    return CONNECT_RECHTE_STANDARD;
 }
 
 /** Für die Oberfläche – ohne Schlüssel im Ganzen, mit Kennung */
@@ -98,8 +98,39 @@ function connect_eigene_adressen(): array
 
 function connect_eigener_name(): string
 {
+    if (!empty($GLOBALS['connect_name_neu'])) {
+        return (string) $GLOBALS['connect_name_neu'];
+    }
     $k = konfig();
     return $k['server_name'] !== '' ? $k['server_name'] : (gethostname() ?: 'Amberwave');
+}
+
+/**
+ * Eigenen Namen ändern (wie in der Einrichtung, gespeichert neben der Zeitzone). Die gekoppelten Server erfahren ihn
+ * beim nächsten Kontakt – hier gleich mit einem kurzen „Hallo“ an alle, die gerade erreichbar sind.
+ */
+function connect_name_setzen(array $admin, string $name): string
+{
+    $name = trim(preg_replace('/\s+/u', ' ', $name));
+    if ($name === '' || mb_strlen($name) > 60) {
+        throw new ApiFehler(t('Der Name darf 1 bis 60 Zeichen haben.'));
+    }
+    if (trim((string) getenv('CLIENT_SERVERNAME')) !== '') {
+        throw new ApiFehler(t('Der Name ist in der .env festgelegt (CLIENT_SERVERNAME) – dort ändern.'));
+    }
+    require_once __DIR__ . '/einrichtung.php';
+    $k = konfig();
+    einrichtung_server_speichern((string) ($k['zeitzone'] ?? ''), $name);
+    $GLOBALS['connect_name_neu'] = $name;
+    log_sicherheitsereignis((int) $admin['id'], 'servername', $name);
+    foreach (db_alle('SELECT * FROM connect_server') as $peer) {
+        try {
+            connect_rufen($peer, 'hallo', [], 4);
+        } catch (Throwable $e) {
+            // nicht erreichbar: erfährt den Namen beim nächsten Mal
+        }
+    }
+    return $name;
 }
 
 // ---------- Verschlüsselung ----------

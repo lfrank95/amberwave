@@ -1,7 +1,8 @@
 #!/bin/bash
 # Amberwave Connect zwischen zwei All-in-One-Containern (läuft im Workflow nach dem AIO-Test):
 # A hat Musik, B ist leer. Ausweis prüfen → mit Code koppeln (falscher Code wird abgelehnt) → B stöbert bei A, hört rein
-# → B holt ein Album im Original (bitgenau) und eins als Opus → Rechte: A verbietet das Stöbern → B bekommt 403.
+# → B holt ein Album im Original (bitgenau) und eins als Opus → A sieht beide als „hast du schon“ → B benennt sich um,
+# A erfährt den neuen Namen → A stöbert umgekehrt bei B (Kopplung gilt in beide Richtungen) → Trennen.
 # Aufruf: tests/connect_test.sh <image>
 set -u
 IMG="${1:?Image angeben}"
@@ -33,8 +34,8 @@ starten() {   # name port app_url extra…
         -e ADMIN_BENUTZER=testadmin -e ADMIN_PASSWORT=Test-Passwort-2026 -e TZ=Europe/Berlin -e APP_URL="$u" "$@" \
         -v "$W/${n#aw-}/appdata:/appdata" -v "$W/${n#aw-}/musik:/musik" "$IMG" >/dev/null
 }
-starten aw-a 19951 http://aw-a -e CLIENT_SERVERNAME=Zuhause
-starten aw-b 19952 http://aw-b -e CLIENT_SERVERNAME=Wohnwagen -e MUSIK_SCHREIBEN=1
+starten aw-a 19951 http://aw-a
+starten aw-b 19952 http://aw-b -e MUSIK_SCHREIBEN=1
 warten() { for i in $(seq 1 90); do curl -fs "http://127.0.0.1:$1/api/v1/ping" 2>/dev/null | grep -q amberwave && return 0; sleep 2; done; return 1; }
 warten 19951 && ok "A läuft" || fehler "A antwortet nicht"
 warten 19952 && ok "B läuft" || fehler "B antwortet nicht"
@@ -46,6 +47,8 @@ api() {   # port token methode pfad [json]
     local p="$1" tk="$2" m="$3" pf="$4"; shift 4
     curl -s -X "$m" "http://127.0.0.1:$p/api/v1$pf" -H "Authorization: Bearer $tk" -H 'Content-Type: application/json' ${1:+-d "$1"}
 }
+api 19951 "$TA" PUT /connect/name '{"name":"Zuhause"}' | grep -q '"ok":true' && ok "A heißt „Zuhause“" || fehler "Name für A"
+api 19952 "$TB" PUT /connect/name '{"name":"Wohnwagen"}' | grep -q '"ok":true' && ok "B heißt „Wohnwagen“" || fehler "Name für B"
 j() { python3 -c "import sys,json; d=json.load(sys.stdin); print(eval(sys.argv[1], {'d': d}))" "$1" 2>/dev/null; }
 
 echo "== Ausweis"
@@ -110,11 +113,14 @@ sudo test -s "$(sudo find "$W/b/musik/Connect" -path '*Erstes Album*' -name cove
 for i in $(seq 1 30); do [ "$(api 19952 "$TB" GET '/alben?sort=titel' | j "d['gesamt']")" = "2" ] && break; sleep 2; done
 [ "$(api 19952 "$TB" GET '/alben?sort=titel' | j "d['gesamt']")" = "2" ] && ok "B hat die Alben eingelesen" || fehler "B hat nicht eingelesen"
 
-echo "== Rechte"
+echo "== Schon da, Name, beide Richtungen"
+DA="$(api 19952 "$TB" GET "/connect/server/$SID/lesen/alben?sort=titel" | j "sorted(a['titel'] for a in d['alben'] if a.get('_da'))")"
+[ "$DA" = "['Erstes Album', 'Zweites Album']" ] && ok "B sieht beide Alben als „hast du schon“" || fehler "Markierung: $DA"
+api 19952 "$TB" PUT /connect/name '{"name":"Wohnwagen Süd"}' >/dev/null
+[ "$(curl -fs http://127.0.0.1:19952/api/v1/ping | j "d['name']")" = "Wohnwagen Süd" ] && ok "B heißt jetzt „Wohnwagen Süd“" || fehler "Umbenennen schlägt fehl"
+[ "$(api 19951 "$TA" GET /connect/server | j "d['server'][0]['name']")" = "Wohnwagen Süd" ] && ok "A kennt den neuen Namen" || fehler "A kennt den neuen Namen nicht"
 BID="$(api 19951 "$TA" GET /connect/server | j "d['server'][0]['id']")"
-api 19951 "$TA" PUT "/connect/server/$BID" '{"rechte":{"stoebern":false}}' >/dev/null
-CODE_HTTP="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TB" "http://127.0.0.1:19952/api/v1/connect/server/$SID/lesen/alben")"
-[ "$CODE_HTTP" = "403" ] && ok "Stöbern verboten → 403" || fehler "Stöbern trotz Verbot: HTTP $CODE_HTTP"
+[ "$(api 19951 "$TA" GET "/connect/server/$BID/lesen/alben" | j "d['gesamt']")" = "2" ] && ok "A stöbert bei B (beide Richtungen)" || fehler "A kann bei B nicht stöbern"
 api 19952 "$TB" DELETE "/connect/server/$SID" >/dev/null
 [ "$(api 19952 "$TB" GET /connect/server | j "len(d['server'])")" = "0" ] && ok "Getrennt" || fehler "Trennen schlägt fehl"
 

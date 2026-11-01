@@ -466,6 +466,86 @@ function connect_bild_senden(int $serverId, string $art, string $schluessel): vo
 }
 
 /** Lesen in der Bibliothek der Gegenstelle – Bild-Adressen auf unseren Zwischenspeicher umgebogen, Titel gekennzeichnet */
+/**
+ * Was haben wir selbst schon? Schlüssel „Künstler|Titel“ (normalisiert) für Alben und Titel mit Dateien – zum Markieren
+ * beim Stöbern auf anderen Servern. Liegt als Datei im Cache und wird neu gebaut, wenn sich die Bibliothek ändert.
+ */
+function connect_lokal_schluessel(): array
+{
+    static $s = null;
+    if ($s !== null) {
+        return $s;
+    }
+    $stand = db_zeile('SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS m FROM dateien');
+    $marke = ($stand['n'] ?? 0) . '-' . ($stand['m'] ?? 0);
+    $datei = connect_ordner() . '/lokal.json';
+    $c = json_decode((string) @file_get_contents($datei), true);
+    if (is_array($c) && ($c['marke'] ?? '') === $marke) {
+        return $s = ['alben' => array_flip($c['alben']), 'titel' => array_flip($c['titel'])];
+    }
+    $alben = $titel = [];
+    foreach (db_alle("SELECT a.titel, k.name, cn.name_als FROM alben a JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0
+            JOIN credit_namen cn ON cn.credit_id = a.credit_id AND cn.pos = (SELECT MIN(pos) FROM credit_namen WHERE credit_id = a.credit_id)
+            JOIN kuenstler k ON k.id = cn.kuenstler_id") as $r) {
+        $alben[connect_schluessel($r['name'], $r['titel'])] = 1;
+        $alben[connect_schluessel($r['name_als'], $r['titel'])] = 1;
+    }
+    foreach (db_alle("SELECT DISTINCT t.titel, k.name, cn.name_als FROM dateien d JOIN tracks t ON t.id = d.track_id
+            JOIN credit_namen cn ON cn.credit_id = t.credit_id AND cn.pos = (SELECT MIN(pos) FROM credit_namen WHERE credit_id = t.credit_id)
+            JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE d.fehler = ''") as $r) {
+        $titel[connect_schluessel($r['name'], $r['titel'])] = 1;
+        $titel[connect_schluessel($r['name_als'], $r['titel'])] = 1;
+    }
+    @file_put_contents($datei, json_encode(['marke' => $marke, 'alben' => array_keys($alben), 'titel' => array_keys($titel)], JSON_UNESCAPED_UNICODE), LOCK_EX);
+    return $s = ['alben' => $alben, 'titel' => $titel];
+}
+
+function connect_schluessel(string $kuenstler, string $titel): string
+{
+    require_once __DIR__ . '/hilfen.php';
+    // Zusätze wie „(Remastered 2011)“ oder „[Deluxe]“ zählen nicht
+    $titel = (string) preg_replace('/\s*[\(\[][^\)\]]*(remaster|deluxe|edition|version|expanded|anniversary|bonus)[^\)\]]*[\)\]]/iu', '', $titel);
+    return name_norm($kuenstler) . '|' . name_norm($titel);
+}
+
+/** Alben und Titel eines anderen Servers markieren, die wir selbst schon haben (_da) */
+function connect_markieren(string $methode, array &$d): void
+{
+    $l = connect_lokal_schluessel();
+    $album = static function (array &$a) use ($l): void {
+        $k = $a['kuenstler'][0]['name'] ?? '';
+        if (is_string($a['titel'] ?? null) && isset($l['alben'][connect_schluessel((string) $k, $a['titel'])])) {
+            $a['_da'] = true;
+        }
+    };
+    $titel = static function (array &$t) use ($l): void {
+        $k = $t['kuenstler'][0]['name'] ?? '';
+        if (is_string($t['titel'] ?? null) && isset($l['titel'][connect_schluessel((string) $k, $t['titel'])])) {
+            $t['_da'] = true;
+        }
+    };
+    foreach (['alben', 'gast'] as $f) {
+        foreach ((array) ($d[$f] ?? []) as $i => $_) {
+            if (is_array($d[$f][$i])) {
+                $album($d[$f][$i]);
+            }
+        }
+    }
+    foreach ((array) ($d['tracks'] ?? []) as $i => $_) {
+        if (is_array($d['tracks'][$i])) {
+            $titel($d['tracks'][$i]);
+        }
+    }
+    if ($methode === 'album') {
+        $album($d);
+        // Album gilt als da, wenn wir alle seine Titel haben (auch wenn es bei uns anders heißt)
+        $n = count((array) ($d['tracks'] ?? []));
+        if ($n && count(array_filter((array) $d['tracks'], static fn($t) => !empty($t['_da']))) === $n) {
+            $d['_da'] = true;
+        }
+    }
+}
+
 function connect_lesen(int $serverId, string $methode, array $args): array
 {
     $erlaubt = ['alben', 'album', 'kuenstler_liste', 'kuenstler', 'playlists', 'playlist', 'suche'];
@@ -478,6 +558,11 @@ function connect_lesen(int $serverId, string $methode, array $args): array
     $json = json_encode($kopf, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $json = preg_replace('#"/api/v1/bild/(cover|kuenstler)/([A-Za-z0-9_.-]+)(\?[^"]*)?"#', '"/api/v1/connect/server/' . $serverId . '/bild/$1/$2$3"', $json);
     $daten = json_decode((string) $json, true) ?: [];
+    try {
+        connect_markieren($methode, $daten);
+    } catch (Throwable $e) {
+        error_log('Connect: markieren: ' . log_sauber($e->getMessage()));
+    }
     $daten['_server'] = connect_server_objekt(connect_server($serverId));
     return $daten;
 }

@@ -7,7 +7,7 @@ import { netzweg } from './netzweg.js';
 // und das Holen des Direkt-Schlüssels bleiben auf dem normalen Weg (dort hängt das Login-Cookie).
 // Amberwave Connect: Koppeln, Rechte, Holen, Senden und Übertragungen sind Verwaltung – Stöbern und Hören gehen direkt.
 const IMMER_NORMAL = [/^\/auth\b/, /^\/abmelden\b/, /^\/direkt\//, /^\/ping\b/, /^\/profil\/passwort\b/, /^\/admin\b/, /^\/heimnetz\b/,
-  /^\/connect\/(code|koppeln|heimnetz|auftraege)\b/, /^\/connect\/server\/\d+(\/(holen|senden))?$/];
+  /^\/connect\/(code|koppeln|heimnetz|auftraege|name)\b/, /^\/connect\/server\/\d+(\/(holen|senden))?$/];
 
 function direktBasis(pfad, normal) {
   const d = netzweg.direkt;

@@ -127,6 +127,7 @@ $routen = [
         if (ist_admin($u)) {
             $r['adressen'] = connect_eigene_adressen();
             $r['einladung'] = connect_einladung_aktiv();
+            $r['name_fest'] = trim((string) getenv('CLIENT_SERVERNAME')) !== '';
         }
         return $r;
     }],
@@ -152,19 +153,10 @@ $routen = [
         @set_time_limit(60);
         return connect_heimnetz_finden();
     }],
-    ['PUT', '/connect/server/{id}', function ($p) {
+    ['PUT', '/connect/name', function () {
         $u = api_user(true);
         require_once __DIR__ . '/../includes/connect.php';
-        $z = connect_server((int) $p['id']);
-        $r = connect_rechte($z);
-        foreach ((array) api_wert('rechte', []) as $k => $v) {
-            if (array_key_exists($k, $r)) {
-                $r[$k] = (bool) $v;
-            }
-        }
-        db_tun('UPDATE connect_server SET rechte = :r WHERE id = :id', ['r' => json_encode($r), 'id' => $z['id']]);
-        log_sicherheitsereignis((int) $u['id'], 'connect_rechte', $z['name'] . ' ' . json_encode($r));
-        return connect_server_objekt(connect_server((int) $z['id']));
+        return ['ok' => true, 'name' => connect_name_setzen($u, (string) api_wert('name', ''))];
     }],
     ['DELETE', '/connect/server/{id}', function ($p) {
         $u = api_user(true);

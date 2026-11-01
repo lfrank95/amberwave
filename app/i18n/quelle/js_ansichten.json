@@ -593,5 +593,19 @@
  "Im Netz {netz} hat kein anderer Amberwave geantwortet.": "No other Amberwave answered on network {netz}.",
  "Dieser Server kennt sein Heimnetz noch nicht. Öffne Amberwave einmal über seine Adresse im Heimnetz und versuch es dann nochmal.": "This server doesn't know its home network yet. Open Amberwave once via its home network address and try again.",
  "Musik deiner gekoppelten Server": "Music from your paired servers",
- "Von {server}": "From {server}"
+ "Von {server}": "From {server}",
+ "Ausweis": "ID",
+ "Daran erkennen gekoppelte Server und Apps diesen Server wieder – auch mit neuer IP-Adresse oder neuem Namen.": "Paired servers and apps recognise this server by it – even with a new IP address or a new name.",
+ "Diesen Titel hast du schon auf deinem Server": "You already have this track on your server",
+ "Dieser Server": "This server",
+ "Festgelegt in der .env (CLIENT_SERVERNAME).": "Set in the .env (CLIENT_SERVERNAME).",
+ "Gekoppelte Server teilen ihre Musik gegenseitig: stöbern, reinhören und herüberladen – in beide Richtungen.": "Paired servers share their music with each other: browse, listen and copy over – both ways.",
+ "Hast du schon": "You have it",
+ "Hast du schon auf deinem Server": "Already on your server",
+ "Mehr zu {name}": "More about {name}",
+ "Name gespeichert": "Name saved",
+ "So sehen ihn gekoppelte Server und deine Apps.": "This is how paired servers and your apps see it.",
+ "Trennen …": "Disconnect …",
+ "hast du": "have it",
+ "{n} von {gesamt} Titeln hast du schon": "You already have {n} of {gesamt} tracks"
 }

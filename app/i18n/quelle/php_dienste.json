@@ -358,5 +358,7 @@
  "Der Musikordner ist nicht beschreibbar – Musik kann hier nicht abgelegt werden.": "The music folder isn't writable – music can't be stored here.",
  "Zeit für diesen Lauf um – geht gleich weiter.": "Time for this run is up – continuing shortly.",
  "Unerwartete Antwort beim Holen.": "Unexpected response while fetching.",
- "Leere Antwort beim Holen.": "Empty response while fetching."
+ "Leere Antwort beim Holen.": "Empty response while fetching.",
+ "Der Name darf 1 bis 60 Zeichen haben.": "The name must have 1 to 60 characters.",
+ "Der Name ist in der .env festgelegt (CLIENT_SERVERNAME) – dort ändern.": "The name is set in the .env (CLIENT_SERVERNAME) – change it there."
 }
