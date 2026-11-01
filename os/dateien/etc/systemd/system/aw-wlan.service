@@ -1,0 +1,13 @@
+[Unit]
+Description=Amberwave – mit dem gespeicherten WLAN verbinden
+ConditionKernelCommandLine=!boot=live
+RequiresMountsFor=/daten
+After=systemd-networkd.service
+Before=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/amberwave/wlan.py --verbinden
+
+[Install]
+WantedBy=multi-user.target

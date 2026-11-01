@@ -16,6 +16,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from aw_gemeinsam import platten, kanal_standard, ips, nas_pruefen  # noqa: E402
+import wlan  # noqa: E402
 
 W = os.environ.get('AW_WURZEL', '')
 TROCKEN = os.environ.get('AW_TROCKEN') == '1'
@@ -170,6 +171,84 @@ def system_info():
             'neustart_noetig': os.path.exists('/run/reboot-required')}
 
 
+# ---------- WLAN ----------
+wlan_wechsel = {}   # {'ssid', 'stand': laeuft|ok|fehler}
+
+
+def wlan_karte():
+    return os.environ.get('AW_TEST_WLAN', '') if TROCKEN else wlan.schnittstelle()
+
+
+def wlan_info():
+    dev = wlan_karte()
+    if not dev:
+        return None
+    gespeichert = wlan.zugang_lesen(P(wlan.DATEN_DATEI))
+    if TROCKEN:
+        verb = {'ssid': gespeichert['ssid'], 'signal': -55} if gespeichert else None
+        return {'karte': dev, 'verbindung': verb, 'gespeichert': gespeichert['ssid'] if gespeichert else None,
+                'adresse': '192.168.178.43' if verb else '', 'wechsel': wlan_wechsel or None}
+    return {'karte': dev, 'verbindung': wlan.verbindung(dev), 'gespeichert': gespeichert['ssid'] if gespeichert else None,
+            'adresse': wlan.adresse(dev), 'wechsel': wlan_wechsel or None}
+
+
+def wlan_suchen(_w):
+    dev = wlan_karte()
+    if not dev:
+        return {'ok': False, 'fehler': 'keine_karte'}
+    if TROCKEN:
+        return {'ok': True, 'netze': [{'ssid': 'FRITZ!Box 7590 KL', 'signal': -48, 'sicher': True}, {'ssid': 'Nachbar', 'signal': -80, 'sicher': True}]}
+    return {'ok': True, 'netze': wlan.scannen(dev)}
+
+
+def wlan_setzen(w):
+    """Ins gewählte WLAN wechseln – im Hintergrund (die Verbindung zur App kann dabei abreißen). Klappt es nicht
+    innerhalb von 45 s, geht das Gerät zurück ins bisherige WLAN."""
+    dev = wlan_karte()
+    ssid = (w.get('ssid') or '').strip()
+    pw = w.get('passwort') or ''
+    if not dev:
+        return {'ok': False, 'fehler': 'keine_karte'}
+    if not ssid or len(ssid.encode()) > 32 or (pw and not 8 <= len(pw) <= 63):
+        return {'ok': False, 'fehler': 'eingabe'}
+    alt = wlan.zugang_lesen(P(wlan.DATEN_DATEI))
+    if not pw and alt and alt['ssid'] == ssid:
+        pw = alt.get('passwort', '')   # gleiches Netz, Passwort leer gelassen = unverändert
+    wlan_wechsel.clear()
+    wlan_wechsel.update(ssid=ssid, stand='laeuft')
+
+    def lauf():
+        time.sleep(1.5)
+        if TROCKEN:
+            wlan.zugang_speichern(P(wlan.DATEN_DATEI), ssid, pw)
+            wlan_wechsel['stand'] = 'ok'
+            return
+        wlan.verbinden(dev, ssid, pw)
+        if wlan.warten_auf_adresse(dev, 45) and (wlan.verbindung(dev) or {}).get('ssid') == ssid:
+            wlan.zugang_speichern(wlan.DATEN_DATEI, ssid, pw)
+            wlan_wechsel['stand'] = 'ok'
+            return
+        if alt:
+            wlan.verbinden(dev, alt['ssid'], alt.get('passwort', ''))
+        else:
+            wlan.trennen(dev)
+        wlan_wechsel['stand'] = 'fehler'
+    threading.Thread(target=lauf, daemon=True).start()
+    return {'ok': True}
+
+
+def wlan_vergessen(_w):
+    dev = wlan_karte()
+    try:
+        os.unlink(P(wlan.DATEN_DATEI))
+    except OSError:
+        pass
+    if dev and not TROCKEN:
+        wlan.trennen(dev)
+    wlan_wechsel.clear()
+    return {'ok': True}
+
+
 def info():
     e = einstellungen()
     _, musik_teile = platten()
@@ -185,6 +264,7 @@ def info():
                   'pfad': e.get('AW_NAS_PFAD', ''), 'benutzer': nas_benutzer() if art == 'nas' else '', 'platten': musik_teile},
         'speicher': {'system': speicher('/'), 'daten': speicher('/daten'), 'musik': speicher('/musik') if eingebunden else None},
         'system': system_info(), 'sicherheitsupdates': e.get('AW_SICHERHEITSUPDATES', '1') == '1',
+        'wlan': wlan_info(),
         'ssh': {'an': ssh_an, 'liste': [z.strip() for z in datei(SSH_ORDNER + '/authorized_keys').splitlines() if z.strip() and not z.startswith('#')]},
     }
 
@@ -413,7 +493,7 @@ def beim_start():
         ssh_anwenden(True)
 
 
-AKTIONEN = {'/name': name_setzen, '/netz': netz_setzen, '/netz/bestaetigen': netz_bestaetigen, '/musik': musik_setzen,
+AKTIONEN = {'/wlan': wlan_setzen, '/wlan/suchen': wlan_suchen, '/wlan/vergessen': wlan_vergessen, '/name': name_setzen, '/netz': netz_setzen, '/netz/bestaetigen': netz_bestaetigen, '/musik': musik_setzen,
             '/kanal': kanal_setzen, '/sicherheitsupdates': sicherheitsupdates_setzen, '/ssh': ssh_setzen, '/strom': strom,
             '/musik/pruefen': lambda w: nas_pruefen((w.get('pfad') or '').replace('\\', '/'), w.get('benutzer', ''), w.get('passwort') or nas_passwort())}
 

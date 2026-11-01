@@ -1,0 +1,14 @@
+[Unit]
+Description=Amberwave – nur im automatischen Test: simulierte WLAN-Karten (Heimnetz und Handy)
+ConditionKernelCommandLine=aw.test=wlan
+Before=aw-installer.service
+After=systemd-networkd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=60
+ExecStart=/usr/local/lib/amberwave/test_wlan.sh
+
+[Install]
+WantedBy=multi-user.target

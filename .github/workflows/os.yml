@@ -1,6 +1,7 @@
 # Amberwave OS: bootfähiges USB-Image (x86-64, UEFI, Secure Boot) und der USB-Ersteller für Windows.
 #   image          Image bauen
 #   vm             in QEMU durchspielen: Stick → Einrichtung → Installation → Neustart → Amberwave antwortet
+#   wlan           WLAN vom Stick und Hotspot der Einrichtung mit simulierten WLAN-Karten
 #   ersteller      USB-Ersteller (Windows) bauen
 #   ersteller-test auf Windows: das Image mit dem Ersteller auf eine virtuelle Platte schreiben, prüfen, Fenster fotografieren
 #   anhaengen      bei einem veröffentlichten Release: Image und Ersteller als Dateien ans Release hängen
@@ -67,6 +68,24 @@ jobs:
         run: bash os/ci_bilder.sh vm "$RUNNER_TEMP/vm"
         env:
           GH_TOKEN: ${{ github.token }}
+
+  wlan:
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules >/dev/null
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf mtools >/dev/null
+      - uses: actions/download-artifact@v4
+        with:
+          name: amberwave-os-img
+          path: ${{ runner.temp }}/img
+      - name: WLAN vom Stick und Hotspot der Einrichtung (simulierte WLAN-Karten)
+        run: python3 os/test_wlan.py "$(ls "$RUNNER_TEMP"/img/*.img)" "$RUNNER_TEMP/wlan"
 
   ersteller:
     runs-on: ubuntu-latest
@@ -144,11 +163,21 @@ jobs:
           Start-Sleep 2
           Write-Host "Volumes auf der Platte vor dem 2. Schreiben:"; Get-Partition -DiskNumber $nr | Get-Volume | Format-Table -AutoSize | Out-String | Write-Host
           $s = Get-Date
-          $p = Start-Process $exe -ArgumentList '--test', $img, $nr, "$t\test2.txt", '--alle-laufwerke' -Wait -PassThru
+          # … und dabei ein WLAN mitgeben (wie „WLAN des PCs mitgeben“): Name mit Leer- und Sonderzeichen
+          $p = Start-Process $exe -ArgumentList '--test', $img, $nr, "$t\test2.txt", '--wlan', '"Heim WLAN Ä"', '"pa ss wört1"', '--alle-laufwerke' -Wait -PassThru
           $erg = Get-Content "$t\test2.txt" -Raw
           Write-Host $erg
           if ($p.ExitCode -ne 0) { Write-Host "::error title=USB-Ersteller::Erneutes Beschreiben: $erg"; exit 1 }
-          Write-Host "::notice title=USB-Ersteller::Schon beschriebenen Stick erneut geschrieben und geprüft ($([int]((Get-Date) - $s).TotalSeconds) s)"
+          Update-Disk -Number $nr
+          Start-Sleep 2
+          $teil = Get-Partition -DiskNumber $nr | Select-Object -First 1
+          if (-not $teil.DriveLetter -or $teil.DriveLetter -eq [char]0) { $teil | Add-PartitionAccessPath -AssignDriveLetter; Start-Sleep 2; $teil = Get-Partition -DiskNumber $nr | Select-Object -First 1 }
+          $w = Get-Content "$($teil.DriveLetter):\amberwave\wlan.txt" -Raw
+          Write-Host "wlan.txt: $(($w -split "`n")[0..2] -join ' | ')"
+          $soll = -join ([Text.Encoding]::UTF8.GetBytes('Heim WLAN Ä') | ForEach-Object { $_.ToString('x2') })
+          if ($w -notmatch "ssid_hex=$soll") { Write-Host "::error title=USB-Ersteller::WLAN nicht auf dem Stick (erwartet ssid_hex=$soll)"; exit 1 }
+          if ((Get-Item "$($teil.DriveLetter):\amberwave\wlan.txt").Length -ne 4096) { Write-Host "::error title=USB-Ersteller::wlan.txt hat die falsche Größe"; exit 1 }
+          Write-Host "::notice title=USB-Ersteller::Schon beschriebenen Stick erneut geschrieben und geprüft ($([int]((Get-Date) - $s).TotalSeconds) s), WLAN-Zugang steht auf dem Stick"
       - name: Fenster fotografieren
         if: always()
         shell: pwsh
@@ -172,7 +201,7 @@ jobs:
 
   anhaengen:
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release != '')
-    needs: [image, vm, ersteller, ersteller-test]
+    needs: [image, vm, wlan, ersteller, ersteller-test]
     runs-on: ubuntu-latest
     permissions:
       contents: write

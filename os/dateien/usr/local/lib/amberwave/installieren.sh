@@ -108,6 +108,11 @@ if [ "${AW_MUSIK_ART:-}" = nas ]; then
   { set +x; } 2>/dev/null   # das Passwort nie ins Protokoll
   ( umask 077; printf 'username=%s\npassword=%s\n' "${AW_NAS_BENUTZER:-}" "${AW_NAS_PASSWORT:-}" > /mnt/aw/daten/system/nas.zugang )
 fi
+if [ -n "${AW_WLAN_SSID:-}" ]; then
+  { set +x; } 2>/dev/null   # das WLAN-Passwort nie ins Protokoll
+  ( umask 077; python3 -c 'import json, os, sys; json.dump({"ssid": os.environ["AW_WLAN_SSID"], "passwort": os.environ.get("AW_WLAN_PASSWORT", "")}, open(sys.argv[1], "w"))' /mnt/aw/daten/system/wlan.json )
+  set -x
+fi
 sync
 umount -R /mnt/aw 2>/dev/null || { sleep 2; umount -R -l /mnt/aw; }
 trap - ERR

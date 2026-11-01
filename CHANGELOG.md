@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **Amberwave OS over Wi-Fi:** the USB Creator offers to include the Wi-Fi the PC is on (name and password come from Windows) – the device then joins it by itself, no network cable needed.
+- **Setup hotspot:** without cable and without a known Wi-Fi the device opens its own Wi-Fi "Amberwave-Einrichtung". Connect a phone and the setup page opens by itself; pick your home Wi-Fi there and the device switches over. The screen on the device says what to do.
+- Amberwave OS: Settings › Amberwave OS › Network shows the Wi-Fi connection and lets you choose another network or forget it; if the new network doesn't work, the device returns to the previous one.
+- Amberwave OS: drivers/firmware for common Wi-Fi chips (Intel, MediaTek, Realtek, Qualcomm/Atheros, Broadcom).
 - USB Creator: writing over a stick that already holds Amberwave OS failed – Windows mounts its EFI partition without a drive letter, and that volume was not unmounted before writing.
 
 ## 0.9.1-beta.6 – Amberwave OS, in-app updates

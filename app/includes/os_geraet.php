@@ -81,7 +81,7 @@ function api_admin_os_geraet_aktion(array $admin, string $aktion): array
 {
     $erlaubt = ['name' => ['name'], 'netz' => ['art', 'adresse', 'praefix', 'router', 'dns'], 'netz-bestaetigen' => [],
         'musik' => ['art', 'uuid', 'nur_lesen', 'pfad', 'benutzer', 'passwort'], 'musik-pruefen' => ['pfad', 'benutzer', 'passwort'],
-        'kanal' => ['kanal'], 'sicherheitsupdates' => ['an'], 'ssh' => ['an', 'schluessel'], 'strom' => ['aktion']];
+        'kanal' => ['kanal'], 'wlan' => ['ssid', 'passwort'], 'wlan-suchen' => [], 'wlan-vergessen' => [], 'sicherheitsupdates' => ['an'], 'ssh' => ['an', 'schluessel'], 'strom' => ['aktion']];
     if (!isset($erlaubt[$aktion])) {
         throw new ApiFehler(t('Unbekannte Aktion.'), 404);
     }
@@ -96,13 +96,15 @@ function api_admin_os_geraet_aktion(array $admin, string $aktion): array
         require_once __DIR__ . '/einrichtung.php';
         datenbank_admin_bestaetigen($admin);
     }
-    $r = os_geraet_anfrage('POST', '/' . str_replace('-', '/', $aktion), $daten, false, $aktion === 'musik' ? 170 : 30);
-    if (!empty($r['ok']) && in_array($aktion, ['name', 'netz', 'musik', 'kanal', 'sicherheitsupdates', 'ssh', 'strom'], true)) {
+    $r = os_geraet_anfrage('POST', '/' . str_replace('-', '/', $aktion), $daten, false, $aktion === 'musik' ? 170 : ($aktion === 'wlan-suchen' ? 60 : 30));
+    if (!empty($r['ok']) && in_array($aktion, ['name', 'netz', 'musik', 'kanal', 'sicherheitsupdates', 'ssh', 'strom', 'wlan', 'wlan-vergessen'], true)) {
         $was = match ($aktion) {
             'name' => (string) ($r['name'] ?? ''),
             'netz' => (string) ($daten['art'] ?? '') . ' ' . (string) ($daten['adresse'] ?? ''),
             'musik' => (string) ($daten['art'] ?? '') . ' ' . (string) ($daten['pfad'] ?? ''),
             'kanal' => (string) ($daten['kanal'] ?? ''),
+            'wlan' => (string) ($daten['ssid'] ?? ''),
+            'wlan-vergessen' => '',
             'strom' => (string) ($daten['aktion'] ?? ''),
             default => !empty($daten['an']) ? 'an' : 'aus',
         };

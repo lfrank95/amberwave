@@ -76,6 +76,28 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     <div class="knoepfe"><button class="los" data-weiter="platte" data-t="weiter">Weiter</button></div>
   </section>
 
+  <!-- 0b WLAN (nur über den Hotspot „Amberwave-Einrichtung“) -->
+  <section data-s="wlan" hidden>
+    <h1 data-t="t_wlan">Mit deinem WLAN verbinden</h1>
+    <p data-t="p_wlan">Wähle dein WLAN. Amberwave verbindet sich damit – danach geht die Einrichtung in deinem Netz weiter.</p>
+    <div class="karte warnung" data-wlan-fehler hidden></div>
+    <div class="karte" data-netze></div>
+    <div class="karte" data-wlan-zugang hidden>
+      <label for="wlan-ssid" style="margin-top:0" data-t="wlan_name">Name des WLANs</label>
+      <input type="text" id="wlan-ssid" autocomplete="off" spellcheck="false" maxlength="32">
+      <label for="wlan-passwort" data-t="wlan_passwort">WLAN-Passwort</label>
+      <input type="password" id="wlan-passwort" autocomplete="off">
+    </div>
+    <div class="knoepfe"><button class="zurueck" data-zurueck="sprache" data-t="zurueck">Zurück</button><button class="los" data-wlan-los disabled data-t="verbinden">Verbinden</button></div>
+  </section>
+
+  <!-- 0c Wechsel ins Heim-WLAN -->
+  <section data-s="wechsel" hidden>
+    <h1 data-t="t_wechsel">Amberwave wechselt in dein WLAN</h1>
+    <div class="karte"><p style="margin-top:0" data-wechsel-text></p><span class="adresse" data-wechsel-adresse>http://amberwave.local</span></div>
+    <p data-t="p_wechsel">Klappt die Verbindung nicht, ist das WLAN „Amberwave-Einrichtung“ nach etwa einer Minute wieder da – dann verbinde dich erneut damit.</p>
+  </section>
+
   <!-- 1 Zielplatte -->
   <section data-s="platte">
     <h1 data-t="t_platte">Wohin soll Amberwave?</h1>
@@ -160,6 +182,9 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     t_laeuft: 'Installing Amberwave', p_laeuft: 'This takes a few minutes. Please don’t switch the device off.',
     t_fertig: 'Done!', p_fertig: 'Unplug the USB stick – the device then restarts by itself. Or restart it right here. It then downloads Amberwave (once, about 400 MB – a few minutes with fast internet) and continues here:',
     p_fertig2: 'This page switches there by itself as soon as Amberwave is ready.',
+    t_wlan: 'Connect to your Wi-Fi', p_wlan: 'Choose your Wi-Fi. Amberwave connects to it – setup then continues on your network.',
+    wlan_name: 'Wi-Fi name', wlan_passwort: 'Wi-Fi password', verbinden: 'Connect',
+    t_wechsel: 'Amberwave is joining your Wi-Fi', p_wechsel: 'If it doesn’t connect, the “Amberwave-Einrichtung” Wi-Fi is back after about a minute – then connect to it again.',
     t_fehler: 'That didn’t work', p_fehler: 'Nothing is broken. Try again – or choose another drive.',
   };
   const T = { keine_platte: ['Keine passende Platte gefunden. Amberwave braucht eine interne Platte mit mindestens 16 GB.', 'No suitable drive found. Amberwave needs an internal drive with at least 16 GB.'],
@@ -173,7 +198,15 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     nas_zugang: ['Benutzername oder Passwort stimmen nicht.', 'User name or password is wrong.'], nas_weg: ['Die Freigabe antwortet nicht. Stimmt die Adresse?', 'The share doesn’t answer. Is the address right?'],
     z_platte: ['Installieren auf', 'Install on'], z_musik: ['Musik', 'Music'], intern: ['auf derselben Platte (Ordner „musik“)', 'on the same drive (folder “musik”)'],
     name_falsch: ['Nur Kleinbuchstaben, Ziffern und Bindestriche.', 'Lowercase letters, digits and hyphens only.'],
-    laeuft_schon: ['Die Installation läuft schon.', 'Setup is already running.'], unbekannt: ['Unbekannter Fehler.', 'Unknown error.'],
+    laeuft_schon: ['Die Installation läuft schon.', 'Setup is already running.'],
+    anderes: ['Anderes WLAN …', 'Other Wi-Fi …'], anderes2: ['Verstecktes Netz oder nicht in der Liste', 'Hidden network or not in the list'],
+    stark: ['starkes Signal', 'strong signal'], mittel: ['mittleres Signal', 'medium signal'], schwach: ['schwaches Signal', 'weak signal'],
+    offen: ['offen', 'open'], gesichert: ['gesichert', 'secured'], keine_netze: ['Keine WLANs gefunden – trag den Namen unten selbst ein.', 'No Wi-Fi found – enter its name below.'],
+    wlan_fehler: ['Mit „{ssid}“ hat es nicht geklappt. Stimmt das Passwort?', 'Couldn’t connect to “{ssid}”. Is the password right?'],
+    wlan_stick: ['Das WLAN vom USB-Stick hat nicht geklappt – wähle es hier noch einmal.', 'The Wi-Fi from the USB stick didn’t work – choose it here again.'],
+    wlan_eingabe: ['Das Passwort hat 8 bis 63 Zeichen.', 'The password has 8 to 63 characters.'],
+    wechsel_text: ['Verbinde dein Handy oder deinen PC wieder mit „{ssid}“ und öffne:', 'Connect your phone or PC to “{ssid}” again and open:'],
+    z_netz: ['Netzwerk', 'Network'], z_wlan: ['WLAN „{ssid}“', 'Wi-Fi “{ssid}”'], unbekannt: ['Unbekannter Fehler.', 'Unknown error.'],
   };
   const tx = (k, w = {}) => (T[k] ? T[k][de ? 0 : 1] : k).replace(/\{(\w+)\}/g, (_, x) => w[x] ?? '');
   // Texte: Deutsch steht im HTML, Englisch in EN – beim Umschalten wird jedes [data-t] neu gesetzt
@@ -195,8 +228,10 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
   let info = null;
   const SCHRITTE = ['sprache', 'platte', 'musik', 'name', 'laeuft'];
   function zeigen(s) {
+    if (s === 'platte' && info?.ueber_hotspot) s = 'wlan';   // über den Hotspot: erst ins Heim-WLAN
     document.querySelectorAll('[data-s]').forEach((x) => { x.hidden = x.dataset.s !== s; });
-    const i = SCHRITTE.indexOf(s === 'fertig' ? 'laeuft' : s);
+    if (s === 'wlan') wlanZeichnen();
+    const i = SCHRITTE.indexOf(s === 'fertig' ? 'laeuft' : s === 'wlan' || s === 'wechsel' ? 'sprache' : s);
     document.querySelectorAll('[data-schritte] i').forEach((x, j) => x.classList.toggle('an', j <= (s === 'fertig' ? 4 : i)));
     scrollTo(0, 0);
   }
@@ -254,6 +289,55 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     }, 700);
   }));
 
+  // ---------- WLAN (über den Hotspot) ----------
+  const wlanWahl = { ssid: null, anders: false };
+  function wlanZeichnen() {
+    const n = info.netz || {};
+    const f = $('[data-wlan-fehler]');
+    f.hidden = !n.fehler;
+    f.innerHTML = n.fehler === 'stick' ? tx('wlan_stick') : n.fehler ? tx('wlan_fehler', { ssid: esc(wlanWahl.ssid || '') }) : '';
+    const staerke = (d) => tx(d >= -60 ? 'stark' : d >= -72 ? 'mittel' : 'schwach');
+    const balken = (d) => (d >= -60 ? '▂▄▆' : d >= -72 ? '▂▄' : '▂');
+    $('[data-netze]').innerHTML = (n.netze || []).map((x) => `<button class="wahl" data-ssid="${esc(x.ssid)}" data-sicher="${x.sicher ? 1 : 0}" aria-pressed="${!wlanWahl.anders && x.ssid === wlanWahl.ssid}">
+        <i class="sym">${balken(x.signal)}</i><span><b>${esc(x.ssid)}</b><small>${staerke(x.signal)} · ${tx(x.sicher ? 'gesichert' : 'offen')}</small></span></button>`).join('')
+      + (n.netze?.length ? '' : `<div class="leer">${tx('keine_netze')}</div>`)
+      + `<button class="wahl" data-anders aria-pressed="${wlanWahl.anders}"><i class="sym">…</i><span><b>${tx('anderes')}</b><small>${tx('anderes2')}</small></span></button>`;
+    const gewaehlt = wlanWahl.anders || wlanWahl.ssid;
+    $('[data-wlan-zugang]').hidden = !gewaehlt;
+    $('#wlan-ssid').closest('.karte').querySelectorAll('label[for="wlan-ssid"], #wlan-ssid').forEach((e) => { e.hidden = !wlanWahl.anders; });
+    const netz = (n.netze || []).find((x) => x.ssid === wlanWahl.ssid);
+    const pwNoetig = wlanWahl.anders || netz?.sicher;
+    $('#wlan-passwort').closest('.karte').querySelectorAll('label[for="wlan-passwort"], #wlan-passwort').forEach((e) => { e.hidden = !pwNoetig; });
+    wlanPruefen();
+  }
+  function wlanPruefen() {
+    const ssid = wlanWahl.anders ? $('#wlan-ssid').value.trim() : wlanWahl.ssid;
+    const pw = $('#wlan-passwort').value;
+    const netz = (info.netz?.netze || []).find((x) => x.ssid === ssid);
+    const pwNoetig = wlanWahl.anders ? pw.length > 0 : netz?.sicher;
+    $('[data-wlan-los]').disabled = !ssid || (pwNoetig && (pw.length < 8 || pw.length > 63));
+  }
+  $('[data-netze]').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ssid], [data-anders]');
+    if (!b) return;
+    wlanWahl.anders = b.hasAttribute('data-anders');
+    wlanWahl.ssid = wlanWahl.anders ? null : b.dataset.ssid;
+    wlanZeichnen();
+    (wlanWahl.anders ? $('#wlan-ssid') : $('#wlan-passwort')).focus();
+  });
+  ['#wlan-ssid', '#wlan-passwort'].forEach((s) => $(s).addEventListener('input', wlanPruefen));
+  $('[data-wlan-los]').addEventListener('click', async (e) => {
+    const ssid = wlanWahl.anders ? $('#wlan-ssid').value.trim() : wlanWahl.ssid;
+    wlanWahl.ssid = ssid;
+    e.target.disabled = true;
+    const r = await api('wlan', { ssid, passwort: $('#wlan-passwort').value }).catch(() => ({ ok: false }));
+    e.target.disabled = false;
+    if (!r.ok) { const f = $('[data-wlan-fehler]'); f.hidden = false; f.innerHTML = tx(r.fehler === 'eingabe' ? 'wlan_eingabe' : 'unbekannt'); return; }
+    $('[data-wechsel-text]').textContent = tx('wechsel_text', { ssid });
+    $('[data-wechsel-adresse]').textContent = `http://${info.name || 'amberwave'}.local`;
+    zeigen('wechsel');
+  });
+
   function nameZeichnen() {
     const p = platte();
     const n = $('#name').value.trim().toLowerCase();
@@ -261,7 +345,8 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     const m = wahl.musik;
     const mp = info.musik.find((x) => x.uuid === m.uuid);
     const mt = m.art === 'intern' ? tx('intern') : m.art === 'nas' ? m.pfad : [mp?.label, mp?.modell, gb(mp?.groesse || 0)].filter(Boolean).join(' · ');
-    $('[data-zusammen]').innerHTML = `<dt>${tx('z_platte')}</dt><dd>${esc(plattenName(p))}</dd><dt>${tx('z_musik')}</dt><dd>${esc(mt)}</dd>`;
+    $('[data-zusammen]').innerHTML = `<dt>${tx('z_platte')}</dt><dd>${esc(plattenName(p))}</dd><dt>${tx('z_musik')}</dt><dd>${esc(mt)}</dd>`
+      + (info.netz?.ssid ? `<dt>${tx('z_netz')}</dt><dd>${tx('z_wlan', { ssid: esc(info.netz.ssid) })}</dd>` : '');
     $('[data-loeschen]').innerHTML = p.amberwave && wahl.behalten ? tx('behalten_warn', { p: esc(plattenName(p)) }) : tx('loeschen', { p: esc(plattenName(p)) });
   }
   $('#name').addEventListener('input', nameZeichnen);

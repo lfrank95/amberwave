@@ -9,6 +9,7 @@
 // Für den automatischen Test (GitHub Actions, virtuelle Platte statt Stick):
 //   ersteller.exe --test <image> <laufwerksnummer> <protokoll>   schreibt, prüft und beendet sich (Exit 0 = gut)
 //   ersteller.exe --liste <protokoll>                             listet die erkannten Laufwerke
+//   --wlan <name> <passwort>                                     (mit --test) WLAN-Zugang auf den Stick schreiben
 //   --alle-laufwerke                                              zeigt auch virtuelle Platten (nur für Tests)
 #ifndef UNICODE
 #define UNICODE
@@ -24,6 +25,7 @@
 #include <commdlg.h>
 #include <dwmapi.h>
 #include <winhttp.h>
+#include <wlanapi.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
@@ -47,11 +49,11 @@ static int englisch(void) { return (GetUserDefaultUILanguage() & 0x3ff) != LANG_
 #define WM_QUELLE (WM_APP + 3)
 
 enum { S_WAHL, S_LAEUFT, S_FERTIG };
-enum { Z_NICHTS = 0, Z_MIN, Z_ZU, Z_LOS, Z_DATEI, Z_GITHUB, Z_BETA, Z_DLG_JA, Z_DLG_NEIN, Z_SCHLIESSEN, Z_STICK = 100 };
+enum { Z_NICHTS = 0, Z_MIN, Z_ZU, Z_LOS, Z_DATEI, Z_GITHUB, Z_BETA, Z_DLG_JA, Z_DLG_NEIN, Z_SCHLIESSEN, Z_WLAN, Z_STICK = 100 };
 enum { D_KEIN, D_LOESCHEN, D_INFO, D_ABBRECHEN };
 
 #define BREITE 720
-#define HOEHE 480
+#define HOEHE 530
 #define LEISTE 44
 
 static HINSTANCE inst;
@@ -237,6 +239,84 @@ static void beta_umschalten(void) {
 
 /* ---------- Schreiben ---------- */
 
+/* ---------- WLAN des PCs mitgeben ----------
+   Windows kennt das WLAN, in dem der PC gerade ist, samt Schlüssel (lesbar nur als Administrator – das ist der Ersteller).
+   Beim Schreiben ersetzt er den Platzhalter-Sektor von /amberwave/wlan.txt auf dem Stick durch die Zugangsdaten
+   (Hex, damit jedes Zeichen sicher ankommt). Das Gerät verbindet sich damit beim Start von selbst. */
+static const char WLAN_MARKE[] = "#AMBERWAVE-WLAN-PLATZHALTER-7f3a9c#\n";
+static std::string wlan_ssid8, wlan_pw8;   // UTF-8
+static std::wstring wlan_name;            // zur Anzeige
+static int wlan_mitgeben = 0;
+static BYTE wlan_sektor[512];
+
+static std::string hex(const std::string &s) {
+  static const char *z = "0123456789abcdef"; std::string r;
+  for (unsigned char c : s) { r += z[c >> 4]; r += z[c & 15]; }
+  return r;
+}
+static void wlan_sektor_bauen(void) {
+  std::string t = "# Amberwave: WLAN vom USB-Ersteller\nssid_hex=" + hex(wlan_ssid8) + "\npsk_hex=" + hex(wlan_pw8) + "\n";
+  memset(wlan_sektor, '\n', sizeof wlan_sektor);
+  memcpy(wlan_sektor, t.data(), t.size() < 512 ? t.size() : 512);
+}
+static std::string xml_wert(const std::string &x, const char *tag) {
+  std::string a = std::string("<") + tag + ">", e = std::string("</") + tag + ">";
+  size_t i = x.find(a); if (i == std::string::npos) return "";
+  size_t j = x.find(e, i); if (j == std::string::npos) return "";
+  std::string v = x.substr(i + a.size(), j - i - a.size()), r;
+  for (size_t k2 = 0; k2 < v.size(); k2++) {   // XML-Zeichen zurückverwandeln
+    if (v[k2] == '&') {
+      static const struct { const char *n; char c; } ent[] = {{"&amp;", '&'}, {"&lt;", '<'}, {"&gt;", '>'}, {"&quot;", '"'}, {"&apos;", '\''}};
+      int ok = 0;
+      for (auto &en : ent) if (!v.compare(k2, strlen(en.n), en.n)) { r += en.c; k2 += strlen(en.n) - 1; ok = 1; break; }
+      if (ok) continue;
+    }
+    r += v[k2];
+  }
+  return r;
+}
+/** WLAN, in dem der PC gerade ist, mit Schlüssel – 1 = gefunden (nur Heim-WLANs: offen oder mit Passwort) */
+static int wlan_lesen(void) {
+  HANDLE h = NULL; DWORD ver = 0;
+  if (WlanOpenHandle(2, NULL, &ver, &h) != ERROR_SUCCESS) return 0;
+  PWLAN_INTERFACE_INFO_LIST liste = NULL; int gefunden = 0;
+  if (WlanEnumInterfaces(h, NULL, &liste) == ERROR_SUCCESS) {
+    for (DWORD i = 0; i < liste->dwNumberOfItems && !gefunden; i++) {
+      WLAN_INTERFACE_INFO &ii = liste->InterfaceInfo[i];
+      if (ii.isState != wlan_interface_state_connected) continue;
+      DWORD gr = 0; PWLAN_CONNECTION_ATTRIBUTES ca = NULL; WLAN_OPCODE_VALUE_TYPE typ;
+      if (WlanQueryInterface(h, &ii.InterfaceGuid, wlan_intf_opcode_current_connection, NULL, &gr, (PVOID *)&ca, &typ) != ERROR_SUCCESS) continue;
+      DOT11_SSID &ss = ca->wlanAssociationAttributes.dot11Ssid;
+      std::string ssid((const char *)ss.ucSSID, ss.uSSIDLength);
+      LPWSTR xmlw = NULL; DWORD flags = WLAN_PROFILE_GET_PLAINTEXT_KEY, zugriff = 0;
+      if (ssid.size() && WlanGetProfile(h, &ii.InterfaceGuid, ca->strProfileName, NULL, &xmlw, &flags, &zugriff) == ERROR_SUCCESS) {
+        int n = WideCharToMultiByte(CP_UTF8, 0, xmlw, -1, NULL, 0, NULL, NULL);
+        std::string x(n > 0 ? n - 1 : 0, '\0'); if (n > 1) WideCharToMultiByte(CP_UTF8, 0, xmlw, -1, &x[0], n, NULL, NULL);
+        std::string auth = xml_wert(x, "authentication"), key = xml_wert(x, "keyMaterial"), prot = xml_wert(x, "protected");
+        int offen = auth == "open" && xml_wert(x, "encryption") == "none";
+        int psk = (auth.find("PSK") != std::string::npos || auth.find("SAE") != std::string::npos) && prot != "true" && key.size() >= 8 && key.size() <= 64;
+        if (offen || psk) { wlan_ssid8 = ssid; wlan_pw8 = offen ? "" : key; gefunden = 1; }
+        WlanFreeMemory(xmlw);
+      }
+      WlanFreeMemory(ca);
+    }
+    WlanFreeMemory(liste);
+  }
+  WlanCloseHandle(h, NULL);
+  if (gefunden) {
+    int n = MultiByteToWideChar(CP_UTF8, 0, wlan_ssid8.c_str(), (int)wlan_ssid8.size(), NULL, 0);
+    wlan_name.assign(n, L'\0'); MultiByteToWideChar(CP_UTF8, 0, wlan_ssid8.c_str(), (int)wlan_ssid8.size(), &wlan_name[0], n);
+    wlan_mitgeben = 1;
+  }
+  return gefunden;
+}
+/** Im gelesenen Block (ab Sektorgrenze) den Platzhalter durch die Zugangsdaten ersetzen */
+static void wlan_einsetzen(BYTE *b, DWORD n) {
+  if (!wlan_mitgeben) return;
+  for (DWORD o = 0; o + 512 <= n; o += 512)
+    if (!memcmp(b + o, WLAN_MARKE, sizeof WLAN_MARKE - 1)) memcpy(b + o, wlan_sektor, 512);
+}
+
 static int phase = 0, promille = 0;   // phase: 0 laden, 1 schreiben, 2 prüfen
 static std::wstring fehler_text;
 static int laeuft = 0, abbrechen = 0;
@@ -293,6 +373,7 @@ static int schreiben(const wchar_t *img, int nr) {
   wchar_t p[32]; _snwprintf(p, 32, L"\\\\.\\PhysicalDrive%d", nr);
   HANDLE d = CreateFileW(p, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH, NULL);
   int ok = 0;
+  if (wlan_mitgeben) wlan_sektor_bauen();
   const DWORD BLOCK = 4 << 20;
   BYTE *b1 = (BYTE *)VirtualAlloc(NULL, BLOCK, MEM_COMMIT, PAGE_READWRITE), *b2 = (BYTE *)VirtualAlloc(NULL, BLOCK, MEM_COMMIT, PAGE_READWRITE);
   GET_LENGTH_INFORMATION li = {}; DWORD n = 0;
@@ -311,6 +392,7 @@ static int schreiben(const wchar_t *img, int nr) {
       if (abbrechen) { fehler_setzen(TX(L"Abgebrochen.", L"Cancelled.")); goto ende; }
       DWORD soll = (DWORD)((groesse - fertig) < BLOCK ? (groesse - fertig) : BLOCK), gelesen = 0;
       if (!ReadFile(q, b1, soll, &gelesen, NULL) || gelesen != soll) { fehler_setzen(TX(L"Das Image lässt sich nicht lesen.", L"The image can't be read."), GetLastError()); goto ende; }
+      wlan_einsetzen(b1, soll);
       DWORD schreib = (soll + 4095) & ~4095u;   // auf ganze Sektoren auffüllen
       if (schreib > soll) memset(b1 + soll, 0, schreib - soll);
       if (!WriteFile(d, b1, schreib, &w, NULL) || w != schreib) { fehler_setzen(TX(L"Schreiben auf den Stick fehlgeschlagen. Ein anderer Stick oder USB-Anschluss hilft oft.", L"Writing to the stick failed. Another stick or USB port often helps."), GetLastError()); goto ende; }
@@ -325,7 +407,8 @@ static int schreiben(const wchar_t *img, int nr) {
     while (fertig < groesse) {
       if (abbrechen) { fehler_setzen(TX(L"Abgebrochen.", L"Cancelled.")); goto ende; }
       DWORD soll = (DWORD)((groesse - fertig) < BLOCK ? (groesse - fertig) : BLOCK), gelesen = 0, lesen = (soll + 4095) & ~4095u;
-      if (!ReadFile(q, b1, soll, &gelesen, NULL) || gelesen != soll || !ReadFile(d, b2, lesen, &w, NULL) || w != lesen || memcmp(b1, b2, soll) != 0) {
+      if (ReadFile(q, b1, soll, &gelesen, NULL)) wlan_einsetzen(b1, gelesen);
+      if (gelesen != soll || !ReadFile(d, b2, lesen, &w, NULL) || w != lesen || memcmp(b1, b2, soll) != 0) {
         fehler_setzen(TX(L"Die Prüfung hat Fehler gefunden – der Stick ist vermutlich defekt. Bitte einen anderen nehmen.", L"Verification found errors – the stick is probably faulty. Please use another one."));
         goto ende;
       }
@@ -503,8 +586,23 @@ static void seite_wahl(void) {
     ziel_neu(Z_STICK + l[i].nr, r);
     y += 66;
   }
+  // WLAN des PCs mitgeben
+  {
+    float wy = 384;
+    if (!wlan_name.empty()) {
+      RectF kr(40, wy, 18, 18);
+      if (wlan_mitgeben) { amber(kr, 5); Pen p(DUNKEL, 2.0f); p.SetStartCap(LineCapRound); p.SetEndCap(LineCapRound); PointF pt[3] = {PointF(44, wy + 9), PointF(48, wy + 13), PointF(54, wy + 5)}; g->DrawLines(&p, pt, 3); }
+      else { flaeche(kr, 5, farbe(ist_ueber(Z_WLAN) ? 30 : 14, 255, 244, 230)); rahmen(kr, 5, farbe(80, 255, 236, 214), 1.2f); }
+      std::wstring wt = std::wstring(TX(L"WLAN „", L"Wi-Fi “")) + wlan_name + TX(L"“ mitgeben", L"” included");
+      float tw = text(wt.c_str(), tf, ist_ueber(Z_WLAN) ? TEXTFARBE : WARM, 68, wy - 1, BREITE - 120);
+      text(TX(L"Das Gerät verbindet sich damit von selbst – ein Netzwerkkabel braucht es dann nicht.", L"The device connects to it by itself – no network cable needed."), tk, LEISE, 68, wy + 20, BREITE - 120);
+      ziel_neu(Z_WLAN, RectF(40, wy - 4, 28 + tw + 8, 26));
+    } else {
+      text(TX(L"Ohne Netzwerkkabel öffnet das Gerät ein eigenes WLAN „Amberwave-Einrichtung“ zum Einrichten.", L"Without a network cable the device opens its own Wi-Fi “Amberwave-Einrichtung” for setup."), tk, LEISE, 40, wy + 4, BREITE - 80);
+    }
+  }
   // Quelle
-  etikett(TX(L"AMBERWAVE OS", L"AMBERWAVE OS"), AMBER1, 40, 380);
+  etikett(TX(L"AMBERWAVE OS", L"AMBERWAVE OS"), AMBER1, 40, 432);
   EnterCriticalSection(&sperre);
   std::wstring qv = quelle_version, qd = quelle_datei, qf = quelle_fehler; int ql = quelle_laedt; uint64_t qg = quelle_groesse;
   LeaveCriticalSection(&sperre);
@@ -514,12 +612,12 @@ static void seite_wahl(void) {
   else if (ql) q = TX(L"Suche die neueste Version auf GitHub …", L"Looking for the latest version on GitHub …");
   else if (!qv.empty()) q = std::wstring(TX(L"Version ", L"Version ")) + qv + (nimm_beta || qv.find(L'-') != std::wstring::npos ? TX(L" (Beta)", L" (beta)") : TX(L" (stabil)", L" (stable)")) + L" · " + groesse_text(qg) + TX(L" · wird von GitHub geladen", L" · downloaded from GitHub");
   else { q = qf; qc = ROT; }
-  text(q.c_str(), tk, qc, 40, 400, BREITE - 300);
+  text(q.c_str(), tk, qc, 40, 452, BREITE - 300);
   Font tl(fam_fett, 12, FontStyleRegular, UnitPixel);
   const wchar_t *dl = qd.empty() ? TX(L"Image-Datei wählen …", L"Choose image file …") : TX(L"Neueste von GitHub", L"Latest from GitHub");
   float dw = breite(dl, tl);
-  RectF dr(40, 420, dw, 18);
-  text(dl, tl, ist_ueber(qd.empty() ? Z_DATEI : Z_GITHUB) ? TEXTFARBE : AMBER1, 40, 420);
+  RectF dr(40, 472, dw, 18);
+  text(dl, tl, ist_ueber(qd.empty() ? Z_DATEI : Z_GITHUB) ? TEXTFARBE : AMBER1, 40, 472);
   ziel_neu(qd.empty() ? Z_DATEI : Z_GITHUB, dr);
   // neuere Beta vorhanden: umschaltbar (standardmäßig die stabile Version)
   EnterCriticalSection(&sperre);
@@ -528,12 +626,12 @@ static void seite_wahl(void) {
   if (qd.empty() && !bv.empty()) {
     std::wstring bt = nimm_beta ? std::wstring(TX(L"Stabile Version nehmen", L"Use the stable version")) : std::wstring(TX(L"Neuere Beta ", L"Newer beta ")) + bv + TX(L" nehmen", L" instead");
     float bx = 40 + dw + 18;
-    text(L"·", tl, LEISE, bx - 10, 420);
-    text(bt.c_str(), tl, ist_ueber(Z_BETA) ? TEXTFARBE : AMBER1, bx, 420);
-    ziel_neu(Z_BETA, RectF(bx, 420, breite(bt.c_str(), tl), 18));
+    text(L"·", tl, LEISE, bx - 10, 472);
+    text(bt.c_str(), tl, ist_ueber(Z_BETA) ? TEXTFARBE : AMBER1, bx, 472);
+    ziel_neu(Z_BETA, RectF(bx, 472, breite(bt.c_str(), tl), 18));
   }
   int bereit = gewaehlt >= 0 && (!qd.empty() || !qv.empty());
-  knopf(Z_LOS, TX(L"Stick erstellen", L"Create stick"), BREITE - 40, 410, 1, bereit);
+  knopf(Z_LOS, TX(L"Stick erstellen", L"Create stick"), BREITE - 40, 462, 1, bereit);
 }
 
 static void seite_laeuft(void) {
@@ -557,7 +655,7 @@ static void seite_laeuft(void) {
     }
     y += 40;
   }
-  knopf(Z_ZU, TX(L"Abbrechen", L"Cancel"), BREITE - 40, 410, 0);
+  knopf(Z_ZU, TX(L"Abbrechen", L"Cancel"), BREITE - 40, HOEHE - 70, 0);
 }
 
 static void seite_fertig(void) {
@@ -567,7 +665,8 @@ static void seite_fertig(void) {
   PointF pt[3] = {PointF(51, 86), PointF(57, 92), PointF(70, 79)}; g->DrawLines(&p, pt, 3);
   text(TX(L"Der Stick ist fertig", L"The stick is ready"), h, TEXTFARBE, 96, 72);
   const wchar_t *schritte[4] = {
-    TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll – mit Netzwerkkabel am Router.", L"Plug the stick into the PC that should run Amberwave – with a network cable to your router."),
+    wlan_mitgeben ? TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll. Das WLAN ist eingetragen – ein Kabel braucht es nicht.", L"Plug the stick into the PC that should run Amberwave. The Wi-Fi is included – no cable needed.")
+                  : TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll – mit Netzwerkkabel am Router. Ohne Kabel öffnet es ein eigenes WLAN „Amberwave-Einrichtung“.", L"Plug the stick into the PC that should run Amberwave – with a network cable to your router. Without a cable it opens its own Wi-Fi “Amberwave-Einrichtung”."),
     TX(L"Beim Einschalten das Startmenü öffnen (meist F11, F12, F8 oder Esc) und den Stick wählen.", L"When switching on, open the boot menu (usually F11, F12, F8 or Esc) and pick the stick."),
     TX(L"Am Bildschirm erscheint eine Adresse – auf Handy oder PC öffnen, Platte wählen, installieren.", L"An address appears on screen – open it on your phone or PC, pick the drive, install."),
     TX(L"Danach den Stick abziehen. Amberwave ist dann unter http://amberwave.local erreichbar.", L"Then unplug the stick. Amberwave is then at http://amberwave.local."),
@@ -578,7 +677,7 @@ static void seite_fertig(void) {
     flaeche(RectF(40, y, 26, 26), 13, farbe(30, 255, 181, 71)); text(n, tf, AMBER1, 53, y + 4, 0, 1);
     y += absatz(schritte[i], t, WARM, 80, y + 3, BREITE - 120) + 20;
   }
-  knopf(Z_SCHLIESSEN, TX(L"Schließen", L"Close"), BREITE - 40, 410, 1);
+  knopf(Z_SCHLIESSEN, TX(L"Schließen", L"Close"), BREITE - 40, HOEHE - 70, 1);
 }
 
 static void dialog_malen(void) {
@@ -661,6 +760,7 @@ static void klick(int id) {
     case Z_DATEI: datei_waehlen(); break;
     case Z_GITHUB: EnterCriticalSection(&sperre); quelle_datei.clear(); LeaveCriticalSection(&sperre); neu_malen(); break;
     case Z_BETA: beta_umschalten(); break;
+    case Z_WLAN: wlan_mitgeben = !wlan_mitgeben; neu_malen(); break;
     case Z_LOS: {
       const Laufwerk *w = auswahl(); if (!w) break;
       wchar_t t[600];
@@ -748,6 +848,10 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
     int nr = _wtoi(argv[3]), da = 0;
     for (auto &w : laufwerke_suchen()) if (w.nr == nr) da = 1;
     if (!da) { protokoll(argv[4], L"FEHLER: Laufwerk ist kein erlaubtes Ziel (USB/SD) oder nicht vorhanden"); return 2; }
+    for (int i = 5; i + 2 < argc; i++) if (!wcscmp(argv[i], L"--wlan")) {
+      auto u8 = [](const wchar_t *w) { int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL); std::string r(n > 0 ? n - 1 : 0, '\0'); if (n > 1) WideCharToMultiByte(CP_UTF8, 0, w, -1, &r[0], n, NULL, NULL); return r; };
+      wlan_ssid8 = u8(argv[i + 1]); wlan_pw8 = u8(argv[i + 2]); wlan_mitgeben = 1;
+    }
     DWORD t0 = GetTickCount();
     int ok = schreiben(argv[2], nr);
     wchar_t z[700]; _snwprintf(z, 700, ok ? L"OK: geschrieben und geprüft in %lu ms" : L"FEHLER: %ls", ok ? (GetTickCount() - t0) : 0, fehler_text.c_str());
@@ -778,6 +882,7 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
   DWORD ecken = 2; DwmSetWindowAttribute(fenster, 33, &ecken, sizeof ecken);
   BOOL dunkel = TRUE; DwmSetWindowAttribute(fenster, 20, &dunkel, sizeof dunkel);
   laufwerke_aktualisieren();
+  wlan_lesen();
   SetTimer(fenster, 1, 2000, NULL);   // Sticks ein- und ausstecken
   HANDLE th = CreateThread(NULL, 0, quelle_suchen, NULL, 0, NULL); if (th) CloseHandle(th);
   ShowWindow(fenster, SW_SHOW); UpdateWindow(fenster);

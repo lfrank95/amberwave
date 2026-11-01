@@ -8,6 +8,7 @@ Nur Standardbibliothek – im Live-System gibt es nichts anderes.
 import json, os, re, subprocess, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from aw_gemeinsam import platten, kanal_standard, ips, nas_pruefen
+import wlan
 
 SEITE = '/usr/local/share/amberwave/installer'
 STAND = '/run/amberwave/installation.json'
@@ -15,6 +16,62 @@ SKRIPT = '/usr/local/lib/amberwave/installieren.sh'
 TYPEN = {'.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.js': 'text/javascript', '.css': 'text/css'}
 laeuft = threading.Lock()
 gestartet = False
+# Netz für die Einrichtung: Kabel, WLAN vom Stick oder – wenn es nichts davon gibt – der eigene Hotspot
+NETZ = {'wlan': False, 'hotspot': False, 'hotspot_ssid': wlan.HOTSPOT_SSID, 'ssid': None, 'netze': [], 'fehler': None, 'wechselt': False}
+hotspot = None
+
+
+def test_ohne_kabel():
+    """Nur im automatischen Test (aw.test=ohne-kabel): so tun, als gäbe es kein Kabel – der Test steuert über das Kabel"""
+    try:
+        return 'aw.test=ohne-kabel' in open('/proc/cmdline').read()
+    except OSError:
+        return False
+
+
+def netz_einrichten():
+    """Beim Start: WLAN vom Stick versuchen, dann bis zu 45 s auf irgendein Netz warten, sonst Hotspot"""
+    global hotspot
+    dev = wlan.schnittstelle()
+    NETZ['wlan'] = bool(dev)
+    if not dev:
+        return
+    ohne = tuple(n for n in os.listdir('/sys/class/net') if n != dev) if test_ohne_kabel() else ()
+    z = wlan.stick_zugang()
+    if z:
+        wlan.verbinden(dev, z['ssid'], z['passwort'])
+        if wlan.warten_auf_adresse(dev, 45):
+            NETZ['ssid'] = z['ssid']
+            wlan.zugang_speichern(wlan.LIVE_DATEI, z['ssid'], z['passwort'])
+            return
+        wlan.trennen(dev)
+        NETZ['fehler'] = 'stick'
+    else:
+        ende = time.time() + 45
+        while time.time() < ende and not wlan.irgendein_netz(ohne):
+            time.sleep(1)
+    if wlan.irgendein_netz(ohne) or not wlan.hotspot_moeglich(dev):
+        return
+    NETZ['netze'] = wlan.scannen(dev)
+    hotspot = wlan.Hotspot(dev)
+    NETZ['hotspot'] = hotspot.starten()
+
+
+def wlan_wechseln(ssid, passwort):
+    """Hotspot aus, ins gewählte WLAN; klappt es nicht, kommt der Hotspot mit Fehlermeldung zurück"""
+    dev = wlan.schnittstelle()
+    time.sleep(3)   # die Antwort muss erst beim Handy ankommen
+    if hotspot:
+        hotspot.stoppen()
+    NETZ['hotspot'] = False
+    wlan.verbinden(dev, ssid, passwort)
+    if wlan.warten_auf_adresse(dev, 45):
+        wlan.zugang_speichern(wlan.LIVE_DATEI, ssid, passwort)
+        NETZ.update(ssid=ssid, fehler=None, wechselt=False)
+        return
+    wlan.trennen(dev)
+    NETZ['netze'] = wlan.scannen(dev) or NETZ['netze']
+    NETZ.update(fehler='verbindung', wechselt=False, hotspot=hotspot.starten() if hotspot else False)
 
 
 def secure_boot():
@@ -71,6 +128,9 @@ def installieren(w):
                AW_KANAL=w.get('kanal') if w.get('kanal') in ('beta', 'latest', 'main') else kanal_standard(),
                AW_ZEITZONE=w.get('zeitzone') if re.match(r'^[A-Za-z_]+(/[A-Za-z_+-]+)*$', w.get('zeitzone') or '') else 'Europe/Berlin',
                AW_MUSIK_ART='intern')
+    z = wlan.zugang_lesen(wlan.LIVE_DATEI)
+    if z:
+        env.update(AW_WLAN_SSID=z['ssid'], AW_WLAN_PASSWORT=z.get('passwort', ''))
     if m.get('art') == 'platte':
         t = next((x for x in musik if x['uuid'] == m.get('uuid') and x['platte'] != ziel['name']), None)
         if not t:
@@ -108,12 +168,32 @@ class Anfrage(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(roh)
 
+    def ueber_hotspot(self):
+        return bool(NETZ['hotspot']) and self.client_address[0].startswith('10.42.0.')
+
+    def umleiten(self):
+        """Hotspot: jede fremde Adresse (Prüfseiten von Android/iOS/Windows) → Einrichtung; so springt sie am Handy auf"""
+        host = (self.headers.get('Host') or '').split(':')[0].lower()
+        if not self.ueber_hotspot() or host in (wlan.HOTSPOT_IP, 'amberwave.local', os.uname().nodename + '.local'):
+            return False
+        self.send_response(302)
+        self.send_header('Location', f'http://{wlan.HOTSPOT_IP}/')
+        self.send_header('Content-Length', '0')
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        return True
+
     def do_GET(self):
+        if self.umleiten():
+            return
         p = self.path.split('?')[0]
         if p == '/api/info':
             ziele, musik = platten()
             return self.senden(200, {'version': open('/etc/amberwave-version').read().strip(), 'name': os.uname().nodename,
-                                     'ips': ips(), 'secure_boot': secure_boot(), 'platten': ziele, 'musik': musik, 'stand': stand_lesen() if gestartet else None})
+                                     'ips': ips(), 'secure_boot': secure_boot(), 'platten': ziele, 'musik': musik, 'stand': stand_lesen() if gestartet else None,
+                                     'netz': NETZ, 'ueber_hotspot': self.ueber_hotspot()})
+        if p == '/api/wlan':
+            return self.senden(200, NETZ)
         if p == '/api/stand':
             return self.senden(200, stand_lesen())
         if p == '/api/protokoll':   # „Details“ bei einem Fehler: die letzten Zeilen der Installation
@@ -132,6 +212,8 @@ class Anfrage(BaseHTTPRequestHandler):
             self.senden(200, f.read(), TYPEN.get(os.path.splitext(pfad)[1], 'application/octet-stream'))
 
     def do_POST(self):
+        if self.umleiten():
+            return
         n = int(self.headers.get('Content-Length') or 0)
         try:
             w = json.loads(self.rfile.read(min(n, 65536)) or b'{}')
@@ -144,8 +226,19 @@ class Anfrage(BaseHTTPRequestHandler):
         if self.path == '/api/neustart':
             threading.Timer(1, neu_starten).start()
             return self.senden(200, {'ok': True})
+        if self.path == '/api/wlan':
+            ssid = (w.get('ssid') or '').strip()
+            pw = w.get('passwort') or ''
+            if not ssid or len(ssid.encode()) > 32 or (pw and not 8 <= len(pw) <= 63):
+                return self.senden(200, {'ok': False, 'fehler': 'eingabe'})
+            if NETZ['wechselt']:
+                return self.senden(200, {'ok': False, 'fehler': 'laeuft'})
+            NETZ['wechselt'] = True
+            threading.Thread(target=wlan_wechseln, args=(ssid, pw), daemon=True).start()
+            return self.senden(200, {'ok': True})
         self.senden(404, {'fehler': 'nicht gefunden'})
 
 
 if __name__ == '__main__':
+    threading.Thread(target=netz_einrichten, daemon=True).start()
     ThreadingHTTPServer(('', 80), Anfrage).serve_forever()

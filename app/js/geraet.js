@@ -54,7 +54,8 @@ function wartenBisDa(titel, text, danach = null) {
 
 export async function geraetZeichnen(app, inhalt, signal) {
   const g = await api.get('/admin/geraet', { signal });
-  const n = g.netz, m = g.musik, sys = g.system;
+  const n = g.netz, m = g.musik, sys = g.system, wl = g.wlan;
+  const signalText = (d) => (d == null ? '' : d >= -60 ? t('starkes Signal') : d >= -72 ? t('mittleres Signal') : t('schwaches Signal'));
   const adresse = `${g.name}.local`;
   const platten = m.platten || [];
   const plattenName = (p) => `${p.label || p.modell || p.name} · ${groesse(p.groesse)} · ${p.fstype}`;
@@ -76,6 +77,12 @@ export async function geraetZeichnen(app, inhalt, signal) {
       ${zeile('hardware', t('Hardware'), [hw.cpu, hw.kerne ? t('{n} Kerne', { n: hw.kerne }) : '', hw.ram ? t('{g} Arbeitsspeicher', { g: groesse(hw.ram) }) : '', hw.temperatur != null ? `${hw.temperatur} °C` : ''].filter(Boolean).map(h).join(' · '))}`)}
 
     ${karte(t('Netzwerk'), `
+      ${g.wlan ? zeile('wlan', t('WLAN'), wl?.wechsel?.stand === 'laeuft' ? t('Wechselt zu „{ssid}“ …', { ssid: h(wl.wechsel.ssid) })
+        : wl?.verbindung ? t('Verbunden mit „{ssid}“', { ssid: h(wl.verbindung.ssid) }) + (wl.adresse ? ` · <code>${h(wl.adresse)}</code>` : '') + (wl.verbindung.signal != null ? ` · ${signalText(wl.verbindung.signal)}` : '')
+        : wl?.gespeichert ? t('„{ssid}“ ist gespeichert, aber gerade nicht erreichbar.', { ssid: h(wl.gespeichert) })
+        : t('Nicht verbunden. Mit Kabel braucht es kein WLAN.'),
+        `<button type="button" class="btn btn-zweit btn-klein" data-wlan-waehlen>${wl?.gespeichert ? t('Anderes WLAN …') : t('WLAN wählen …')}</button>${wl?.gespeichert ? `<button type="button" class="btn-ico" data-wlan-vergessen aria-label="${h(t('WLAN vergessen'))}" title="${h(t('WLAN vergessen'))}">${icon('muell', 17)}</button>` : ''}`) : ''}
+      ${wl?.wechsel?.stand === 'fehler' ? `<p class="einst-karten-hinweis fehler-text">${t('Mit „{ssid}“ hat es nicht geklappt – das Gerät ist im bisherigen Netz geblieben. Stimmt das Passwort?', { ssid: h(wl.wechsel.ssid) })}</p>` : ''}
       ${zeile('netz', t('Adresse beziehen'), t('Automatisch passt fast immer. Eine feste Adresse nur, wenn dein Router keine Adresse reservieren kann.'),
         segment([['auto', t('Automatisch')], ['fest', t('Fest')]], n.art, 'data-netz-art'))}
       <div class="os-fest" data-fest ${n.art === 'fest' ? '' : 'hidden'}>
@@ -87,7 +94,8 @@ export async function geraetZeichnen(app, inhalt, signal) {
       <div class="einst-zeile os-los" data-netz-los hidden><div class="einst-text"><p>${t('Nach dem Übernehmen hast du 3 Minuten, um die neue Adresse zu bestätigen – sonst stellt sich das Gerät von selbst zurück.')}</p></div>
         <div class="einst-regler"><button type="button" class="btn btn-klein" data-netz-uebernehmen>${t('Übernehmen')}</button></div></div>
       <p class="einst-fuss">${[n.schnittstelle && `${t('Schnittstelle')} <code>${h(n.schnittstelle)}</code>`, n.mac && `MAC <code>${h(n.mac)}</code>`, n.router && `${t('Router')} <code>${h(n.router)}</code>`, n.dns.length ? `DNS <code>${n.dns.map(h).join(', ')}</code>` : ''].filter(Boolean).join(' · ')}</p>`,
-      n.verbunden ? chip(n.mbit ? t('Kabel · {g}', { g: n.mbit >= 1000 ? `${zahl(n.mbit / 1000)} Gbit/s` : `${n.mbit} Mbit/s` }) : t('Kabel verbunden'), 'gut') : chip(t('kein Kabel'), 'warn'))}
+      wl?.verbindung && n.schnittstelle === wl.karte ? chip(t('WLAN · {signal}', { signal: signalText(wl.verbindung.signal) }), 'gut')
+        : n.verbunden ? chip(n.mbit ? t('Kabel · {g}', { g: n.mbit >= 1000 ? `${zahl(n.mbit / 1000)} Gbit/s` : `${n.mbit} Mbit/s` }) : t('Kabel verbunden'), 'gut') : chip(t('kein Kabel'), 'warn'))}
 
     ${karte(t('Musik'), `
       ${zeile('musik', t('Wo liegt deine Musik?'), t('Nach einer Änderung startet Amberwave kurz neu und liest die Bibliothek ein – Wiedergabelisten und Verlauf bleiben.'),
@@ -136,6 +144,7 @@ export async function geraetZeichnen(app, inhalt, signal) {
       <div data-ssh-teil ${g.ssh.an ? '' : 'hidden'}>${zeile('ssh-schluessel', t('Öffentliche Schlüssel'), t('Einer pro Zeile ({n} hinterlegt)', { n: g.ssh.liste.length }),
         `<button type="button" class="btn btn-zweit btn-klein" data-ssh-schluessel>${t('Bearbeiten …')}</button>`)}</div>`)}`;
 
+  if (wl?.wechsel?.stand === 'laeuft') { const u = setTimeout(() => location.reload(), 4000); signal?.addEventListener('abort', () => clearTimeout(u)); }
   const $ = (s) => inhalt.querySelector(s);
   const $$ = (s) => inhalt.querySelectorAll(s);
   const senden = async (aktion, daten = {}) => api.post(`/admin/geraet/${aktion}`, daten);
@@ -167,6 +176,41 @@ export async function geraetZeichnen(app, inhalt, signal) {
       if (location.hostname === adresse) setTimeout(() => { location.href = `${location.protocol}//${neu}${location.port ? ':' + location.port : ''}${location.pathname}`; }, 2500);
       else setTimeout(() => location.reload(), 1200);
     } catch (x) { toast(x.message, 'fehler'); } finally { e.target.closest('button').disabled = false; }
+  });
+
+  // WLAN
+  $('[data-wlan-waehlen]')?.addEventListener('click', async (e) => {
+    const knopf = e.currentTarget;
+    knopf.disabled = true;
+    let netze = [];
+    try { netze = (await senden('wlan-suchen')).netze || []; } catch (x) { toast(x.message, 'fehler'); } finally { knopf.disabled = false; }
+    const r = await dialog({
+      titel: t('WLAN wählen'),
+      inhalt: `<label class="os-feld">${t('Netz')}<select name="ssid" class="einst-feld" data-wahl>${netze.map((x) => `<option value="${h(x.ssid)}" ${x.ssid === wl?.gespeichert ? 'selected' : ''}>${h(x.ssid)} · ${signalText(x.signal)}${x.sicher ? '' : ` · ${t('offen')}`}</option>`).join('')}
+          <option value="">${t('Anderes WLAN …')}</option></select></label>
+        <label class="os-feld" data-anders ${netze.length ? 'hidden' : ''}>${t('Name des WLANs')}<input type="text" name="anders" class="einst-feld" maxlength="32" spellcheck="false" autocomplete="off"></label>
+        <label class="os-feld">${t('WLAN-Passwort')}<input type="password" name="passwort" class="einst-feld" autocomplete="off" placeholder="${h(t('leer lassen bei offenem oder schon gespeichertem Netz'))}"></label>
+        <p class="hinweis">${t('Hängst du gerade selbst über dieses WLAN dran, reißt die Verbindung kurz ab. Klappt der Wechsel nicht, geht das Gerät nach etwa einer Minute ins bisherige Netz zurück.')}</p>`,
+      knoepfe: [{ text: t('Abbrechen'), wert: 'abbrechen', art: 'zweit' }, { text: t('Verbinden'), wert: 'ja' }],
+      beimOeffnen: (d) => {
+        const wahl = d.querySelector('[data-wahl]');
+        const zeigen = () => { d.querySelector('[data-anders]').hidden = wahl.value !== ''; };
+        wahl.addEventListener('change', zeigen); zeigen();
+      },
+    });
+    if (!r) return;
+    const ssid = (r.form.get('ssid') || r.form.get('anders') || '').trim();
+    if (!ssid) return;
+    try {
+      const a = await senden('wlan', { ssid, passwort: r.form.get('passwort') || '' });
+      if (!a.ok) { toast(a.fehler === 'eingabe' ? t('Das WLAN-Passwort hat 8 bis 63 Zeichen.') : fehlerText(a), 'fehler'); return; }
+      wartenBisDa(t('Wechsle ins WLAN „{ssid}“', { ssid }), t('Das dauert bis zu einer Minute. Hängst du selbst an diesem WLAN, lädt die Seite danach von selbst – sonst öffne {adresse}.', { adresse: `<code>http://${h(adresse)}</code>` }));
+    } catch (x) { toast(x.message, 'fehler'); }
+  });
+  $('[data-wlan-vergessen]')?.addEventListener('click', async () => {
+    const ohneKabel = !n.verbunden || n.schnittstelle === wl.karte;
+    if (!await bestaetigen(t('WLAN vergessen?'), ohneKabel ? t('Das Gerät hat kein Netzwerkkabel – ohne WLAN ist es danach nicht mehr erreichbar, bis ein Kabel steckt.') : t('Das Gerät trennt sich vom WLAN und bleibt über das Kabel erreichbar.'), t('Vergessen'), ohneKabel)) return;
+    try { await senden('wlan-vergessen'); toast(t('WLAN vergessen.'), 'gut'); setTimeout(() => location.reload(), 800); } catch (x) { toast(x.message, 'fehler'); }
   });
 
   // Netzwerk

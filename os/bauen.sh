@@ -17,7 +17,8 @@ PAKETE=(systemd-sysv systemd-resolved systemd-timesyncd udev dbus kmod linux-ima
   grub-efi-amd64-bin grub-efi-amd64-signed shim-signed grub2-common efibootmgr gdisk e2fsprogs dosfstools rsync util-linux
   kbd console-setup-linux iproute2 iputils-ping avahi-daemon libnss-mdns ca-certificates curl python3
   docker.io docker-cli iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek firmware-misc-nonfree firmware-amd-graphics firmware-bnx2 firmware-bnx2x
-  amd64-microcode intel-microcode unattended-upgrades openssh-server debian-archive-keyring)
+  amd64-microcode intel-microcode unattended-upgrades openssh-server debian-archive-keyring
+  firmware-iwlwifi firmware-mediatek firmware-atheros firmware-brcm80211 wireless-regdb iw wpasupplicant hostapd)
 echo "== Grundsystem ($SUITE)"
 mmdebstrap --variant=minbase --components=main,contrib,non-free-firmware \
   --include="$(IFS=,; echo "${PAKETE[*]}")" \
@@ -39,7 +40,9 @@ cat > "$R/etc/hosts" <<H
 ::1 localhost ip6-localhost ip6-loopback
 H
 # Konsole: auf tty1 läuft die Anzeige (Adresse, Stand) statt einer Anmeldung; niemand muss sich je anmelden
-chroot "$R" systemctl enable systemd-networkd systemd-networkd-wait-online systemd-resolved systemd-timesyncd avahi-daemon aw-anzeige aw-installer aw-start aw-update.path aw-geraet aw-netz >/dev/null
+chroot "$R" systemctl enable systemd-networkd systemd-networkd-wait-online systemd-resolved systemd-timesyncd avahi-daemon aw-anzeige aw-installer aw-start aw-update.path aw-geraet aw-netz aw-wlan aw-test-wlan >/dev/null
+# WLAN steuert Amberwave selbst (wpa_supplicant@<karte>, Hotspot nur bei der Einrichtung)
+chroot "$R" systemctl disable wpa_supplicant.service hostapd.service >/dev/null 2>&1 || true
 chroot "$R" systemctl disable ssh.service ssh.socket >/dev/null 2>&1 || true   # SSH nur, wenn es jemand einschaltet
 chroot "$R" systemctl mask getty@tty1.service >/dev/null
 chroot "$R" passwd -l root >/dev/null
@@ -67,6 +70,11 @@ mksquashfs "$R" "$W/stick/live/filesystem.squashfs" -comp zstd -Xcompression-lev
 cp "$(readlink -f "$R/vmlinuz")" "$W/stick/live/vmlinuz"
 cp "$(readlink -f "$R/initrd.img")" "$W/stick/live/initrd.img"
 cp "$HIER/grub-stick.cfg" "$W/stick/boot/grub/grub.cfg"
+# Platzhalter für das WLAN: der USB-Ersteller ersetzt beim Schreiben den ersten Sektor dieser Datei durch die
+# Zugangsdaten des PCs (die Datei bleibt gleich groß, das Dateisystem unberührt)
+mkdir -p "$W/stick/amberwave"
+{ printf '#AMBERWAVE-WLAN-PLATZHALTER-7f3a9c#\n'; head -c $(( 4096 - 36 )) /dev/zero | tr '\0' '\n'; } > "$W/stick/amberwave/wlan.txt"
+[ "$(stat -c %s "$W/stick/amberwave/wlan.txt")" = 4096 ] || { echo "WLAN-Platzhalter hat die falsche Größe"; exit 1; }
 # Start mit Secure Boot: shim (von Microsoft signiert) → GRUB (von Debian signiert) → Kernel (von Debian signiert).
 # Der signierte GRUB liest seine Konfiguration aus EFI/debian bzw. neben sich – beide Stellen bekommen denselben Wegweiser.
 SHIM="$(ls "$R"/usr/lib/shim/shimx64.efi.signed* 2>/dev/null | head -1)"
@@ -86,4 +94,5 @@ rm -f "$IMG"; truncate -s "$(( GROESSE_MB + 2 ))M" "$IMG"
 sgdisk -Z -n 1:1M:0 -t 1:ef00 -c 1:aw-stick "$IMG" >/dev/null
 mformat -i "$IMG@@1M" -F -v AMBERWAVE -T $(( GROESSE_MB * 2048 )) -h 64 -s 32 ::
 mcopy -s -i "$IMG@@1M" "$W/stick/"* ::
+python3 "$HIER/wlan_einsetzen.py" "$IMG" --pruefen
 echo "fertig: $IMG ($(du -h "$IMG" | cut -f1), Amberwave $VERSION, Debian $SUITE)"

@@ -4110,3 +4110,5 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .os-probe { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
 .os-los .einst-text p { margin: 0; }
 @media (max-width: 640px) { .os-chips { justify-content: flex-start; } .os-gruppe { width: 100%; } .einst-regler .os-gruppe > .einst-feld:not(.os-praefix) { flex: 1; width: auto; } }
+.os-feld { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-size: .88rem; color: var(--text-muted); }
+.os-feld .einst-feld { width: 100%; }
