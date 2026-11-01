@@ -1,5 +1,5 @@
 {
- "quelle": "cd118e31ff33fc22f986488fc666957a0d8f6363",
+ "quelle": "425969798c586827ed65e25c521bda9adc68736c",
  "einstieg": "app.js",
  "start": [
   "app.js",
@@ -10,14 +10,14 @@
   "app-tp2wdqnk.js",
   "app-yne1esqr.js",
   "app-w3mrzvdk.js",
-  "app-3cm6jec7.js",
+  "app-6e0w1rc4.js",
   "app-0ejvs7qb.js",
   "app-acp4rqm0.js"
  ],
  "dateien": [
   "app-0ejvs7qb.js",
-  "app-3cm6jec7.js",
   "app-6066bpya.js",
+  "app-6e0w1rc4.js",
   "app-6pwdw9jy.js",
   "app-8v3grajm.js",
   "app-acp4rqm0.js",
@@ -31,7 +31,7 @@
   "app-yne1esqr.js",
   "app.js",
   "ausgaenge_fenster-pqah1sr5.js",
-  "einstellungen-rycnmx2b.js",
+  "einstellungen-nttf3q3m.js",
   "federn-7g4jtjbq.js",
   "heimnetz-hbyn368f.js",
   "nerd-88xrdmv5.js",
@@ -41,8 +41,8 @@
  ],
  "groesse": {
   "app-0ejvs7qb.js": 12913,
-  "app-3cm6jec7.js": 49522,
   "app-6066bpya.js": 3348,
+  "app-6e0w1rc4.js": 49562,
   "app-6pwdw9jy.js": 65263,
   "app-8v3grajm.js": 23517,
   "app-acp4rqm0.js": 70840,
@@ -56,7 +56,7 @@
   "app-yne1esqr.js": 67150,
   "app.js": 221390,
   "ausgaenge_fenster-pqah1sr5.js": 164,
-  "einstellungen-rycnmx2b.js": 128578,
+  "einstellungen-nttf3q3m.js": 128620,
   "federn-7g4jtjbq.js": 1112,
   "heimnetz-hbyn368f.js": 243,
   "nerd-88xrdmv5.js": 42002,

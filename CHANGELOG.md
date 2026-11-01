@@ -4,7 +4,8 @@
 - Amberwave Connect: **pairing always shares both ways** – paired servers may browse, listen and copy from each other; the per-server switches are gone.
 - Connect: things you **already have** are marked while browsing another server – albums get "You have it", tracks a small tick, and an album page says whether you have all or some of its tracks.
 - Connect: **every server's name can be edited** under Settings › Amberwave Connect › This server; paired servers and the apps pick up the new name.
-- Connect settings tidied up: "This server" (name, ID, addresses), paired servers as one calm row each (Open, check connection, disconnect in the menu), pairing as two side-by-side ways (show code / pair with code, with home-network search).
+- Connect: a server's Cloudflare tunnel address is now passed on to paired servers too (also when APP_URL names something else) – a server paired at home stays reachable after it moves elsewhere.
+- Connect settings tidied up: "This server" (name, ID, addresses), paired servers as one calm row each (Open, check connection, disconnect in the menu), pairing as two side-by-side ways (show code / pair with code, with home-network search) and proper spacing between the cards.
 
 ## 0.9.1-beta.10 – Amberwave Connect at home
 - Amberwave Connect: at home over direct access, pairing, rights, copying and transfers failed with "Administration only works via the normal address" – these now always go the normal way; browsing, covers and listening stay on the fast direct route.

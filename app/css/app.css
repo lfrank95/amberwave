@@ -4151,7 +4151,7 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .cn-peer-text small { color: var(--text-muted); font-size: .8rem; line-height: 1.4; }
 .cn-peer-knoepfe { display: flex; align-items: center; gap: 6px; }
 /* Koppeln: zwei Wege nebeneinander (am Handy untereinander) */
-.cn-koppel-wege { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; padding: 4px 22px 22px; }
+.cn-koppel-wege { display: grid; align-items: start; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; padding: 4px 22px 22px; }
 .cn-weg { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: var(--radius-md); border: 1px solid var(--glass-border); background: rgba(0,0,0,.14); min-width: 0; }
 .cn-weg h3 { font-size: .98rem; margin: 0; }
 .cn-weg > p { margin: 0; color: var(--text-muted); font-size: .84rem; line-height: 1.45; }

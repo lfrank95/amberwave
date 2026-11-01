@@ -93,7 +93,21 @@ function connect_eigene_adressen(): array
         'lan' => array_values(array_unique(array_merge($lan, $os))),
         'direkt' => direkt_url() ?: null,
         'oeffentlich' => rtrim((string) konfig()['app_url'], '/') ?: null,
+        'tunnel' => connect_tunnel_adresse(),
     ]);
+}
+
+/** Adresse des Cloudflare-Tunnels (auch wenn APP_URL etwas anderes nennt, z. B. die Heimnetz-Adresse) */
+function connect_tunnel_adresse(): ?string
+{
+    try {
+        require_once __DIR__ . '/tunnel.php';
+        $h = tunnel_host();
+    } catch (Throwable $e) {
+        return null;
+    }
+    $u = $h !== '' ? 'https://' . $h : '';
+    return $u !== '' && $u !== rtrim((string) konfig()['app_url'], '/') ? $u : null;
 }
 
 function connect_eigener_name(): string
@@ -258,6 +272,7 @@ function connect_adressen_saeubern(array $ad): array
         'lan' => array_values(array_filter(array_map($url, array_slice((array) ($ad['lan'] ?? []), 0, 6)))),
         'direkt' => $url($ad['direkt'] ?? null),
         'oeffentlich' => $url($ad['oeffentlich'] ?? null),
+        'tunnel' => $url($ad['tunnel'] ?? null),
     ]);
 }
 
@@ -464,6 +479,9 @@ function connect_kandidaten(array $peer): array
     }
     if (!empty($ad['oeffentlich'])) {
         $k[] = ['tunnel', $ad['oeffentlich']];
+    }
+    if (!empty($ad['tunnel']) && $ad['tunnel'] !== ($ad['oeffentlich'] ?? '')) {
+        $k[] = ['tunnel', $ad['tunnel']];
     }
     return $k;
 }

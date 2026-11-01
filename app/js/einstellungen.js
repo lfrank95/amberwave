@@ -1025,7 +1025,7 @@ async function sicherungZeichnen(app, inhalt, signal) {
 
 /** Amberwave Connect: Ausweis, gekoppelte Server und Koppeln (connect.js), darunter Qualität und Tempo */
 async function connectZeichnen(app, inhalt, signal) {
-  inhalt.innerHTML = '<div data-cn-oben></div><div data-cn-unten></div>';
+  inhalt.innerHTML = '<div class="einst-karten" data-cn-oben></div><div class="einst-karten" data-cn-unten></div>';
   const unten = inhalt.querySelector('[data-cn-unten]');
   await Promise.all([connectEinstellungenZeichnen(app, inhalt.querySelector('[data-cn-oben]'), signal), serverBereichZeichnen(app, unten, 'connect', signal)]);
 }

@@ -420,7 +420,7 @@ export async function connectEinstellungenZeichnen(app, inhalt, signal) {
   const r = await serverListe(true);
   if (signal?.aborted) return;
   const ad = r.adressen || {};
-  const adressen = [...(ad.lan || []).map((u) => [t('Heimnetz'), u]), ...(ad.direkt ? [[t('Direktzugang'), ad.direkt]] : []), ...(ad.oeffentlich ? [[t('Von außen'), ad.oeffentlich]] : [])];
+  const adressen = [...(ad.lan || []).map((u) => [t('Heimnetz'), u]), ...(ad.direkt ? [[t('Direktzugang'), ad.direkt]] : []), ...(ad.oeffentlich ? [[t('Von außen'), ad.oeffentlich]] : []), ...(ad.tunnel ? [[t('Tunnel'), ad.tunnel]] : [])];
   const serverZeile = (s) => `<div class="cn-peer" data-s="${s.id}">
       <span class="cn-server-sym">${icon('connect', 22)}</span>
       <div class="cn-peer-text">
