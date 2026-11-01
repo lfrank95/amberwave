@@ -56,7 +56,7 @@ PARTUUID=$SYS_UUID  /          ext4  defaults,noatime,errors=remount-ro  0 1
 PARTLABEL=aw-efi    /boot/efi  vfat  umask=0077                          0 2
 PARTLABEL=aw-daten  /daten     ext4  defaults,noatime                    0 2
 F
-for x in dev proc sys run; do mount --rbind /$x /mnt/aw/$x; done
+for x in dev proc sys run; do mount --rbind /$x /mnt/aw/$x; mount --make-rslave /mnt/aw/$x; done
 chroot /mnt/aw grub-install --target=x86_64-efi --efi-directory=/boot/efi --boot-directory=/boot --removable --no-nvram >/dev/null 2>&1 \
   || fehler "Das Startmenü ließ sich nicht einrichten."
 cat > /mnt/aw/boot/grub/grub.cfg <<G
@@ -76,6 +76,7 @@ menuentry "Amberwave (vorheriger Kernel)" {
 G
 # auch über einen Starteintrag in der Firmware (falls die Platte nicht von selbst gefunden wird)
 chroot /mnt/aw efibootmgr -q -c -d "$D" -p 1 -L Amberwave -l '\EFI\BOOT\BOOTX64.EFI' >/dev/null 2>&1 || true
+for x in run sys proc dev; do umount -R -l /mnt/aw/$x 2>/dev/null || true; done
 
 stand "Einstellungen speichern" 92
 mkdir -p /mnt/aw/daten
@@ -92,7 +93,7 @@ if [ "${AW_MUSIK_ART:-}" = nas ]; then
   ( umask 077; printf 'username=%s\npassword=%s\n' "${AW_NAS_BENUTZER:-}" "${AW_NAS_PASSWORT:-}" > /mnt/aw/daten/system/nas.zugang )
 fi
 sync
-umount -R /mnt/aw
+umount -R /mnt/aw 2>/dev/null || { sleep 2; umount -R -l /mnt/aw; }
 trap - ERR
 stand "fertig" 100 true
 echo "Fertig – Stick abziehen, das Gerät startet dann von selbst neu." > /run/amberwave/stand
