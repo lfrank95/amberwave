@@ -42,7 +42,13 @@ fi
 versuch=0
 until docker image inspect "$BILD" >/dev/null 2>&1; do
   versuch=$((versuch+1))
-  if ! docker info >/dev/null 2>&1; then stand "Docker startet …"; sleep 3; continue; fi
+  if ! docker info >/dev/null 2>&1; then
+    stand "Docker startet …"
+    # hängt Docker? Einmal nach einer Minute die Gründe auf die Konsole (Fehlersuche ohne Anmeldung)
+    if [ "$versuch" = 20 ]; then systemctl --no-pager -l status docker containerd 2>&1 | tail -n 25; journalctl -u docker -b --no-pager -n 25 2>&1; fi
+    [ "$versuch" = 10 ] && systemctl start docker
+    sleep 3; continue
+  fi
   if ! curl -fsS -m 8 -o /dev/null https://ghcr.io/v2/ 2>/dev/null && ! curl -sS -m 8 -o /dev/null -w '%{http_code}' https://ghcr.io/v2/ 2>/dev/null | grep -q '^[24]'; then
     stand "fehler:Warte auf das Internet … (Amberwave wird beim ersten Start einmalig geladen)"; sleep 10; continue
   fi
