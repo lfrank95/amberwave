@@ -1,38 +1,50 @@
-# Amberwave OS: bootfähiges USB-Image (x86-64, UEFI) bauen und in einer virtuellen Maschine komplett durchspielen –
-# vom Stick starten, im Browser einrichten, auf eine leere SSD installieren, Stick abziehen, Amberwave startet.
-# Nur von Hand: Actions → Amberwave OS → Run workflow (kanal: welches Amberwave-Image der Test lädt).
+# Amberwave OS: bootfähiges USB-Image (x86-64, UEFI, Secure Boot) und der USB-Ersteller für Windows.
+#   image          Image bauen
+#   vm             in QEMU durchspielen: Stick → Einrichtung → Installation → Neustart → Amberwave antwortet
+#   ersteller      USB-Ersteller (Windows) bauen
+#   ersteller-test auf Windows: das Image mit dem Ersteller auf eine virtuelle Platte schreiben, prüfen, Fenster fotografieren
+#   anhaengen      bei einem veröffentlichten Release: Image und Ersteller als Dateien ans Release hängen
+# Bildschirmfotos (Konsole der VM, Fenster des Erstellers) landen im Zweig „ci-bilder“.
 name: Amberwave OS
 on:
   workflow_dispatch:
     inputs:
       kanal:
-        description: 'Amberwave-Image für den Test (main, beta, latest)'
+        description: 'Amberwave-Image für den VM-Test (main, beta, latest)'
         default: main
+  release:
+    types: [published]
 permissions:
   contents: read
+env:
+  KANAL: ${{ inputs.kanal || 'beta' }}
 jobs:
   image:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    outputs:
+      version: ${{ steps.v.outputs.v }}
     steps:
       - uses: actions/checkout@v4
+      - id: v
+        run: echo "v=$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")" >> "$GITHUB_OUTPUT"
       - name: Werkzeuge
         run: sudo apt-get update -qq && sudo apt-get install -y -qq mmdebstrap debian-archive-keyring squashfs-tools grub-efi-amd64-bin grub-common mtools gdisk dosfstools >/dev/null
       - name: Image bauen
-        run: |
-          sudo bash os/bauen.sh "$RUNNER_TEMP/os"
-          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
-          echo "V=$V" >> "$GITHUB_ENV"
-          ls -la "$RUNNER_TEMP/os"
+        run: sudo bash os/bauen.sh "$RUNNER_TEMP/os" && ls -la "$RUNNER_TEMP/os"
       - uses: actions/upload-artifact@v4
         with:
           name: amberwave-os-img
-          path: ${{ runner.temp }}/os/amberwave-os-${{ env.V }}.img
+          path: ${{ runner.temp }}/os/amberwave-os-${{ steps.v.outputs.v }}.img
           retention-days: 7
+          compression-level: 1
+
   vm:
     needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write   # Bildschirmfotos in den Zweig ci-bilder
     steps:
       - uses: actions/checkout@v4
       - name: KVM
@@ -45,15 +57,121 @@ jobs:
           name: amberwave-os-img
           path: ${{ runner.temp }}/img
       - name: Stick → Einrichtung → Installation → Neustart → Amberwave
-        run: python3 os/test_vm.py "$(ls "$RUNNER_TEMP"/img/*.img)" "$RUNNER_TEMP/vm" "${{ inputs.kanal || 'main' }}"
-      - name: Konsole (Ende)
+        run: python3 os/test_vm.py "$(ls "$RUNNER_TEMP"/img/*.img)" "$RUNNER_TEMP/vm" "$KANAL"
+      - name: Bildschirmfotos
         if: always()
-        run: tail -n 60 "$RUNNER_TEMP/vm/seriell.log" || true
+        run: bash os/ci_bilder.sh vm "$RUNNER_TEMP/vm"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  ersteller:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: llvm-mingw
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          URL="$(gh api repos/mstorsjo/llvm-mingw/releases/latest --jq '.assets[].browser_download_url' | grep -E 'ucrt-ubuntu-[0-9.]+-x86_64\.tar\.xz$' | head -1)"
+          curl -fsSL "$URL" | tar -xJ -C "$RUNNER_TEMP"
+          echo "LLVM_MINGW=$(ls -d "$RUNNER_TEMP"/llvm-mingw-*)" >> "$GITHUB_ENV"
+          pip install --quiet fonttools brotli
+      - run: BROTLI_SHIM= bash os/ersteller/bauen.sh "$RUNNER_TEMP/ersteller"
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: vm-test
-          path: |
-            ${{ runner.temp }}/vm/*.png
-            ${{ runner.temp }}/vm/seriell.log
+          name: usb-ersteller
+          path: ${{ runner.temp }}/ersteller/*.exe
           retention-days: 7
+
+  ersteller-test:
+    needs: [image, ersteller]
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: amberwave-os-img
+          path: ${{ runner.temp }}/img
+      - uses: actions/download-artifact@v4
+        with:
+          name: usb-ersteller
+          path: ${{ runner.temp }}/ersteller
+      - name: Virtuelle Platte als „Stick“, schreiben und prüfen
+        shell: pwsh
+        run: |
+          $t = $env:RUNNER_TEMP
+          $vhd = "$t\stick.vhdx"
+          "create vdisk file=`"$vhd`" maximum=2048 type=expandable`nselect vdisk file=`"$vhd`"`nattach vdisk" | Set-Content "$t\dp.txt" -Encoding ascii
+          diskpart /s "$t\dp.txt" | Out-Null
+          Start-Sleep 3
+          $disk = Get-Disk | Where-Object { $_.Location -eq $vhd } | Select-Object -First 1
+          if (-not $disk) { Write-Host "::error title=USB-Ersteller::virtuelle Platte nicht gefunden"; exit 1 }
+          $nr = $disk.Number
+          $exe = (Get-ChildItem "$t\ersteller\*.exe" | Select-Object -First 1).FullName
+          $img = (Get-ChildItem "$t\img\*.img" | Select-Object -First 1).FullName
+          Start-Process $exe -ArgumentList '--liste', "$t\liste.txt", '--alle-laufwerke' -Wait
+          Write-Host "Erkannte Laufwerke:"; Get-Content "$t\liste.txt" -ErrorAction SilentlyContinue
+          if (-not (Select-String -Path "$t\liste.txt" -Pattern "^$nr`t" -Quiet)) { Write-Host "::error title=USB-Ersteller::virtuelle Platte $nr nicht in der Liste"; exit 1 }
+          # Sicherheitsprobe: ohne --alle-laufwerke darf die virtuelle Platte (kein USB) nicht beschreibbar sein
+          $p = Start-Process $exe -ArgumentList '--test', $img, $nr, "$t\probe.txt" -Wait -PassThru
+          if ($p.ExitCode -ne 2) { Write-Host "::error title=USB-Ersteller::Nicht-USB-Laufwerk wurde nicht abgewiesen (Exit $($p.ExitCode))"; exit 1 }
+          $s = Get-Date
+          $p = Start-Process $exe -ArgumentList '--test', $img, $nr, "$t\test.txt", '--alle-laufwerke' -Wait -PassThru
+          $erg = Get-Content "$t\test.txt" -Raw
+          Write-Host $erg
+          if ($p.ExitCode -ne 0) { Write-Host "::error title=USB-Ersteller::$erg"; exit 1 }
+          Update-Disk -Number $nr
+          Start-Sleep 2
+          $teil = Get-Partition -DiskNumber $nr | Select-Object -First 1
+          if (-not $teil.DriveLetter -or $teil.DriveLetter -eq [char]0) { $teil | Add-PartitionAccessPath -AssignDriveLetter; Start-Sleep 2; $teil = Get-Partition -DiskNumber $nr | Select-Object -First 1 }
+          $lw = "$($teil.DriveLetter):"
+          $vol = Get-Volume -DriveLetter $teil.DriveLetter
+          $ok = (Test-Path "$lw\EFI\BOOT\BOOTX64.EFI") -and (Test-Path "$lw\live\filesystem.squashfs") -and ($vol.FileSystemLabel -eq 'AMBERWAVE')
+          Write-Host "Laufwerk $lw, Bezeichnung $($vol.FileSystemLabel), Dateisystem $($vol.FileSystem)"
+          if (-not $ok) { Write-Host "::error title=USB-Ersteller::Stick enthält nicht die erwarteten Dateien"; exit 1 }
+          Write-Host "::notice title=USB-Ersteller::Image geschrieben und geprüft ($([int]((Get-Date) - $s).TotalSeconds) s), Stick als AMBERWAVE mit Startdateien lesbar; Nicht-USB-Laufwerk abgewiesen"
+      - name: Fenster fotografieren
+        if: always()
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem "$env:RUNNER_TEMP\ersteller\*.exe" | Select-Object -First 1).FullName
+          Start-Process $exe -ArgumentList '--alle-laufwerke'
+          Start-Sleep 8
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bild = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $gr = [System.Drawing.Graphics]::FromImage($bild); $gr.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\bilder" | Out-Null
+          $bild.Save("$env:RUNNER_TEMP\bilder\ersteller.png")
+          Get-Process | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
+      - name: Bild hochladen
+        if: always()
+        shell: bash
+        run: bash os/ci_bilder.sh ersteller "$RUNNER_TEMP/bilder"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  anhaengen:
+    if: github.event_name == 'release'
+    needs: [image, vm, ersteller, ersteller-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/a
+          merge-multiple: true
+      - name: Ans Release hängen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP/a"
+          ls -la
+          for f in amberwave-os-*.img Amberwave-USB-Ersteller-*.exe; do sha256sum "$f" > "$f.sha256"; done
+          gh release upload "${{ github.event.release.tag_name }}" amberwave-os-*.img* Amberwave-USB-Ersteller-*.exe* --clobber -R "${{ github.repository }}"
+          echo "::notice title=Release::Amberwave OS und USB-Ersteller angehängt"
