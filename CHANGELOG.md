@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta.10 – Amberwave Connect at home
 - Amberwave Connect: at home over direct access, pairing, rights, copying and transfers failed with "Administration only works via the normal address" – these now always go the normal way; browsing, covers and listening stay on the fast direct route.
 
 ## 0.9.1-beta.9 – Amberwave OS: storage, manual update check, writable music folder
