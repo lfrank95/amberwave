@@ -1,4 +1,4 @@
-# Amberwave OS: bootfähiges USB-Image (x86-64, UEFI, Secure Boot) und der USB-Ersteller für Windows.
+# Amberwave OS: bootfähiges USB-Image (x86-64, UEFI, Secure Boot) und der USB Creator (USB-Ersteller) für Windows.
 #   image          Image bauen
 #   vm             in QEMU durchspielen: Stick → Einrichtung → Installation → Neustart → Amberwave antwortet
 #   wlan           WLAN vom Stick und Hotspot der Einrichtung mit simulierten WLAN-Karten
@@ -119,7 +119,7 @@ jobs:
       - run: BROTLI_SHIM= bash os/ersteller/bauen.sh "$RUNNER_TEMP/ersteller"
       - uses: actions/upload-artifact@v4
         with:
-          name: usb-ersteller
+          name: usb-creator
           path: ${{ runner.temp }}/ersteller/*.exe
           retention-days: 7
 
@@ -137,7 +137,7 @@ jobs:
           path: ${{ runner.temp }}/img
       - uses: actions/download-artifact@v4
         with:
-          name: usb-ersteller
+          name: usb-creator
           path: ${{ runner.temp }}/ersteller
       - name: Virtuelle Platte als „Stick“, schreiben und prüfen
         shell: pwsh
@@ -208,6 +208,12 @@ jobs:
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\bilder" | Out-Null
           $bild.Save("$env:RUNNER_TEMP\bilder\ersteller.png")
           Get-Process | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
+          # Fortschrittsseite (mit Beispielwerten)
+          Start-Process $exe -ArgumentList '--alle-laufwerke', '--zeige-fortschritt'
+          Start-Sleep 8
+          $gr.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bild.Save("$env:RUNNER_TEMP\bilder\ersteller-fortschritt.png")
+          Get-Process | Where-Object { $_.Path -eq $exe } | Stop-Process -Force
       - name: Bild hochladen
         if: always()
         shell: bash
@@ -232,6 +238,6 @@ jobs:
         run: |
           cd "$RUNNER_TEMP/a"
           ls -la
-          for f in amberwave-os-*.img Amberwave-USB-Ersteller-*.exe; do sha256sum "$f" > "$f.sha256"; done
-          gh release upload "${{ github.event.release.tag_name || inputs.release }}" amberwave-os-*.img* Amberwave-USB-Ersteller-*.exe* --clobber -R "${{ github.repository }}"
+          for f in amberwave-os-*.img Amberwave-USB-Creator-*.exe; do sha256sum "$f" > "$f.sha256"; done
+          gh release upload "${{ github.event.release.tag_name || inputs.release }}" amberwave-os-*.img* Amberwave-USB-Creator-*.exe* --clobber -R "${{ github.repository }}"
           echo "::notice title=Release::Amberwave OS und USB-Ersteller angehängt"

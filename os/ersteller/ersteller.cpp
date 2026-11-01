@@ -1,4 +1,4 @@
-// Amberwave USB-Ersteller – schreibt Amberwave OS auf einen USB-Stick (Windows, eigenes Fenster im Amberwave-Look).
+// Amberwave USB Creator (USB-Ersteller) – schreibt Amberwave OS auf einen USB-Stick (Windows, eigenes Fenster im Amberwave-Look).
 //
 // Ablauf: Stick wählen → „Stick erstellen“ → das neueste Image wird von GitHub geladen (oder eine .img-Datei von Hand
 // gewählt) → auf den Stick geschrieben → zurückgelesen und verglichen → „Fertig: in den PC stecken und davon starten“.
@@ -10,6 +10,7 @@
 //   ersteller.exe --test <image> <laufwerksnummer> <protokoll>   schreibt, prüft und beendet sich (Exit 0 = gut)
 //   ersteller.exe --liste <protokoll>                             listet die erkannten Laufwerke
 //   --wlan <name> <passwort>                                     (mit --test) WLAN-Zugang auf den Stick schreiben
+//   --zeige-fortschritt                                          (nur für Bildschirmfotos) Fortschrittsseite mit Beispielwerten
 //   --alle-laufwerke                                              zeigt auch virtuelle Platten (nur für Tests)
 #ifndef UNICODE
 #define UNICODE
@@ -42,8 +43,8 @@ using namespace Gdiplus;
 #define RES_SCHRIFT_TITEL 12
 #define REPO L"/repos/lfrank95/amberwave/releases?per_page=20"
 
-static int englisch(void) { return (GetUserDefaultUILanguage() & 0x3ff) != LANG_GERMAN; }
-#define TX(de, en) (englisch() ? (en) : (de))
+// Die Oberfläche ist englisch (wie die Einrichtung im Browser standardmäßig); die deutschen Texte bleiben als Vorlage stehen
+#define TX(de, en) (en)
 #define WM_STAND (WM_APP + 1)
 #define WM_FERTIG (WM_APP + 2)
 #define WM_QUELLE (WM_APP + 3)
@@ -144,6 +145,9 @@ static std::wstring quelle_version, quelle_url, quelle_datei, quelle_fehler;
 static uint64_t quelle_groesse = 0;
 static int quelle_laedt = 1;
 
+// Fortschritt der laufenden Phase in Bytes (setzt der Arbeits-Thread, liest die Oberfläche)
+static volatile int64_t fort_bytes = 0, fort_gesamt = 0;
+
 static std::string http(const wchar_t *host, const wchar_t *pfad, HANDLE ziel = INVALID_HANDLE_VALUE, uint64_t erwartet = 0, int phase = 0) {
   std::string aus;
   HINTERNET s = WinHttpOpen(L"AmberwaveUSB/" AW_VERSION, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
@@ -163,6 +167,7 @@ static std::string http(const wchar_t *host, const wchar_t *pfad, HANDLE ziel = 
         if (ziel != INVALID_HANDLE_VALUE) {
           DWORD w = 0; if (!WriteFile(ziel, b.data(), gelesen, &w, NULL) || w != gelesen) { aus = "!"; break; }
           gesamt += gelesen;
+          fort_gesamt = (int64_t)erwartet; fort_bytes = (int64_t)gesamt;
           if (erwartet) PostMessageW(fenster, WM_STAND, (WPARAM)phase, (LPARAM)(gesamt * 1000 / erwartet));
           aus = "ok";
         } else if (aus.size() < 8000000) aus.append(b.data(), gelesen);
@@ -318,6 +323,32 @@ static void wlan_einsetzen(BYTE *b, DWORD n) {
 }
 
 static int phase = 0, promille = 0;   // phase: 0 laden, 1 schreiben, 2 prüfen
+static DWORD phase_beginn[3], phase_dauer[3];   // ms
+static double rate = 0;                         // Bytes/s, geglättet
+static DWORD rate_t = 0; static int64_t rate_b = 0;
+static void phase_wechsel(int neu) {
+  DWORD jetzt = GetTickCount();
+  if (neu != phase && phase >= 0 && phase < 3 && phase_beginn[phase]) phase_dauer[phase] = jetzt - phase_beginn[phase];
+  if (neu >= 0 && neu < 3 && (neu != phase || !phase_beginn[neu])) { phase_beginn[neu] = jetzt; rate = 0; rate_t = jetzt; rate_b = 0; }
+  phase = neu;
+}
+static void rate_messen(void) {
+  DWORD jetzt = GetTickCount(), dt = jetzt - rate_t;
+  if (dt < 700) return;
+  double inst = (double)(fort_bytes - rate_b) * 1000.0 / dt;
+  rate = rate > 0 ? rate * 0.75 + inst * 0.25 : inst;
+  rate_t = jetzt; rate_b = fort_bytes;
+}
+static std::wstring menge(int64_t b) {
+  wchar_t s[32];
+  if (b >= 1000000000) _snwprintf(s, 32, L"%.2f GB", b / 1e9); else _snwprintf(s, 32, L"%.0f MB", b / 1e6);
+  return s;
+}
+static std::wstring dauer(double sek) {
+  wchar_t s[32]; int x = (int)(sek + 0.5);
+  if (x >= 3600) _snwprintf(s, 32, L"%d:%02d:%02d", x / 3600, x / 60 % 60, x % 60); else _snwprintf(s, 32, L"%d:%02d", x / 60, x % 60);
+  return s;
+}
 static std::wstring fehler_text;
 static int laeuft = 0, abbrechen = 0;
 
@@ -397,6 +428,7 @@ static int schreiben(const wchar_t *img, int nr) {
       if (schreib > soll) memset(b1 + soll, 0, schreib - soll);
       if (!WriteFile(d, b1, schreib, &w, NULL) || w != schreib) { fehler_setzen(TX(L"Schreiben auf den Stick fehlgeschlagen. Ein anderer Stick oder USB-Anschluss hilft oft.", L"Writing to the stick failed. Another stick or USB port often helps."), GetLastError()); goto ende; }
       fertig += soll;
+      fort_gesamt = (int64_t)groesse; fort_bytes = (int64_t)fertig;
       PostMessageW(fenster, WM_STAND, 1, (LPARAM)(fertig * 1000 / groesse));
     }
     FlushFileBuffers(d);
@@ -413,6 +445,7 @@ static int schreiben(const wchar_t *img, int nr) {
         goto ende;
       }
       fertig += soll;
+      fort_gesamt = (int64_t)groesse; fort_bytes = (int64_t)fertig;
       PostMessageW(fenster, WM_STAND, 2, (LPARAM)(fertig * 1000 / groesse));
     }
     ok = 1;
@@ -635,26 +668,46 @@ static void seite_wahl(void) {
 }
 
 static void seite_laeuft(void) {
-  Font h(fam_titel, 26, FontStyleRegular, UnitPixel), t(fam_text, 13.5f, FontStyleRegular, UnitPixel), tf(fam_fett, 14, FontStyleRegular, UnitPixel);
+  Font h(fam_titel, 26, FontStyleRegular, UnitPixel), t(fam_text, 13.5f, FontStyleRegular, UnitPixel), tf(fam_fett, 14, FontStyleRegular, UnitPixel), tk(fam_text, 12.5f, FontStyleRegular, UnitPixel);
   text(TX(L"Stick wird erstellt", L"Creating the stick"), h, TEXTFARBE, 40, 70);
-  absatz(TX(L"Bitte den Stick nicht abziehen. Das dauert je nach Stick ein paar Minuten.", L"Please don't unplug the stick. Depending on the stick this takes a few minutes."), t, LEISE, 40, 108, BREITE - 80);
-  const wchar_t *namen[3] = {TX(L"Von GitHub laden", L"Download from GitHub"), TX(L"Auf den Stick schreiben", L"Write to the stick"), TX(L"Prüfen", L"Verify")};
+  absatz(TX(L"Bitte den Stick nicht abziehen. Das dauert je nach Stick ein paar Minuten.", L"Please don't unplug the stick. Depending on the stick and your connection this takes a few minutes."), t, LEISE, 40, 108, BREITE - 80);
+  EnterCriticalSection(&sperre);
+  std::wstring v = quelle_version; uint64_t qg = quelle_groesse;
+  LeaveCriticalSection(&sperre);
+  const Laufwerk *ziel = NULL; for (auto &w : laufwerke) if (w.nr == gewaehlt) ziel = &w;
+  std::wstring namen[3] = {
+    std::wstring(L"Download Amberwave OS ") + v + (qg ? L" (" + menge((int64_t)qg) + L")" : L"") + L" from GitHub",
+    std::wstring(L"Write to ") + (ziel ? ziel->name : std::wstring(L"the stick")),
+    L"Verify – read back and compare"};
   int mit_laden = quelle_datei.empty();
-  float y = 170;
+  float y = 160;
   for (int i = mit_laden ? 0 : 1; i < 3; i++) {
     int fertig = i < phase, jetzt = i == phase;
     Color c = fertig ? GRUEN : jetzt ? TEXTFARBE : LEISE;
     flaeche(RectF(40, y + 4, 12, 12), 6, fertig ? GRUEN : jetzt ? AMBER1 : farbe(51, 255, 236, 214));
-    text(namen[i], tf, c, 64, y);
+    text(namen[i].c_str(), tf, c, 64, y, BREITE - 220);
+    if (fertig && phase_dauer[i]) text((L"done in " + dauer(phase_dauer[i] / 1000.0)).c_str(), tk, GRUEN, BREITE - 40, y + 1, 0, 2);
     if (jetzt) {
-      wchar_t pz[16]; _snwprintf(pz, 16, L"%d %%", promille / 10);
+      wchar_t pz[16]; _snwprintf(pz, 16, L"%.1f %%", promille / 10.0);
       text(pz, tf, AMBER1, BREITE - 40, y, 0, 2);
       RectF spur(64, y + 28, BREITE - 104, 8); flaeche(spur, 4, farbe(26, 255, 244, 230));
       amber(RectF(64, y + 28, (BREITE - 104) * (promille > 10 ? promille : 10) / 1000.0f, 8), 4);
-      y += 22;
+      // Einzelheiten: wie viel, wie schnell, wie lange noch, wie lange schon
+      int64_t b = fort_bytes, g = fort_gesamt;
+      double vergangen = phase_beginn[i] ? (GetTickCount() - phase_beginn[i]) / 1000.0 : 0;
+      std::wstring z = g > 0 ? menge(b) + L" of " + menge(g) : std::wstring(L"Preparing …");
+      if (rate > 1e5) {
+        wchar_t r[32]; _snwprintf(r, 32, L"%.1f MB/s", rate / 1e6);
+        z += std::wstring(L"  ·  ") + r;
+        if (g > b) z += L"  ·  about " + dauer((g - b) / rate) + L" left";
+      }
+      text(z.c_str(), tk, WARM, 64, y + 44);
+      text((L"elapsed " + dauer(vergangen)).c_str(), tk, LEISE, BREITE - 40, y + 44, 0, 2);
+      y += 44;
     }
     y += 40;
   }
+  if (phase == 1) absatz(L"Windows may briefly show messages about the stick (“format disk?”) – just ignore or close them.", tk, LEISE, 40, y + 6, BREITE - 80);
   knopf(Z_ZU, TX(L"Abbrechen", L"Cancel"), BREITE - 40, HOEHE - 70, 0);
 }
 
@@ -747,7 +800,8 @@ static void klick(int id) {
   if (dlg) {
     int art = dlg; dlg = D_KEIN;
     if (id == Z_DLG_JA && art == D_LOESCHEN) {
-      seite = S_LAEUFT; phase = quelle_datei.empty() ? 0 : 1; promille = 0; laeuft = 1; abbrechen = 0;
+      seite = S_LAEUFT; memset(phase_beginn, 0, sizeof phase_beginn); memset(phase_dauer, 0, sizeof phase_dauer);
+      phase = -1; phase_wechsel(quelle_datei.empty() ? 0 : 1); promille = 0; fort_bytes = fort_gesamt = 0; laeuft = 1; abbrechen = 0;
       HANDLE th = CreateThread(NULL, 0, erstellen, (LPVOID)(intptr_t)gewaehlt, 0, NULL); if (th) CloseHandle(th);
     } else if (id == Z_DLG_JA && art == D_ABBRECHEN) abbrechen = 1;
     neu_malen(); return;
@@ -801,7 +855,7 @@ static LRESULT CALLBACK fensterproc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_TIMER: if (seite == S_WAHL && !dlg) laufwerke_aktualisieren(); return 0;
     case WM_DEVICECHANGE: if (seite == S_WAHL) SetTimer(h, 1, 700, NULL); return TRUE;
     case WM_QUELLE: neu_malen(); return 0;
-    case WM_STAND: phase = (int)w; promille = (int)l; neu_malen(); return 0;
+    case WM_STAND: phase_wechsel((int)w); promille = (int)l; rate_messen(); neu_malen(); return 0;
     case WM_FERTIG:
       laeuft = 0;
       if (w) seite = S_FERTIG;
@@ -883,6 +937,12 @@ int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
   BOOL dunkel = TRUE; DwmSetWindowAttribute(fenster, 20, &dunkel, sizeof dunkel);
   laufwerke_aktualisieren();
   wlan_lesen();
+  // nur für Bildschirmfotos im Test: die Fortschrittsseite mit Beispielwerten
+  for (int i = 1; i < argc; i++) if (!wcscmp(argv[i], L"--zeige-fortschritt")) {
+    seite = S_LAEUFT; laeuft = 1; phase = 1; promille = 437; fort_gesamt = 1063000000; fort_bytes = 464500000; rate = 18.4e6;
+    phase_dauer[0] = 72000; phase_beginn[1] = GetTickCount() - 25000;
+    if (!laufwerke.empty()) gewaehlt = laufwerke[0].nr;
+  }
   SetTimer(fenster, 1, 2000, NULL);   // Sticks ein- und ausstecken
   HANDLE th = CreateThread(NULL, 0, quelle_suchen, NULL, 0, NULL); if (th) CloseHandle(th);
   ShowWindow(fenster, SW_SHOW); UpdateWindow(fenster);

@@ -16,10 +16,10 @@ BEGIN
     BLOCK "040904b0"
     BEGIN
       VALUE "CompanyName", "Amberwave"
-      VALUE "FileDescription", "Amberwave USB-Ersteller"
+      VALUE "FileDescription", "Amberwave USB Creator"
       VALUE "FileVersion", "@VERSION@"
       VALUE "InternalName", "Amberwave USB Creator"
-      VALUE "OriginalFilename", "Amberwave-USB-Ersteller.exe"
+      VALUE "OriginalFilename", "Amberwave-USB-Creator.exe"
       VALUE "ProductName", "Amberwave OS"
       VALUE "ProductVersion", "@VERSION@"
       VALUE "LegalCopyright", "© Amberwave contributors · AGPL-3.0"
