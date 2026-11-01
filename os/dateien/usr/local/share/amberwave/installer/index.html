@@ -32,7 +32,7 @@ p { margin: 0 0 14px; color: var(--leise); }
   border: 1px solid var(--rand); background: var(--feld); color: var(--text); font: inherit; cursor: pointer; }
 .wahl:last-child { margin-bottom: 0; }
 .wahl[aria-pressed="true"] { border-color: rgba(255,169,77,.7); background: linear-gradient(135deg, rgba(255,195,90,.12), rgba(255,106,61,.06)); }
-.wahl .sym { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,169,77,.12); color: var(--akzent); font-weight: 700; font-size: .78rem; }
+.wahl .sym { font-style: normal; flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,169,77,.12); color: var(--akzent); font-weight: 700; font-size: .78rem; }
 .wahl span { flex: 1; min-width: 0; }
 .wahl b { display: block; }
 .wahl small { color: var(--leise); overflow-wrap: anywhere; }
@@ -238,7 +238,8 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     const n = $('#name').value.trim().toLowerCase();
     $('[data-adresse]').textContent = `http://${n || 'amberwave'}.local`;
     const m = wahl.musik;
-    const mt = m.art === 'intern' ? tx('intern') : m.art === 'nas' ? m.pfad : (info.musik.find((x) => x.uuid === m.uuid)?.label || info.musik.find((x) => x.uuid === m.uuid)?.modell || '');
+    const mp = info.musik.find((x) => x.uuid === m.uuid);
+    const mt = m.art === 'intern' ? tx('intern') : m.art === 'nas' ? m.pfad : [mp?.label, mp?.modell, gb(mp?.groesse || 0)].filter(Boolean).join(' · ');
     $('[data-zusammen]').innerHTML = `<dt>${tx('z_platte')}</dt><dd>${esc(plattenName(p))}</dd><dt>${tx('z_musik')}</dt><dd>${esc(mt)}</dd>`;
     $('[data-loeschen]').innerHTML = p.amberwave && wahl.behalten ? tx('behalten_warn', { p: esc(plattenName(p)) }) : tx('loeschen', { p: esc(plattenName(p)) });
   }
@@ -287,6 +288,7 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     $('[data-version]').textContent = info.version;
     if (info.stand && !info.stand.fehler) { zeigen(info.stand.fertig ? 'fertig' : 'laeuft'); verfolgen(); return; }
     plattenZeichnen();
+    zeigen('platte');
   }
   laden();
   // Platten können angesteckt werden, während die Seite offen ist

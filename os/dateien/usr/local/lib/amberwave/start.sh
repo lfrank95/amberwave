@@ -68,7 +68,7 @@ stand "Amberwave startet …"
 # erreichbar, Heimnetz-Funktionen (DLNA, Cast, Suche der Apps) sehen das echte Netz
 docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 --network host \
   -v /daten/appdata:/appdata -v /musik:/musik \
-  -e TZ="${AW_ZEITZONE:-Europe/Berlin}" -e AMBERWAVE_OS=1 \
+  -e TZ="${AW_ZEITZONE:-Europe/Berlin}" -e AMBERWAVE_OS=1 -e EINRICHTUNG_FENSTER_MINUTEN=0 \
   "$BILD" >/dev/null || { stand "fehler:Amberwave ließ sich nicht starten."; exit 1; }
 for i in $(seq 1 90); do
   curl -fsS -m 3 http://127.0.0.1/api/v1/ping >/dev/null 2>&1 && { stand "laeuft"; exit 0; }
