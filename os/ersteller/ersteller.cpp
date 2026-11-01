@@ -631,7 +631,7 @@ static void seite_wahl(void) {
       text(TX(L"Das Gerät verbindet sich damit von selbst – ein Netzwerkkabel braucht es dann nicht.", L"The device connects to it by itself – no network cable needed."), tk, LEISE, 68, wy + 20, BREITE - 120);
       ziel_neu(Z_WLAN, RectF(40, wy - 4, 28 + tw + 8, 26));
     } else {
-      text(TX(L"Ohne Netzwerkkabel öffnet das Gerät ein eigenes WLAN „Amberwave-Einrichtung“ zum Einrichten.", L"Without a network cable the device opens its own Wi-Fi “Amberwave-Einrichtung” for setup."), tk, LEISE, 40, wy + 4, BREITE - 80);
+      text(TX(L"Ohne Netzwerkkabel öffnet das Gerät ein eigenes WLAN „Amberwave-Setup“ zum Einrichten.", L"Without a network cable the device opens its own Wi-Fi “Amberwave-Setup” for setup."), tk, LEISE, 40, wy + 4, BREITE - 80);
     }
   }
   // Quelle
@@ -643,7 +643,7 @@ static void seite_wahl(void) {
   Color qc = WARM;
   if (!qd.empty()) { const wchar_t *n = wcsrchr(qd.c_str(), L'\\'); q = std::wstring(TX(L"Datei: ", L"File: ")) + (n ? n + 1 : qd.c_str()); }
   else if (ql) q = TX(L"Suche die neueste Version auf GitHub …", L"Looking for the latest version on GitHub …");
-  else if (!qv.empty()) q = std::wstring(TX(L"Version ", L"Version ")) + qv + (nimm_beta || qv.find(L'-') != std::wstring::npos ? TX(L" (Beta)", L" (beta)") : TX(L" (stabil)", L" (stable)")) + L" · " + groesse_text(qg) + TX(L" · wird von GitHub geladen", L" · downloaded from GitHub");
+  else if (!qv.empty()) q = std::wstring(TX(L"Version ", L"Version ")) + qv + (nimm_beta || qv.find(L'-') != std::wstring::npos ? TX(L" (Beta)", L" (beta)") : TX(L" (stabil)", L" (stable)")) + L" · " + menge((int64_t)qg) + TX(L" · wird von GitHub geladen", L" · downloaded from GitHub");
   else { q = qf; qc = ROT; }
   text(q.c_str(), tk, qc, 40, 452, BREITE - 300);
   Font tl(fam_fett, 12, FontStyleRegular, UnitPixel);
@@ -719,7 +719,7 @@ static void seite_fertig(void) {
   text(TX(L"Der Stick ist fertig", L"The stick is ready"), h, TEXTFARBE, 96, 72);
   const wchar_t *schritte[4] = {
     wlan_mitgeben ? TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll. Das WLAN ist eingetragen – ein Kabel braucht es nicht.", L"Plug the stick into the PC that should run Amberwave. The Wi-Fi is included – no cable needed.")
-                  : TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll – mit Netzwerkkabel am Router. Ohne Kabel öffnet es ein eigenes WLAN „Amberwave-Einrichtung“.", L"Plug the stick into the PC that should run Amberwave – with a network cable to your router. Without a cable it opens its own Wi-Fi “Amberwave-Einrichtung”."),
+                  : TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll – mit Netzwerkkabel am Router. Ohne Kabel öffnet es ein eigenes WLAN „Amberwave-Setup“.", L"Plug the stick into the PC that should run Amberwave – with a network cable to your router. Without a cable it opens its own Wi-Fi “Amberwave-Setup”."),
     TX(L"Beim Einschalten das Startmenü öffnen (meist F11, F12, F8 oder Esc) und den Stick wählen.", L"When switching on, open the boot menu (usually F11, F12, F8 or Esc) and pick the stick."),
     TX(L"Am Bildschirm erscheint eine Adresse – auf Handy oder PC öffnen, Platte wählen, installieren.", L"An address appears on screen – open it on your phone or PC, pick the drive, install."),
     TX(L"Danach den Stick abziehen. Amberwave ist dann unter http://amberwave.local erreichbar.", L"Then unplug the stick. Amberwave is then at http://amberwave.local."),

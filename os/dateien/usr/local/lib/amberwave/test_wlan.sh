@@ -55,7 +55,7 @@ for i in $(seq 1 150); do [ -f /run/amberwave/hotspot ] && break; sleep 1; done
 [ -f /run/amberwave/hotspot ] || { melde "fehler kein hotspot"; exit 1; }
 melde "hotspot an"
 sleep 3
-printf 'ctrl_interface=/run/wpa_handy\nnetwork={\n ssid="Amberwave-Einrichtung"\n key_mgmt=NONE\n}\n' > /run/handy.conf
+printf 'ctrl_interface=/run/wpa_handy\nnetwork={\n ssid="Amberwave-Setup"\n key_mgmt=NONE\n}\n' > /run/handy.conf
 wpa_supplicant -B -i wlan2 -c /run/handy.conf -C /run/wpa_handy
 networkctl reconfigure wlan2
 ip_handy=""

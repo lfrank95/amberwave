@@ -5,14 +5,14 @@ Zugangsdaten kommen
   • vom USB-Stick (/run/live/medium/amberwave/wlan.txt – der USB-Ersteller trägt dort das WLAN des PCs ein),
   • aus der Einrichtung (Hotspot → Netz wählen) bzw. später aus Einstellungen › Amberwave OS,
   • im installierten System aus /daten/system/wlan.json (bleibt bei jeder Neuinstallation).
-Der Hotspot „Amberwave-Einrichtung“ ist offen und lenkt jede Adresse auf die Einrichtungsseite (wie bei Smart-Home-
+Der Hotspot „Amberwave-Setup“ ist offen und lenkt jede Adresse auf die Einrichtungsseite (wie bei Smart-Home-
 Geräten springt sie am Handy von selbst auf). Er läuft nur im Live-System und nur, solange es kein Netz gibt.
 
   wlan.py --verbinden     installiertes System, beim Start: mit dem gespeicherten WLAN verbinden
 """
 import binascii, hashlib, json, os, re, socket, subprocess, threading, time
 
-HOTSPOT_SSID = 'Amberwave-Einrichtung'
+HOTSPOT_SSID = 'Amberwave-Setup'
 HOTSPOT_IP = '10.42.0.1'
 LAND = os.environ.get('AW_WLAN_LAND', 'DE')
 STICK_DATEI = '/run/live/medium/amberwave/wlan.txt'
@@ -238,7 +238,7 @@ def zugang_speichern(pfad, ssid, passwort):
 
 # ---------- Hotspot (nur Einrichtung) ----------
 class Hotspot:
-    """Offenes WLAN „Amberwave-Einrichtung“ mit DHCP (systemd-networkd) und einem DNS, das jede Frage mit der eigenen
+    """Offenes WLAN „Amberwave-Setup“ mit DHCP (systemd-networkd) und einem DNS, das jede Frage mit der eigenen
     Adresse beantwortet – so landet das Handy auf der Einrichtungsseite (Captive Portal)."""
 
     def __init__(self, dev):

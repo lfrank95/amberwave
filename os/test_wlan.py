@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """WLAN der Einrichtung in einer virtuellen Maschine prüfen (simulierte WLAN-Karten, mac80211_hwsim):
   1. WLAN vom USB-Stick: der Ersteller hat „AW-Test-Heim“ eingetragen → das Gerät bucht sich von selbst ein.
-  2. Hotspot: kein Kabel, kein WLAN → „Amberwave-Einrichtung“ geht auf; ein simuliertes Handy verbindet sich, bekommt
+  2. Hotspot: kein Kabel, kein WLAN → „Amberwave-Setup“ geht auf; ein simuliertes Handy verbindet sich, bekommt
      eine Adresse, jede Adresse führt zur Einrichtung (DNS + Captive Portal), es wählt das Heim-WLAN → das Gerät wechselt.
 Das Kabel der VM bleibt dran (darüber steuert der Test); mit aw.test=ohne-kabel zählt es für die Einrichtung nicht.
   test_wlan.py <image> <ausgabe>"""
