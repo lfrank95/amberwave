@@ -49,12 +49,28 @@ object Netz {
         return f.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 
-    /** Antwortet der Server? (kurz – sonst startet die App mit dem Gespeicherten) */
+    /** /api/v1/ping eines Servers (null = antwortet nicht oder ist kein Amberwave) */
+    fun ping(server: String, zeit: Int = 3000): org.json.JSONObject? = runCatching {
+        val c = oeffnen("$server/api/v1/ping", zeit, zeit, mitCookie = false)
+        try { if (c.responseCode == 200) org.json.JSONObject(c.inputStream.bufferedReader().readText()).takeIf { it.optString("app") == "amberwave" } else null } finally { c.disconnect() }
+    }.getOrNull()
+
+    /**
+     * Antwortet der Server – und ist es noch derselbe? (kurz – sonst startet die App mit dem Gespeicherten)
+     * Beim ersten Mal merkt sich die App seinen Ausweis; ein anderer Amberwave unter derselben Adresse zählt als „nicht da“.
+     */
     fun serverErreichbar(server: String = Einstellungen.server, zeit: Int = 3000): Boolean {
         if (server.isEmpty() || !verbunden()) return false
-        return runCatching {
-            val c = oeffnen("$server/api/v1/ping", zeit, zeit, mitCookie = false)
-            try { c.responseCode == 200 && c.inputStream.bufferedReader().readText().contains("amberwave") } finally { c.disconnect() }
-        }.getOrDefault(false)
+        val j = ping(server, zeit) ?: return false
+        return ausweisPasst(j, server == Einstellungen.server)
+    }
+
+    /** Passt der Ausweis aus /ping zum gemerkten? Ohne gemerkten wird er übernommen (nur für den eingestellten Server). */
+    fun ausweisPasst(j: org.json.JSONObject, merken: Boolean = true): Boolean {
+        val s = j.optString("schluessel")
+        if (s.isEmpty()) return true   // ältere Server ohne Ausweis
+        val bekannt = Einstellungen.ausweis
+        if (bekannt.isEmpty()) { if (merken) Einstellungen.ausweis = s; return true }
+        return bekannt == s
     }
 }

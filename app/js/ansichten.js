@@ -13,6 +13,7 @@ import {
   eBadge,
 } from './bausteine.js';
 import { flacKandidaten } from './bausteine.js';
+import { connectSendenEintraege } from './connect.js';
 
 // Bearbeiten-Dialoge (nur Admins) liegen in verwaltung.js – das wird erst geladen, wenn einer aufgerufen wird (240 KB weniger beim Start)
 const vwLazy = (name) => (...a) => import('./verwaltung.js').then((m) => m[name](...a));
@@ -242,6 +243,7 @@ function trackMenue(app, anker, tk, l, i) {
   if (app.ich.app.downloads && tk.verfuegbar !== false) {
     eintraege.push({ text: t('Datei herunterladen'), icon: 'download', aktion: () => herunterladen(`/api/v1/download/${tk.id}`) });
   }
+  if (tk.verfuegbar !== false) eintraege.push(...connectSendenEintraege(app, anker, 'titel', tk.id, tk.titel, kuenstlerText(tk.kuenstler)));
   if (app.ich.user.rolle === 'admin') {
     eintraege.push({ trenner: true });
     if (tk.verfuegbar === false) eintraege.push({ text: t('Aus anderem Album übernehmen …'), icon: 'album', aktion: () => titelUebernehmen(app, tk) });
@@ -319,6 +321,7 @@ function albumMenue(app, anker, a) {
     { text: t('Zur Playlist hinzufügen …'), icon: 'playlists', aktion: () => zurPlaylist(app, tracks.filter((t) => t.verfuegbar)) },
     { text: t('Radio zu diesem Album'), icon: 'radio', aktion: () => app.player.radioStarten({ art: 'album', id: a.id }) },
     ...offlineAlbumEintraege(app, a),
+    ...connectSendenEintraege(app, anker, 'album', a.id, a.titel, kuenstlerText(a.kuenstler)),
   ];
   if (app.ich.user.rolle === 'admin') {
     eintraege.push({ trenner: true }, { titel: t('Verwaltung') },
@@ -917,7 +920,7 @@ export const ansichten = {
             <button type="button" class="btn" data-aktion="liste-play" data-liste="${key}" ${p.eintraege.length ? '' : 'disabled'}>${icon('play', 20)}<span>${t('Abspielen')}</span></button>
             <button type="button" class="btn btn-zweit" data-aktion="liste-zufall" data-liste="${key}" ${p.eintraege.length ? '' : 'disabled'}>${icon('zufall', 18)}<span>${t('Zufall')}</span></button>
             ${p.eintraege.length ? offlineKnopf('playlist', id) : ''}
-            ${p.eigene || app.ich.app?.downloads ? `<button type="button" class="btn btn-zweit btn-rund" data-pl-menue data-menue-anker aria-label="${t('Mehr zur Playlist')}">${icon('mehr', 20)}</button>` : ''}
+            ${p.eigene || app.ich.app?.downloads || connectSendenEintraege(app, null, 'playlist', id, p.name).length ? `<button type="button" class="btn btn-zweit btn-rund" data-pl-menue data-menue-anker aria-label="${t('Mehr zur Playlist')}">${icon('mehr', 20)}</button>` : ''}
           </div>
         </div>
       </div>
@@ -930,6 +933,7 @@ export const ansichten = {
     }, { signal });   // ziel (<main>) bleibt über Seitenwechsel bestehen – ohne signal sammelten sich Handler alter Playlists
 
     ziel.querySelector('[data-pl-menue]')?.addEventListener('click', (e) => menue(e.currentTarget, [
+      ...(p.eintraege.length ? connectSendenEintraege(app, e.currentTarget, 'playlist', id, p.name).slice(1) : []),
       ...(app.ich.app?.downloads && p.eintraege.length ? [{ text: t('Als WAV exportieren (z. B. fürs Mischpult) …'), icon: 'download',
         aktion: () => exportDialog(app, { art: 'playlist', id, name: p.name, anzahl: p.anzahl, laenge_ms: p.laenge_ms }) }] : []),
       ...(p.eigene ? [{ text: t('Umbenennen / beschreiben'), icon: 'bearbeiten', aktion: async () => {
@@ -970,6 +974,7 @@ export const ansichten = {
     const dl = admin && app.ich.admin?.download_reiter;
     ziel.innerHTML = seitenKopf(t('Mehr')) + `<div class="glass-panel" style="padding:10px">
       ${dl ? zeile('/downloads', 'download', t('Downloads'), t('Usenet-Suche und laufende Downloads'), app.ich.admin.downloads_laufen || 0) : ''}
+      ${app.ich.app?.connect?.length ? zeile('/connect', 'connect', 'Amberwave Connect', t('Musik deiner gekoppelten Server'), admin ? app.ich.admin?.connect_laufen || 0 : 0) : ''}
       ${zeile('/playlists', 'playlists', t('Playlists'))}
       ${zeile('/favoriten', 'herz', t('Gemerkt'), t('Alben, Künstler, Lieblingstitel'))}
       ${zeile('/verlauf', 'verlauf', t('Zuletzt gehört'))}

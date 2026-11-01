@@ -69,6 +69,16 @@ const EINSTELLUNGEN = [
     'sicherung_wochen'      => ['env' => 'SICHERUNG_WOCHEN',      'standard' => '4',         'geheim' => false],
     'klang_aktiv'           => ['env' => 'KLANG_AKTIV',           'standard' => '1',         'geheim' => false],
     // Direktzugang im Heimnetz (Cloudflare-DNS + Let's Encrypt)
+    // Ausweis des Servers (Schlüssel, siehe ausweis.php) und Amberwave Connect
+    'ausweis_schluessel'    => ['env' => '',                      'standard' => '',          'geheim' => true],
+    'connect_qualitaet'     => ['env' => '',                      'standard' => 'opus256',   'geheim' => false],
+    'connect_heim_original' => ['env' => '',                      'standard' => '1',         'geheim' => false],
+    'connect_hoch_mbit'     => ['env' => '',                      'standard' => '0',         'geheim' => false],
+    'connect_runter_mbit'   => ['env' => '',                      'standard' => '0',         'geheim' => false],
+    'connect_nachts_frei'   => ['env' => '',                      'standard' => '1',         'geheim' => false],
+    'connect_heim_frei'     => ['env' => '',                      'standard' => '1',         'geheim' => false],
+    'connect_ordner'        => ['env' => '',                      'standard' => 'Connect',   'geheim' => false],
+    'direkt_ip_gelernt_am'  => ['env' => '',                      'standard' => '',          'geheim' => false],
     'direkt_cf_token'       => ['env' => 'CLOUDFLARE_API_TOKEN',  'standard' => '',          'geheim' => true],
     'direkt_host'           => ['env' => 'DIREKT_HOST',           'standard' => '',          'geheim' => false],
     'direkt_ip'             => ['env' => 'DIREKT_IP',             'standard' => '',          'geheim' => false],

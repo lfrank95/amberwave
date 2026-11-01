@@ -303,6 +303,7 @@ export class PlayerLeiste {
     fav.innerHTML = icon(trk?.favorit ? 'herzVoll' : 'herz', 18);
     fav.classList.toggle('an', !!trk?.favorit);
     fav.setAttribute('aria-pressed', trk?.favorit ? 'true' : 'false');
+    fav.hidden = !!trk?.connect;   // Titel anderer Server lassen sich hier nicht merken
     this.jetzt?.querySelector('[data-eq-jetzt]')?.classList.toggle('an', eqWirksam(p.einst.eq));
     const wdh = $('[data-wdh]');
     wdh.classList.toggle('an', p.einst.wiederholen !== 'aus');
@@ -894,11 +895,11 @@ export class PlayerLeiste {
     const trk = this.player.track;
     if (!trk) return;
     const eintraege = [];
-    if (trk.album) eintraege.push({ text: t('Zum Album'), icon: 'album', aktion: () => { this.jetztSchliessen(); this.app.navigieren(`/alben/${trk.album.id}`); } });
-    (trk.kuenstler || []).slice(0, 3).forEach((k) => eintraege.push({ text: t('Zu {name}', { name: k.name }), icon: 'kuenstler', aktion: () => { this.jetztSchliessen(); this.app.navigieren(`/kuenstler/${k.id}`); } }));
-    eintraege.push({ text: t('Zur Playlist hinzufügen …'), icon: 'playlists', aktion: () => zurPlaylist(this.app, [trk]) });
+    if (trk.album) eintraege.push({ text: t('Zum Album'), icon: 'album', aktion: () => { this.jetztSchliessen(); this.app.navigieren(trk.album.pfad || `/alben/${trk.album.id}`); } });
+    (trk.kuenstler || []).slice(0, 3).forEach((k) => eintraege.push({ text: t('Zu {name}', { name: k.name }), icon: 'kuenstler', aktion: () => { this.jetztSchliessen(); this.app.navigieren(k.pfad || `/kuenstler/${k.id}`); } }));
+    if (!trk.connect) eintraege.push({ text: t('Zur Playlist hinzufügen …'), icon: 'playlists', aktion: () => zurPlaylist(this.app, [trk]) });
     const ws = this.player.liste;
-    if (this.app.ich?.app?.downloads && ws.length > 1) {
+    if (this.app.ich?.app?.downloads && ws.length > 1 && !ws.some((x) => x.connect)) {
       eintraege.push({ text: t('Warteschlange als WAV exportieren …'), icon: 'download', aktion: () => exportDialog(this.app, {
         art: 'tracks', track_ids: ws.map((x) => x.id), quelle: t('Warteschlange'), name: trk.album?.titel && ws.every((x) => x.album?.id === trk.album.id) ? trk.album.titel : t('Warteschlange'),
         anzahl: ws.length, laenge_ms: ws.reduce((s2, x) => s2 + (x.laenge_ms || 0), 0) }) });
@@ -910,7 +911,7 @@ export class PlayerLeiste {
 
   async trackFavorit() {
     const t = this.player.track;
-    if (!t) return;
+    if (!t || t.connect) return;
     const an = !t.favorit;
     try {
       await api.post('/favoriten', { art: 'track', id: t.id, an });
@@ -939,6 +940,7 @@ export class PlayerLeiste {
       b.innerHTML = icon(trk.favorit ? 'herzVoll' : 'herz', 20);
       b.classList.toggle('an', !!trk.favorit);
       b.setAttribute('aria-pressed', trk.favorit ? 'true' : 'false');
+      b.hidden = !!trk.connect;
     });
     const q = this.qualitaetText();
     const chip = $('[data-quali-jetzt]');
@@ -986,12 +988,20 @@ export class PlayerLeiste {
     this.kiste?.neu();
     const grund = this.player.radioGrund(trk);
     const radio = this.player.quelleKontext?.art === 'radio';
-    $('[data-quelle]').innerHTML = radio ? h(grund || t('aus deiner Sammlung')) : trk.album ? `<a href="/alben/${trk.album.id}" data-link>${h(trk.album.titel)}</a>` : '';
+    $('[data-quelle]').innerHTML = radio ? h(grund || t('aus deiner Sammlung')) : trk.album ? `<a href="${trk.album.pfad || `/alben/${trk.album.id}`}" data-link>${h(trk.album.titel)}</a>` : '';
     $('[data-quelle-k]').textContent = '';
     $('[data-quelle-art]').textContent = radio ? (this.player.quelleKontext.titel || t('Mein Radio')) : t('Läuft gerade');
     this.jetztAktualisieren();
     this.info = null;
     $('[data-credits]').innerHTML = '<div class="lade" style="padding:12px 0"></div>';
+    if (trk.connect) {
+      // Titel von einem gekoppelten Server: Mitwirkende stehen schon am Titel, Server-Name als Quelle
+      this.info = { credits: [], album: null };
+      $('[data-quelle-art]').textContent = radio ? $('[data-quelle-art]').textContent : t('Von {server}', { server: trk.server || '' });
+      $('[data-credits]').innerHTML = this.creditsHtml(false);
+      if (this.blatt) this.blattFuellen();
+      return;
+    }
     try {
       let info = this.creditsCache.get(trk.id);
       if (!info) {

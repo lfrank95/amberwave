@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **Amberwave Connect:** pair Amberwave servers – the one at home with a smaller one in the caravan, or your sister's. Show a six-digit code on one server, enter it on the other (or pick it from "Search home network"); from then on the two find each other by themselves – directly in the home network, otherwise via direct access or the Cloudflare tunnel – and everything between them is end-to-end encrypted (also through the tunnel).
+- Connect: new **Connect** tab (phone: under More) with all paired servers. Browse a server like your own library – albums, artists, shared playlists, search – and listen right away; your server fetches the track and passes it on.
+- Connect: **"Copy to this server"** for an album, a track or a playlist, in the quality you pick (Original, FLAC 16/44.1, Opus 256/160/128, AAC). The other way round, your own album, track and playlist menus have **"Copy to <server>"**. Files land in `Connect/<server>/<artist>/<album>` in the music folder, with cover, and are read in straight away. Interrupted transfers resume where they stopped; tracks you already have (same recording) are skipped.
+- Connect settings: default quality, "always original in the home network", target folder and a **shared up-/download limit** for tight connections like Starlink (optionally no limit at night or in the home network). Per paired server you decide what it may do: browse and listen, copy, lossless, send you things.
+- Accounts, favourites and listening history stay on each server – what you play from another server doesn't end up in either history.
+- **Server ID:** every server now has a key pair and a short ID (e.g. `AW-7K3F-92QX`, shown under Settings › Amberwave Connect). Paired servers, the Windows Client and the Android app remember it and find their server again after it got a new IP address – and won't mistake another Amberwave at the old address for it. The Windows Client checks the server's signature.
+- Direct access: if the server's address in the home network changes, the DNS record for direct access is updated by itself (seen on three requests in a row).
 - Amberwave OS › Network: a fixed address now asks for the subnet mask as people know it from their router (255.255.255.0) instead of a prefix (/24).
 - **USB Creator** (renamed from "USB-Ersteller"; file `Amberwave-USB-Creator-<version>.exe`) is now in English and shows more while it works: downloaded/written MB of the total, speed, time left and elapsed, and how long each finished step took.
 - Amberwave OS: the setup hotspot is now called "Amberwave-Setup".

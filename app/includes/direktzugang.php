@@ -497,3 +497,75 @@ function direkt_stand(): array
         'app_url' => konfig()['app_url'],
     ];
 }
+
+// ---------- Heimnetz-IP selbst nachführen ----------
+// Wer zuhause Amberwave über die IP aufruft (Browser, Apps nach der Suche im Heimnetz), verrät die aktuelle Adresse des
+// Servers im Host-Kopf. Hat der Router dem Server eine neue IP gegeben, trägt Amberwave sie selbst bei Cloudflare ein –
+// so repariert sich der Direktzugang ohne feste IP. Nur private IPv4 (192.168/16, 10/8, 172.16/12), nur direkte Anfragen
+// (nicht über Tunnel oder Proxy), und erst nach drei Anfragen an dieselbe neue Adresse.
+
+/** Beim Eingang jeder API-Anfrage: merkt sich eine Kandidaten-Adresse; die Prüfung kostet ohne IP-Host nichts */
+function direkt_ip_beobachten(): void
+{
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $ip = preg_replace('/:\d+$/', '', $host);
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) !== false) {
+        return;   // kein privates IPv4 im Host
+    }
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        return;   // über Tunnel oder Proxy
+    }
+    $von = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if (!filter_var($von, FILTER_VALIDATE_IP) || filter_var($von, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+        return;   // der Aufrufer selbst muss im Heimnetz sein
+    }
+    $https = ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off';
+    register_shutdown_function(static function () use ($ip, $host, $https): void {
+        try {
+            require_once __DIR__ . '/connect.php';
+            connect_lan_lernen($host, $https);   // eigene Heimnetz-Adresse für Amberwave Connect
+            direkt_ip_kandidat($ip);
+        } catch (Throwable $e) {
+            error_log('Direktzugang: IP nachführen: ' . log_sauber($e->getMessage()));
+        }
+    });
+}
+
+function direkt_ip_kandidat(string $ip): void
+{
+    if (einstellung('direkt_aktiv') !== '1' || konfig()['direkt']['url'] !== '' || direkt_host() === '' || einstellung('direkt_ip') === $ip) {
+        return;
+    }
+    $datei = direkt_ordner() . '/ip_kandidat.json';
+    $k = json_decode((string) @file_get_contents($datei), true) ?: [];
+    if (($k['ip'] ?? '') !== $ip || time() - (int) ($k['seit'] ?? 0) > 3600) {
+        $k = ['ip' => $ip, 'seit' => time(), 'n' => 0];
+    }
+    $k['n'] = (int) $k['n'] + 1;
+    @file_put_contents($datei, json_encode($k), LOCK_EX);
+    if ($k['n'] < 3 || time() - (int) einstellung('direkt_ip_gelernt_am') < 600) {
+        return;
+    }
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+    direkt_ip_nachfuehren($ip);
+}
+
+/** DNS-Eintrag des Direktzugangs auf eine neue Heimnetz-IP setzen */
+function direkt_ip_nachfuehren(string $ip): void
+{
+    require_once __DIR__ . '/cloudflare.php';
+    $token = einstellung('direkt_cf_token');
+    $host = direkt_host();
+    if ($token === '' || $host === '') {
+        return;
+    }
+    einstellung_setzen('direkt_ip_gelernt_am', (string) time());
+    $alt = einstellung('direkt_ip');
+    $zone = cf_zone_fuer($token, $host);
+    cf_eintrag_setzen($token, $zone['id'], 'A', $host, $ip, 300);
+    einstellung_setzen('direkt_ip', $ip);
+    @unlink(direkt_ordner() . '/ip_kandidat.json');
+    log_sicherheitsereignis(null, 'direkt_ip_nachgefuehrt', $alt . ' → ' . $ip);
+}

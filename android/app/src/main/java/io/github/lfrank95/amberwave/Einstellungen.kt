@@ -17,6 +17,14 @@ object Einstellungen {
         get() = p.getString("server", "") ?: ""
         set(v) = p.edit().putString("server", v).apply()
 
+    /**
+     * Ausweis des Servers (öffentlicher Schlüssel, hex) – beim ersten Verbinden gemerkt. Daran erkennt die App ihren
+     * Server wieder, auch wenn er im Heimnetz eine neue IP bekommt, und verwechselt ihn nicht mit einem anderen Amberwave.
+     */
+    var ausweis: String
+        get() = p.getString("ausweis", "") ?: ""
+        set(v) = p.edit().putString("ausweis", v).apply()
+
     var nurWlan: Boolean
         get() = p.getBoolean("nur_wlan", false)
         set(v) = p.edit().putBoolean("nur_wlan", v).apply()

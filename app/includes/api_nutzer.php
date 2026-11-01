@@ -44,6 +44,16 @@ function api_ich(): array
             'gehoert_ab_prozent' => konfig()['stream']['gehoert_ab_prozent'], 'gehoert_ab_sekunden' => konfig()['stream']['gehoert_ab_sekunden'],
             // Klangradio verfügbar, sobald es einen Index der akustisch ähnlichen Titel gibt
             'klang' => (int) (json_decode((string) einstellung('klang_index'), true)['anzahl'] ?? 0) > 1,
+            // Amberwave Connect: gekoppelte Server (Name, und ob sie uns etwas schicken lassen) – für Reiter und Menüs
+            'connect' => (static function () {
+                try {
+                    return array_map(static fn($z) => ['id' => (int) $z['id'], 'name' => (string) $z['name'],
+                        'senden' => !empty((json_decode((string) ($z['dir_erlaubt'] ?? ''), true) ?: [])['senden'])],
+                        db_alle('SELECT id, name, dir_erlaubt FROM connect_server ORDER BY name'));
+                } catch (Throwable $e) {
+                    return [];
+                }
+            })(),
         ],
         'admin' => ist_admin($user) ? ['wartende_konten' => $offen] + dl_menue_stand() : null,
     ];
@@ -413,5 +423,10 @@ function dl_menue_stand(): array
             $n = 0;
         }
     }
-    return ['download_reiter' => $an, 'downloads_laufen' => $n, 'usenet' => $usenet, 'musik_schreiben' => einstellung('musik_schreiben') === '1'];
+    try {
+        $c = (int) db_wert("SELECT COUNT(*) FROM connect_auftraege WHERE status IN ('wartet', 'laeuft')");
+    } catch (Throwable $e) {
+        $c = 0;
+    }
+    return ['download_reiter' => $an, 'downloads_laufen' => $n, 'usenet' => $usenet, 'musik_schreiben' => einstellung('musik_schreiben') === '1', 'connect_laufen' => $c, 'connect_qualitaet' => einstellung('connect_qualitaet')];
 }

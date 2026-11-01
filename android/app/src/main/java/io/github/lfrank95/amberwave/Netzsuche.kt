@@ -51,13 +51,35 @@ object Netzsuche {
                 val lan = if (p == 80) "http://$ip" else "http://$ip:$p"
                 val j = ping(lan) ?: return@execute
                 funde += JSONObject().put("lan", lan).put("url", j.optString("url")).put("name", j.optString("name", "Amberwave")).put("version", j.optString("version"))
+                    .put("schluessel", j.optString("schluessel")).put("kennung", j.optString("kennung"))
             }
         }
         pool.shutdown()
         pool.awaitTermination(40, TimeUnit.SECONDS)
         // derselbe Server über mehrere Ports nur einmal
         val eindeutig = LinkedHashMap<String, JSONObject>()
-        for (f in funde.sortedBy { it.optString("lan") }) eindeutig.putIfAbsent(f.optString("name") + "|" + f.optString("url"), f)
+        for (f in funde.sortedBy { it.optString("lan") }) eindeutig.putIfAbsent(f.optString("schluessel").ifEmpty { f.optString("name") + "|" + f.optString("url") }, f)
         return JSONArray(eindeutig.values)
+    }
+
+    /** Liegt die Adresse im Heimnetz (private IPv4)? Nur solche Adressen ändern sich, wenn der Router neu vergibt. */
+    fun istHeimnetz(adresse: String): Boolean {
+        val host = runCatching { java.net.URI(adresse).host }.getOrNull() ?: return false
+        return Regex("^(10\\.|192\\.168\\.|172\\.(1[6-9]|2\\d|3[01])\\.)").containsMatchIn(host)
+    }
+
+    /**
+     * Server im Heimnetz wiederfinden, nachdem er eine neue IP bekommen hat: das Netz absuchen und den nehmen, der sich
+     * mit dem gemerkten Ausweis meldet. Gibt die neue Adresse zurück (oder null).
+     */
+    fun wiederfinden(c: Context): String? {
+        val ausweis = Einstellungen.ausweis
+        if (ausweis.isEmpty() || !istHeimnetz(Einstellungen.server)) return null
+        val f = suchen(c)
+        for (i in 0 until f.length()) {
+            val x = f.getJSONObject(i)
+            if (x.optString("schluessel") == ausweis && x.optString("lan") != Einstellungen.server) return x.optString("lan")
+        }
+        return null
     }
 }

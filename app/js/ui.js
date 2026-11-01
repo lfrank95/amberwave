@@ -81,7 +81,7 @@ export function zahl(n) {
 /** Künstler-Credit als Links: [{id, name, verbindung}] */
 export function kuenstlerLinks(liste, klasse = '') {
   if (!liste || !liste.length) return `<span class="verb">${h(t('Unbekannter Künstler'))}</span>`;
-  return liste.map((k) => `<a href="/kuenstler/${k.id}" data-link class="${klasse}">${h(k.name === '[unbekannt]' ? t('Unbekannter Künstler') : k.name)}</a>${k.verbindung ? `<span class="verb">${h(k.verbindung)}</span>` : ''}`).join('');
+  return liste.map((k) => `<a href="${k.pfad || `/kuenstler/${k.id}`}" data-link class="${klasse}">${h(k.name === '[unbekannt]' ? t('Unbekannter Künstler') : k.name)}</a>${k.verbindung ? `<span class="verb">${h(k.verbindung)}</span>` : ''}`).join('');
 }
 
 /** Künstler-Credit als reiner Text */
@@ -158,6 +158,7 @@ const pfade = {
   tablet: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M11 18h2"/>',
   browser: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8.5h18"/>',
   holen: '<path d="M12 3v12M7 10l5 5 5-5M5 20h14"/>',
+  connect: '<rect x="2" y="4" width="8" height="16" rx="1.5"/><rect x="14" y="4" width="8" height="16" rx="1.5"/><path d="M5 8h2M17 8h2M10 12h4"/><circle cx="6" cy="16" r=".6" fill="currentColor"/><circle cx="18" cy="16" r=".6" fill="currentColor"/>',
 };
 
 export function icon(name, groesse = 20, extra = '') {

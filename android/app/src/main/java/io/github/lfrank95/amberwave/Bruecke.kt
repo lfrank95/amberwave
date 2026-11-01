@@ -47,6 +47,7 @@ class Bruecke(private val app: Context, private val aktivitaet: () -> MainActivi
         if (a != Einstellungen.server) {
             Speicher.oberflaecheLeeren()
             Speicher.allesLoeschen()
+            Einstellungen.ausweis = ""   // anderer Server: dessen Ausweis wird beim ersten Verbinden gemerkt
         }
         Einstellungen.server = a
         aktivitaet()?.runOnUiThread { aktivitaet()?.serverLaden() }

@@ -2,13 +2,14 @@
 // (bitgenau über WASAPI exklusiv, lückenlos). Verwaltung, Bibliothek und Konten bleiben auf dem Server.
 //
 // Ablauf beim Start: gemerkten Server anpingen (zuerst im Heimnetz, dann die öffentliche Adresse). Antwortet keiner,
-// wird das Heimnetz durchsucht (anderer Server-IP? derselbe Server wird am Namen bzw. der öffentlichen Adresse erkannt).
+// wird das Heimnetz durchsucht (anderer Server-IP? derselbe Server wird an seinem Ausweis erkannt – ein Schlüssel, den
+// der Server mit einer Unterschrift belegt; ältere Server ohne Ausweis am Namen bzw. der öffentlichen Adresse).
 // Sonst: Einrichtungsseite (Suche, Liste, Adresse von Hand).
 const { app, BrowserWindow, ipcMain, session, globalShortcut, Tray, Menu, shell, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { suchen, pingen, adresseNormal } = require('./suche');
+const { suchen, pingen, adresseNormal, ausweisPruefen } = require('./suche');
 const log = require('./log');
 const { Vst, VstSlots } = require('./vst');
 const i18n = require('./i18n');
@@ -550,12 +551,12 @@ ipcMain.handle('einrichtung-pruefen', async (e, adresse, port) => {
   if (!j) return { fehler: t('Unter {adresse} antwortet kein Amberwave-Server.', { adresse: a }) };
   const host = new URL(a).hostname;
   const lokal = /^http:\/\//.test(a) && (/^(10|127)\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|^169\.254\./.test(host) || !host.includes('.') || /\.(local|lan|home\.arpa|fritz\.box|internal)$/i.test(host));
-  return { server: { lan: lokal ? a : '', url: j.url || (lokal ? '' : a), name: j.name || 'Amberwave', version: j.version || '' } };
+  return { server: { lan: lokal ? a : '', url: j.url || (lokal ? '' : a), name: j.name || 'Amberwave', version: j.version || '', schluessel: j.schluessel || '', kennung: j.kennung || '' } };
 });
 ipcMain.handle('einrichtung-verbinden', async (e, s) => {
   if (!eigeneSeite(e)) return null;
   if (!s || (!s.lan && !s.url)) return false;
-  einst.server = { lan: s.lan || '', url: s.url || '', name: s.name || 'Amberwave', version: s.version || '' };
+  einst.server = { lan: s.lan || '', url: s.url || '', name: s.name || 'Amberwave', version: s.version || '', schluessel: /^[0-9a-f]{64}$/.test(s.schluessel || '') ? s.schluessel : '', kennung: s.kennung || '' };
   einstSpeichern();
   const ziel = await erreichbar(einst.server);
   if (!ziel) return false;
@@ -572,11 +573,25 @@ function einrichtungZeigen(meldung = '') {
   fenster.loadFile(path.join(__dirname, 'einrichtung.html'));
 }
 
-/** Server erreichbar? Zuerst direkt im Heimnetz, dann über die öffentliche Adresse */
+/**
+ * Server erreichbar? Zuerst direkt im Heimnetz, dann über die öffentliche Adresse. Ist sein Ausweis gemerkt, muss er ihn
+ * belegen – sonst ist es ein anderer Amberwave (z. B. hat ein anderes Gerät die alte IP bekommen). Ohne gemerkten
+ * Ausweis wird er beim ersten Erfolg übernommen.
+ */
 async function erreichbar(s) {
   if (!s) return '';
-  if (s.lan && await pingen(s.lan, 1500)) return s.lan;
-  if (s.url && await pingen(s.url, 3500)) return s.url;
+  for (const [adresse, ms] of [[s.lan, 1500], [s.url, 3500]]) {
+    if (!adresse) continue;
+    const j = await pingen(adresse, ms);
+    if (!j) continue;
+    if (s.schluessel) {
+      if (j.schluessel !== s.schluessel || !await ausweisPruefen(adresse, s.schluessel)) { log.schreiben('WARN', `Unter ${adresse} antwortet ein anderer Amberwave (${j.kennung || '?'})`); continue; }
+    } else if (j.schluessel && await ausweisPruefen(adresse, j.schluessel)) {
+      einst.server = { ...s, schluessel: j.schluessel, kennung: j.kennung || '' };
+      einstSpeichern();
+    }
+    return adresse;
+  }
   return '';
 }
 
@@ -858,9 +873,12 @@ app.whenReady().then(async () => {
   if (s) {
     const ziel = await erreichbar(s);
     if (ziel) { serverLaden(ziel); return; }
-    // anderer Platz im Netz (neue IP)? Derselbe Server wird am Namen bzw. an der öffentlichen Adresse erkannt
+    // anderer Platz im Netz (neue IP)? Derselbe Server wird an seinem Ausweis erkannt (ältere ohne: Name / öffentliche Adresse)
     const funde = await suchen(ports());
-    const gleich = funde.find((f) => (s.url && f.url === s.url) || (f.name && f.name === s.name));
+    let gleich = null;
+    if (s.schluessel) {
+      for (const f of funde.filter((x) => x.schluessel === s.schluessel)) if (await ausweisPruefen(f.lan, s.schluessel)) { gleich = f; break; }
+    } else gleich = funde.find((f) => (s.url && f.url === s.url) || (f.name && f.name === s.name));
     if (gleich) {
       einst.server = { ...s, lan: gleich.lan, version: gleich.version };
       einstSpeichern();

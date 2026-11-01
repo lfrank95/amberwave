@@ -117,6 +117,29 @@ class MainActivity : ComponentActivity() {
         web.loadUrl(Einstellungen.server + "/")
     }
 
+    /**
+     * Server antwortet nicht: hat er im Heimnetz eine neue IP bekommen? Dann über seinen Ausweis wiederfinden, die
+     * Anmeldung mitnehmen und weiter – sonst die Startseite mit Hinweis.
+     */
+    private var suchtGerade = false
+    fun serverWiederfinden() {
+        val alt = Einstellungen.server
+        if (suchtGerade || Einstellungen.ausweis.isEmpty() || !Netzsuche.istHeimnetz(alt)) { startseite(alt); return }
+        suchtGerade = true
+        Thread {
+            val neu = runCatching { Netzsuche.wiederfinden(applicationContext) }.getOrNull()
+            runOnUiThread {
+                suchtGerade = false
+                if (neu == null) { startseite(alt); return@runOnUiThread }
+                val cm = CookieManager.getInstance()
+                cm.getCookie(alt)?.split(";")?.forEach { cm.setCookie(neu, it.trim()) }
+                cm.flush()
+                Einstellungen.server = neu
+                serverLaden()
+            }
+        }.start()
+    }
+
     /** Startseite: Adresse eingeben (fehler = Adresse, die gerade nicht erreichbar war) */
     fun startseite(fehler: String?) {
         web.loadUrl(START + (fehler?.let { "?fehler=" + Uri.encode(it) } ?: ""))
@@ -177,7 +200,7 @@ class MainActivity : ComponentActivity() {
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 // Server nicht erreichbar und noch keine Hülle für den Start ohne Netz: Startseite mit Hinweis
-                if (request.isForMainFrame && Einstellungen.istServer(request.url)) aktiv?.startseite(Einstellungen.server)
+                if (request.isForMainFrame && Einstellungen.istServer(request.url)) aktiv?.serverWiederfinden()
             }
         }
 

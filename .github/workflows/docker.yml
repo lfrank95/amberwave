@@ -190,6 +190,9 @@ jobs:
           cache-to: type=gha,mode=max,scope=aio-${{ matrix.kurz }}
       - name: Test all-in-one
         run: bash tests/aio_test.sh amberwave-aio:test
+      - name: Test Amberwave Connect (two all-in-one containers)
+        if: matrix.kurz == 'amd64'
+        run: bash tests/connect_test.sh amberwave-aio:test
       - id: bau
         name: Push all-in-one
         uses: docker/build-push-action@v6

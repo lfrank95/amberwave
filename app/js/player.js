@@ -102,7 +102,7 @@ export class Player extends EventTarget {
     this.lhDecke = -1;         // höchster True-Peak nach dem Anheben (dBTP)
     this.motor = new LueckenlosMotor(this.audio, {
       // Gespeichertes Original (FLAC, MP3 …) passt nicht in den Opus-Strom: dort endet der Motor, der Player lädt es einzeln
-      naechster: (t) => { const n = this.naechsterNach(t); return n && this.lokal(n) && offline.format(n.id) !== 'opus' ? null : n; },
+      naechster: (t) => { const n = this.naechsterNach(t); return n && (n.connect || (this.lokal(n) && offline.format(n.id) !== 'opus')) ? null : n; },
       // Opus-Ketten: der Server rechnet den Gain je Titel ein (sample-genau an jeder Titelgrenze)
       gain: (t) => this.lautheitFuer(t)?.db ?? 0,
       // offline gespeicherte Titel kommen aus dem Speicher der App
@@ -387,6 +387,8 @@ export class Player extends EventTarget {
   }
 
   url(track, q, ab = 0) {
+    // Amberwave Connect: Titel eines gekoppelten Servers – unser Server holt ihn verschlüsselt dort ab und reicht ihn durch
+    if (track.connect) return `/api/v1/connect/server/${track.connect}/stream/${track.rid}?q=${q}`;
     const t = ab > 0.5 ? `&t=${ab.toFixed(1)}` : '';
     // Umgewandelte Streams bekommen den Lautheitsangleich gleich vom Server (dann geht auch Anheben ohne Web Audio)
     const g = q !== 'original' ? this.lautheitFuer(track)?.db || 0 : 0;
@@ -403,7 +405,7 @@ export class Player extends EventTarget {
   async lautheitLaden(tracks) {
     if (this.einst.lautheit === 'aus') return;
     const jetzt = Date.now();
-    let ids = [...new Set((tracks || []).filter((t) => t?.id).map((t) => t.id))].filter((id) => {
+    let ids = [...new Set((tracks || []).filter((t) => t?.id && !t.connect).map((t) => t.id))].filter((id) => {
       const l = this.lautheit.get(id);
       return !l || (l.q === 'fehlt' && jetzt - l.zeit > 300000);
     });
@@ -849,6 +851,7 @@ export class Player extends EventTarget {
       this.melden('liste');
     }
     if (this.lokal(trk)) { await this.lokalLaden(trk, ab, abspielen); return; }
+    if (trk.connect) { this.connectLaden(trk, ab, abspielen, erzwingen); return; }
     if (netzweg.laeuft) await netzweg.laeuft; // Prüfung der Direktadresse läuft gerade (höchstens 2,5 s)
     netzweg.beiTitel(); // Titelwechsel = Gelegenheit zu prüfen, ob wir wieder zuhause sind (gilt ab dem nächsten Titel, blockiert nichts)
     // Lautheit der Warteschlange holen (meist schon da); höchstens 1,5 s warten, sonst ohne Angleich starten
@@ -883,6 +886,37 @@ export class Player extends EventTarget {
     this.audio.src = this.url(trk, q, ab);
     if (nativ && ab > 0) this.audio.currentTime = ab;
     else if (q === 'original' && ab > 0) {
+      const setzen = () => { this.audio.currentTime = ab; this.audio.removeEventListener('loadedmetadata', setzen); };
+      this.audio.addEventListener('loadedmetadata', setzen);
+    }
+    this.lautstaerkeAnwenden();
+    this.metadaten();
+    this.melden('track');
+    this.melden('zustand');
+    if (abspielen) {
+      try { await this.audio.play(); this.fadeEinStarten(); } catch (e) { this.fadeEinStarten(0); if (e.name !== 'AbortError') this.melden('zustand'); }
+    }
+  }
+
+  /**
+   * Titel von einem gekoppelten Server (Amberwave Connect): ohne Lückenlos-Motor und ohne Lautheitsangleich, einfach als
+   * Datei über unseren Server. Die fertige Datei kann vor- und zurückspringen (Range), daher gilt sie wie ein Original.
+   */
+  async connectLaden(trk, ab, abspielen, erzwingen) {
+    this.motor.stop();
+    let q = erzwingen || (this.qualitaet === 'auto' ? this.autoQualitaet().q : this.qualitaet);
+    if (nativ) q = 'original';
+    else if (q === 'original') {
+      const fmt = trk.format?.datei;
+      if (fmt && !(kann[fmt] || (fmt === 'm4a' && kann.m4a && trk.format.codec !== 'alac'))) q = 'opus256';
+    }
+    if (q !== 'original' && !['opus256', 'opus160', 'opus128', 'aac256', 'aac160'].includes(q)) q = 'opus256';
+    if (q.startsWith('opus') && !kann.opus) q = q === 'opus128' ? 'aac160' : 'aac256';
+    this.modus = { art: 'original', qualitaet: q, connect: true };
+    this.offset = 0;
+    this.letzteZeit = 0;
+    this.audio.src = this.url(trk, q);
+    if (ab > 0) {
       const setzen = () => { this.audio.currentTime = ab; this.audio.removeEventListener('loadedmetadata', setzen); };
       this.audio.addEventListener('loadedmetadata', setzen);
     }
@@ -1344,7 +1378,7 @@ export class Player extends EventTarget {
   // ---------- Hörverlauf ----------
   verlaufMelden(ereignis, beacon = false) {
     const t = this.track;
-    if (!t) return;
+    if (!t || t.connect) return;   // Gehörtes von anderen Servern bleibt aus dem eigenen Verlauf (strikt lokal)
     if (ereignis !== 'start' && !this.wiedergabeId && this.gehoert < 1) return;
     this.letzteMeldung = Date.now();
     // Quelle fürs Radio-Lernen und die Qualitätsanzeige der Klanganalyse: Klangradio bzw. Klang-Vorschlag im Radio getrennt zählen
@@ -1386,6 +1420,7 @@ export class Player extends EventTarget {
     const senden = () => {
       const von = Math.max(0, this.index - 500);
       const ids = this.liste.slice(von, von + 5000).map((t) => t.id);
+      if (ids.some((id) => typeof id !== 'number')) return;   // Warteschlange mit Titeln anderer Server bleibt nur auf dem Gerät
       api.put('/warteschlange', { track_ids: ids, index: this.index - von, position: Math.round(this.zeit) }).catch(() => {});
     };
     if (sofort) senden(); else this._serverTimer = setTimeout(senden, 4000);

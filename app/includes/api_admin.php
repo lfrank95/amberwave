@@ -279,7 +279,8 @@ function api_admin_konto_loeschen(array $admin, int $id): array
 const ADMIN_EINSTELLUNGEN = ['smtp_host', 'smtp_port', 'smtp_verschluesselung', 'smtp_benutzer', 'smtp_passwort', 'smtp_absender', 'smtp_absender_name', 'smtp_tls_pruefen',
     'mail_ablauf_tage', 'scan_auto_stunden', 'kuenstler_standardnamen', 'erkennung_modus', 'auto_metadaten', 'auto_vorschau', 'nachtlauf_stunde', 'sicherung_stunde', 'sicherung_tage', 'sicherung_wochen', 'klang_aktiv', 'musicbrainz_user_agent', 'fanart_api_key', 'acoustid_api_key', 'claude_api_key', 'lidarr_url', 'lidarr_api_key',
     'prowlarr_url', 'prowlarr_api_key', 'prowlarr_kategorien', 'sabnzbd_url', 'sabnzbd_api_key', 'sabnzbd_kategorie', 'download_ziel', 'download_nach_import', 'download_einsortieren', 'download_wav_flac',
-    'download_haengt_min', 'download_weg_min', 'download_reiter', 'usenet_aktiv', 'musik_schreiben', 'update_hinweis', 'offline_qualitaet', 'downloads_erlaubt'];
+    'download_haengt_min', 'download_weg_min', 'download_reiter', 'usenet_aktiv', 'musik_schreiben', 'update_hinweis', 'offline_qualitaet', 'downloads_erlaubt',
+    'connect_qualitaet', 'connect_heim_original', 'connect_hoch_mbit', 'connect_runter_mbit', 'connect_nachts_frei', 'connect_heim_frei', 'connect_ordner'];
 
 function api_admin_einstellungen(): array
 {
@@ -330,6 +331,18 @@ function api_admin_einstellungen_speichern(array $admin): array
         }
         if (in_array($k, ['download_haengt_min', 'download_weg_min'], true) && (!preg_match('/^\d+$/', $w) || (int) $w < 5 || (int) $w > 1440)) {
             throw new ApiFehler(t('Wartezeit in Minuten, 5 bis 1440.'));
+        }
+        if ($k === 'connect_qualitaet' && !in_array($w, ['original', 'flac1644', 'opus256', 'opus160', 'opus128', 'aac256', 'aac160'], true)) {
+            throw new ApiFehler(t('Unbekannte Qualität.'));
+        }
+        if (in_array($k, ['connect_hoch_mbit', 'connect_runter_mbit'], true) && (!preg_match('/^\d+(\.\d+)?$/', $w) || (float) $w > 10000)) {
+            throw new ApiFehler(t('Grenze in Mbit/s, 0 = ohne Grenze.'));
+        }
+        if (in_array($k, ['connect_heim_original', 'connect_nachts_frei', 'connect_heim_frei'], true) && !in_array($w, ['0', '1'], true)) {
+            throw new ApiFehler(t('Ungültige Angaben.'));
+        }
+        if ($k === 'connect_ordner' && ($w === '' || str_contains($w, '..') || str_starts_with($w, '/') || str_starts_with($w, '.') || mb_strtolower($w) === 'neu')) {
+            throw new ApiFehler(t('Zielordner: ein Unterordner im Musikordner, z. B. „Connect“ (nicht „neu“, kein „..“).'));
         }
         if ($k === 'offline_qualitaet' && !in_array($w, ['0', 'opus128', 'opus160', 'opus256', 'original'], true)) {
             throw new ApiFehler(t('Offline-Qualität: 0, opus128, opus160, opus256 oder original.'));

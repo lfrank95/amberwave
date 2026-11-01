@@ -1,0 +1,31 @@
+# Amberwave Connect: two all-in-one containers pair, browse, stream and copy (tests/connect_test.sh).
+# Built locally from this commit (nothing is pushed). Runs when the Connect code changes, or by hand.
+name: Connect
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/includes/connect*.php'
+      - 'app/includes/ausweis.php'
+      - 'app/scripts/connect.php'
+      - 'app/migrations/047_connect.php'
+      - 'tests/connect_test.sh'
+      - '.github/workflows/connect.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app image
+        run: docker build -q -t amberwave:ci .
+      - name: Build all-in-one image
+        run: docker build -q -f Dockerfile.aio --build-arg BASIS=amberwave:ci -t amberwave-aio:ci .
+      - name: Two servers – pair, browse, stream, copy, rights
+        run: bash tests/connect_test.sh amberwave-aio:ci

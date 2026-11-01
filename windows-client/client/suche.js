@@ -2,6 +2,7 @@
 // Virtuelle Adapter (VPN, Hyper-V, WSL, VirtualBox, Docker …) werden übersprungen, damit nicht in fremden Netzen gesucht wird.
 const os = require('os');
 const net = require('net');
+const crypto = require('crypto');
 const { locale } = require('./i18n');
 
 const VIRTUELL = /(vethernet|hyper-v|virtualbox|vmware|vbox|wsl|docker|vpn|tap|tun|wireguard|tailscale|zerotier|hamachi|npcap|loopback|bluetooth|teredo|isatap)/i;
@@ -65,17 +66,37 @@ async function suchen(ports = [9950], parallel = 256) {
       if (!await portOffen(ip, port)) continue;
       const basis = `http://${ip}:${port}`;
       const j = await pingen(basis, 2500);
-      if (j) funde.push({ lan: basis, url: j.url || '', name: j.name || 'Amberwave', version: j.version || '' });
+      if (j) funde.push({ lan: basis, url: j.url || '', name: j.name || 'Amberwave', version: j.version || '', schluessel: j.schluessel || '', kennung: j.kennung || '' });
     }
   };
   await Promise.all(Array.from({ length: Math.min(parallel, ziele.length) }, arbeiter));
   // gleicher Server über mehrere Netze/Ports nur einmal
   const eindeutig = new Map();
   for (const f of funde) {
-    const k = `${f.name}|${f.url}`;
+    const k = f.schluessel || `${f.name}|${f.url}`;
     if (!eindeutig.has(k)) eindeutig.set(k, f);
   }
   return [...eindeutig.values()].sort((a, b) => a.lan.localeCompare(b.lan, locale(), { numeric: true }));
+}
+
+/**
+ * Ausweis prüfen: ist das unter dieser Adresse wirklich der Server mit diesem Schlüssel? Der Server unterschreibt eine
+ * frische Zufallszahl mit seinem geheimen Schlüssel (Ed25519) – nachmachen kann das nur der echte.
+ */
+async function ausweisPruefen(basis, schluessel, ms = 3000) {
+  if (!/^[0-9a-f]{64}$/.test(schluessel || '')) return false;
+  try {
+    const z = crypto.randomBytes(16).toString('hex');
+    const r = await fetch(`${basis.replace(/\/+$/, '')}/api/v1/ausweis?z=${z}`, { signal: AbortSignal.timeout(ms), cache: 'no-store' });
+    if (!r.ok) return false;
+    const b = await r.json();
+    if (b.schluessel !== schluessel || b.zufall !== z || !/^[0-9a-f]{128}$/.test(b.unterschrift || '')) return false;
+    const spki = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(schluessel, 'hex')]);
+    const key = crypto.createPublicKey({ key: spki, format: 'der', type: 'spki' });
+    return crypto.verify(null, Buffer.from(`amberwave-ausweis-v1|${z}|${schluessel}`), key, Buffer.from(b.unterschrift, 'hex'));
+  } catch (e) {
+    return false;
+  }
 }
 
 /** Eingabe wie „192.168.1.10“, „nas:9950“ oder „https://musik.example.de“ zu einer Basisadresse */
@@ -92,4 +113,4 @@ function adresseNormal(text, port = 9950) {
   }
 }
 
-module.exports = { netze, pingen, suchen, adresseNormal };
+module.exports = { netze, pingen, suchen, adresseNormal, ausweisPruefen };

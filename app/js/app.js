@@ -6,6 +6,7 @@ import { Player } from './player.js';
 import { PlayerLeiste } from './playerleiste.js';
 import { Fernsteuerung, fernSicht } from './fernsteuerung.js';
 import { ansichten, aktionenRegistrieren, albumCacheLeeren } from './ansichten.js';
+import { connectAnsichten } from './connect.js';
 
 // Wie eine App: Safari auf iPhone/iPad ignoriert „user-scalable=no“ – Zwei-Finger-Zoom dort per Geste abfangen
 document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
@@ -279,6 +280,7 @@ class App {
           ${navPunkt('/alben', 'alben', t('Alben'))}
           ${navPunkt('/kuenstler', 'kuenstler', t('Künstler'))}
           ${navPunkt('/playlists', 'playlists', t('Playlists'))}
+          ${this.ich.app?.connect?.length ? navPunkt('/connect', 'connect', t('Connect'), admin ? this.ich.admin?.connect_laufen : 0) : ''}
           ${admin && this.ich.admin?.download_reiter ? navPunkt('/downloads', 'download', t('Downloads'), this.ich.admin.downloads_laufen) : ''}
           ${admin ? navPunkt('/verwaltung', 'verwaltung', t('Verwaltung'), warten) : ''}
         </nav>
@@ -663,6 +665,11 @@ class App {
       [/^\/einstellungen$/, einstellungenAnsicht],
       [/^\/einstellungen\/([a-z]+)$/, einstellungenAnsicht],
       [/^\/mehr$/, ansichten.mehr],
+      [/^\/connect$/, connectAnsichten.uebersicht],
+      [/^\/connect\/(\d+)$/, connectAnsichten.server],
+      [/^\/connect\/(\d+)\/alben\/(\d+)$/, connectAnsichten.album],
+      [/^\/connect\/(\d+)\/kuenstler\/(\d+)$/, connectAnsichten.kuenstler],
+      [/^\/connect\/(\d+)\/playlists\/(\d+)$/, connectAnsichten.playlist],
       [/^\/downloads$/, vw('downloads')],
       [/^\/verwaltung$/, vw('uebersicht')],
       [/^\/verwaltung\/aktivitaet$/, vw('aktivitaet')],
@@ -684,7 +691,7 @@ class App {
   }
 
   navMarkieren(bereich) {
-    const mehrBereiche = ['/playlists', '/favoriten', '/verlauf', '/genres', '/profil', '/einstellungen', '/verwaltung', '/mehr', '/downloads'];
+    const mehrBereiche = ['/playlists', '/favoriten', '/verlauf', '/genres', '/profil', '/einstellungen', '/verwaltung', '/mehr', '/downloads', '/connect'];
     this.wurzel.querySelectorAll('[data-nav]').forEach((a) => {
       const n = a.dataset.nav;
       const an = n === bereich || (n === '/mehr' && mehrBereiche.includes(bereich) && a.closest('.tabs'));
@@ -712,6 +719,16 @@ class App {
       } else if (!soll && da) da.remove();
       if (soll) this.downloadZahl(this.ich.admin.downloads_laufen || 0);
     } catch (e) {}
+  }
+
+  /** Zahl der laufenden Connect-Übertragungen am Menüpunkt (absolut = Zahl setzen, sonst dazuzählen) */
+  connectZahl(n, absolut = false) {
+    const a = this.wurzel.querySelector('.haupt-nav [data-nav="/connect"]');
+    if (!a) return;
+    const alt = Number(a.querySelector('.badge')?.textContent || 0);
+    const neu = absolut ? n : alt + n;
+    a.querySelector('.badge')?.remove();
+    if (neu > 0) a.insertAdjacentHTML('beforeend', `<span class="badge">${neu}</span>`);
   }
 
   /** Zahl der laufenden Downloads am Menüpunkt */

@@ -42,6 +42,16 @@ try {
     echo date('c') . ' Datensicherung: ' . log_sauber($e->getMessage()) . "\n";
 }
 
+// Amberwave Connect: Ausweis bereithalten (für /ping) und offene Übertragungen weiterführen
+try {
+    require_once __DIR__ . '/../includes/connect_uebertragung.php';
+    ausweis_oeffentlich();
+    if (db_wert("SELECT 1 FROM connect_auftraege WHERE status IN ('wartet', 'laeuft') LIMIT 1")) {
+        connect_arbeiter_anstossen();
+    }
+} catch (Throwable $e) {
+    echo date('c') . ' Connect: ' . log_sauber($e->getMessage()) . "\n";
+}
 // 1. Mail-Warteschlange
 try {
     [$ok, $fehler] = mail_warteschlange_abarbeiten();

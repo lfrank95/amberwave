@@ -9,6 +9,7 @@ import { QUALITAETEN, LAUTHEIT_ZIELE } from './player.js';
 import { LueckenlosMotor } from './lueckenlos.js';
 import { exportListe } from './export.js';
 import { geraetZeichnen } from './geraet.js';
+import { connectEinstellungenZeichnen } from './connect.js';
 import { nativ } from './nativ.js';
 import { netzweg } from './netzweg.js';
 import { direktEinrichten, tunnelEinrichten, lautheitPanel, raeumePanel, sicherungWiederherstellen } from './verwaltung.js';
@@ -30,6 +31,7 @@ const BEREICHE = [
   { id: 'bibliothek', gruppe: 'server', titel: t('Bibliothek & Automatik'), icon: 'alben', text: t('Wann Amberwave selbst einliest, abgleicht und misst. Von Hand ausführen geht weiter unter Verwaltung › Bibliothek.') },
   { id: 'dienste', gruppe: 'server', titel: t('Dienste & Schlüssel'), icon: 'schluessel', text: t('Zugänge zu Diensten für Metadaten, Bilder und Übersetzungen. Schlüssel werden verschlüsselt gespeichert und nie wieder angezeigt.') },
   { id: 'downloads', gruppe: 'server', titel: t('Downloads'), icon: 'download', text: t('Prowlarr oder Newznab-Indexer suchen, SABnzbd lädt, Amberwave übernimmt das Fertige in die Bibliothek.') },
+  { id: 'connect', gruppe: 'server', titel: 'Amberwave Connect', icon: 'connect', text: t('Andere Amberwave-Server koppeln – im Wohnwagen, bei der Familie. Stöbern, reinhören und Musik herüberholen, Ende zu Ende verschlüsselt.') },
   { id: 'offline', gruppe: 'server', titel: t('Offline auf Geräten'), icon: 'download', text: t('Was Handys und Browser speichern dürfen – zum Hören ohne Netz und als echte Datei.') },
   { id: 'mail', gruppe: 'server', titel: t('E-Mail'), icon: 'mail', text: t('Für Freischaltungen, Ablauf-Erinnerungen und „Passwort vergessen“.') },
   { id: 'zugang', gruppe: 'server', titel: t('Zugang & Netz'), icon: 'start', text: t('Wie Geräte den Server erreichen – zuhause und unterwegs.') },
@@ -95,6 +97,20 @@ const SERVER = {
       { k: 'download_reiter', name: t('Eigener Punkt im Hauptmenü'), hinweis: t('Neben Playlists (am Handy unter „Mehr“), mit der Zahl der laufenden Downloads. Nur für Admins.'), typ: 'schalter', an: an1 },
     ] },
   ],
+  connect: [
+    { karte: t('Übertragungen'), hinweis: t('Gilt für alles, was dieser Server von gekoppelten Servern holt – und für das, was sie hier abholen.'), felder: [
+      { k: 'connect_qualitaet', name: t('Standardqualität'), hinweis: t('Vorausgewählt bei „Auf diesen Server laden“. Für jedes Album, jeden Titel und jede Playlist lässt sich eine andere wählen.'), typ: 'auswahl',
+        optionen: [['original', t('Original (verlustfrei)')], ['flac1644', t('FLAC 16/44,1 (verlustfrei, CD-Qualität)')], ['opus256', t('Opus 256 kbit/s (Standard)')], ['opus160', 'Opus 160 kbit/s'], ['opus128', 'Opus 128 kbit/s'], ['aac256', 'AAC 256 kbit/s'], ['aac160', 'AAC 160 kbit/s']] },
+      { k: 'connect_heim_original', name: t('Im Heimnetz immer Original'), hinweis: t('Stehen beide Server im selben Netz, kostet das nichts – dann verlustfrei, egal welche Qualität eingestellt ist.'), typ: 'schalter', an: nicht0 },
+      { k: 'connect_ordner', name: t('Zielordner im Musikordner'), hinweis: t('Darunter je Server ein Ordner, dann Künstler und Album.'), typ: 'text', platzhalter: 'Connect' },
+    ] },
+    { karte: t('Tempo'), hinweis: t('Für knappe Leitungen wie Starlink oder Mobilfunk: eine gemeinsame Grenze für alle Übertragungen zusammen. 0 = ohne Grenze.'), felder: [
+      { k: 'connect_runter_mbit', name: t('Herunterladen höchstens'), typ: 'zahl', einheit: 'Mbit/s', min: 0, max: 10000 },
+      { k: 'connect_hoch_mbit', name: t('Hochladen höchstens'), hinweis: t('Wenn gekoppelte Server hier Musik abholen oder reinhören.'), typ: 'zahl', einheit: 'Mbit/s', min: 0, max: 10000 },
+      { k: 'connect_nachts_frei', name: t('Nachts ohne Grenze'), hinweis: t('Von 0 bis 6 Uhr gilt keine Grenze.'), typ: 'schalter', an: nicht0 },
+      { k: 'connect_heim_frei', name: t('Im Heimnetz ohne Grenze'), typ: 'schalter', an: nicht0 },
+    ] },
+  ],
   offline: [
     { karte: t('Offline speichern'), hinweis: t('Alben, Playlists und Titel „offline speichern“, damit sie ohne Netz spielen. Sie bleiben in der App und lassen sich nicht weitergeben.'), felder: [
       { k: 'offline_qualitaet', name: t('Höchste Qualität'), hinweis: t('Jedes Gerät wählt seine Qualität bis zu dieser Grenze selbst. Original gibt es nur in der Android-App – Browser speichern höchstens Opus 256 (etwa 2 MB pro Minute, Original-FLAC etwa 5–10 MB).'), typ: 'auswahl',
@@ -150,6 +166,7 @@ const SUCHE_PERSOENLICH = [
   ['geraet', 'musik', t('Wo liegt deine Musik?'), t('musikquelle nas freigabe smb usb platte festplatte')], ['geraet', 'kanal', t('Stabil oder Beta'), t('updates version kanal')],
   ['geraet', 'strom', t('Gerät neu starten oder ausschalten'), t('neustart herunterfahren aus')], ['geraet', 'ssh', t('Fernzugang per SSH'), t('ssh konsole terminal schlüssel')],
   ['heimnetz', 'geraete', t('Geräte im Heimnetz'), t('dlna upnp receiver avr denon marantz yamaha onkyo pioneer fernseher tv streamer')],
+  ['connect', 'kennung', t('Ausweis dieses Servers'), t('kennung fingerabdruck schlüssel connect')], ['connect', 'code', t('Server koppeln'), t('connect koppeln code zweiter server wohnwagen familie')], ['connect', 'suchen', t('Im Heimnetz suchen'), t('connect server finden')],
   ['system', 'festgelegt', t('Was Amberwave festgelegt hat'), t('benutzer puid pgid ordner pfad appdata datenbank zeitzone schluessel')], ['sicherung', 'liste', t('Vorhandene Sicherungen'), t('backup wiederherstellen')], ['sicherung', 'update', t('Update einspielen'), t('version zip')],
 ];
 
@@ -1006,6 +1023,13 @@ async function sicherungZeichnen(app, inhalt, signal) {
   });
 }
 
+/** Amberwave Connect: Ausweis, gekoppelte Server und Koppeln (connect.js), darunter Qualität und Tempo */
+async function connectZeichnen(app, inhalt, signal) {
+  inhalt.innerHTML = '<div data-cn-oben></div><div data-cn-unten></div>';
+  const unten = inhalt.querySelector('[data-cn-unten]');
+  await Promise.all([connectEinstellungenZeichnen(app, inhalt.querySelector('[data-cn-oben]'), signal), serverBereichZeichnen(app, unten, 'connect', signal)]);
+}
+
 async function serverBereichZeichnen(app, inhalt, bereich, signal) {
   await serverLaden(signal);
   inhalt.innerHTML = serverKarten(bereich);
@@ -1163,7 +1187,7 @@ export async function einstellungenAnsicht({ app, ziel, param, signal }) {
   </div>`;
   sucheVerbinden(app, ziel, admin);
   const inhalt = ziel.querySelector('[data-einst-karten]');
-  const zeichner = { konto: kontoZeichnen, wiedergabe: wiedergabeZeichnen, ausgabe: ausgabeZeichnen, bibliothek: bibliothekZeichnen, zugang: zugangZeichnen, raeume: raeumeZeichnen, downloads: downloadsZeichnen, heimnetz: heimnetzZeichnen, sicherung: sicherungZeichnen, system: systemZeichnen, geraet: geraetZeichnen }[b.id]
+  const zeichner = { konto: kontoZeichnen, wiedergabe: wiedergabeZeichnen, ausgabe: ausgabeZeichnen, bibliothek: bibliothekZeichnen, zugang: zugangZeichnen, raeume: raeumeZeichnen, downloads: downloadsZeichnen, heimnetz: heimnetzZeichnen, sicherung: sicherungZeichnen, system: systemZeichnen, geraet: geraetZeichnen, connect: connectZeichnen }[b.id]
     || ((a, i, s) => serverBereichZeichnen(a, i, b.id, s));
   await zeichner(app, inhalt, signal);
   if (signal?.aborted) return;

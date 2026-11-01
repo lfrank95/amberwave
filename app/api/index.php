@@ -104,8 +104,153 @@ $routen = [
         // Name und öffentliche Adresse: damit findet und verbindet sich der Windows-Client im Heimnetz von selbst
         $k = konfig();
         // client_protokoll: Schnittstellen-Stand für den Windows-Client (bei unverträglichen Änderungen hochzählen)
+        require_once __DIR__ . '/../includes/ausweis.php';
+        $aw = ausweis_ping();
         return ['ok' => true, 'app' => 'amberwave', 'version' => app_version(), 'client_protokoll' => 1,
-            'name' => $k['server_name'] !== '' ? $k['server_name'] : (gethostname() ?: 'Amberwave'), 'url' => $k['app_url']];
+            'name' => $k['server_name'] !== '' ? $k['server_name'] : (gethostname() ?: 'Amberwave'), 'url' => $k['app_url']]
+            + ($aw ? ['kennung' => $aw['kennung'], 'schluessel' => $aw['schluessel'], 'connect' => 1] : []);
+    }],
+    // ---------- Amberwave Connect ----------
+    // Öffentlich: verschlüsselte Aufrufe gekoppelter Server und das Koppeln mit Code (nur solange einer gilt)
+    ['POST', '/connect', function () {
+        require_once __DIR__ . '/../includes/connect.php';
+        connect_empfangen();
+    }],
+    ['POST', '/connect/koppeln', function () {
+        require_once __DIR__ . '/../includes/connect.php';
+        return connect_koppeln_empfangen();
+    }],
+    ['GET', '/connect/server', function () {
+        $u = api_user();
+        require_once __DIR__ . '/../includes/connect.php';
+        $r = ['server' => connect_server_liste(), 'ausweis' => ['kennung' => ausweis_kennung(), 'name' => connect_eigener_name()]];
+        if (ist_admin($u)) {
+            $r['adressen'] = connect_eigene_adressen();
+            $r['einladung'] = connect_einladung_aktiv();
+        }
+        return $r;
+    }],
+    ['POST', '/connect/code', function () {
+        $u = api_user(true);
+        require_once __DIR__ . '/../includes/connect.php';
+        return connect_einladung_erzeugen($u);
+    }],
+    ['DELETE', '/connect/code', function () {
+        api_user(true);
+        require_once __DIR__ . '/../includes/connect.php';
+        connect_einladung_beenden();
+        return ['ok' => true];
+    }],
+    ['POST', '/connect/koppeln/mit', function () {
+        $u = api_user(true);
+        require_once __DIR__ . '/../includes/connect.php';
+        return connect_koppeln_mit($u, (string) api_wert('adresse', ''), preg_replace('/\D/', '', (string) api_wert('code', '')));
+    }],
+    ['GET', '/connect/heimnetz', function () {
+        api_user(true);
+        require_once __DIR__ . '/../includes/connect.php';
+        @set_time_limit(60);
+        return connect_heimnetz_finden();
+    }],
+    ['PUT', '/connect/server/{id}', function ($p) {
+        $u = api_user(true);
+        require_once __DIR__ . '/../includes/connect.php';
+        $z = connect_server((int) $p['id']);
+        $r = connect_rechte($z);
+        foreach ((array) api_wert('rechte', []) as $k => $v) {
+            if (array_key_exists($k, $r)) {
+                $r[$k] = (bool) $v;
+            }
+        }
+        db_tun('UPDATE connect_server SET rechte = :r WHERE id = :id', ['r' => json_encode($r), 'id' => $z['id']]);
+        log_sicherheitsereignis((int) $u['id'], 'connect_rechte', $z['name'] . ' ' . json_encode($r));
+        return connect_server_objekt(connect_server((int) $z['id']));
+    }],
+    ['DELETE', '/connect/server/{id}', function ($p) {
+        $u = api_user(true);
+        require_once __DIR__ . '/../includes/connect.php';
+        $z = connect_server((int) $p['id']);
+        db_tun('DELETE FROM connect_dateien WHERE auftrag_id IN (SELECT id FROM connect_auftraege WHERE server_id = :s)', ['s' => $z['id']]);
+        db_tun('DELETE FROM connect_auftraege WHERE server_id = :s', ['s' => $z['id']]);
+        db_tun('DELETE FROM connect_server WHERE id = :s', ['s' => $z['id']]);
+        log_sicherheitsereignis((int) $u['id'], 'connect_getrennt', $z['name'] . ' ' . $z['kennung']);
+        return ['ok' => true];
+    }],
+    ['POST', '/connect/server/{id}/pruefen', function ($p) {
+        api_user();
+        require_once __DIR__ . '/../includes/connect.php';
+        @set_time_limit(60);
+        $z = connect_weg_suchen(connect_server((int) $p['id']));
+        return connect_server_objekt($z) + ['musik' => $z['_hallo']['musik'] ?? null];
+    }],
+    ['GET', '/connect/server/{id}/lesen/{methode}', function ($p) {
+        api_user();
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        $args = $_GET;
+        unset($args['pfad']);
+        return connect_lesen((int) $p['id'], (string) $p['methode'], $args);
+    }],
+    ['GET', '/connect/server/{id}/bild/{art}/{schluessel}', function ($p) {
+        api_user_medien();
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        connect_bild_senden((int) $p['id'], (string) $p['art'], (string) $p['schluessel']);
+    }],
+    ['GET', '/connect/server/{id}/stream/{track}', function ($p) {
+        api_user_medien();
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        @set_time_limit(0);
+        connect_stream_senden((int) $p['id'], (int) $p['track']);
+    }],
+    ['POST', '/connect/server/{id}/holen', function ($p) {
+        $u = api_user(true);
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        $id = connect_auftrag_anlegen((int) $p['id'], (string) api_wert('art', ''), (int) api_wert('id', 0), (string) api_wert('qualitaet', ''), (int) $u['id'],
+            (string) api_wert('titel', ''), (string) api_wert('unter', ''));
+        return ['ok' => true, 'auftrag' => $id];
+    }],
+    ['POST', '/connect/server/{id}/senden', function ($p) {
+        $u = api_user(true);
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        $peer = connect_server((int) $p['id']);
+        if (api_wert('art', '') === 'playlist') {
+            connect_freigaben((int) $peer['id'], (int) api_wert('id', 0));
+        }
+        [$kopf] = connect_rufen($peer, 'auftrag', ['art' => (string) api_wert('art', ''), 'id' => (int) api_wert('id', 0), 'qualitaet' => (string) api_wert('qualitaet', ''),
+            'titel' => (string) api_wert('titel', ''), 'unter' => (string) api_wert('unter', '')]);
+        log_sicherheitsereignis((int) $u['id'], 'connect_gesendet', $peer['name'] . ' ' . api_wert('art', '') . ' ' . (int) api_wert('id', 0));
+        return ['ok' => true, 'auftrag' => (int) ($kopf['auftrag'] ?? 0)];
+    }],
+    ['GET', '/connect/auftraege', function () {
+        api_user(true);
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        return ['auftraege' => connect_auftraege(), 'laeuft' => connect_arbeiter_laeuft()];
+    }],
+    ['POST', '/connect/auftraege/{id}/{aktion}', function ($p) {
+        api_user(true);
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        $id = (int) $p['id'];
+        if ($p['aktion'] === 'abbrechen') {
+            db_tun("UPDATE connect_auftraege SET status = 'abgebrochen' WHERE id = :id AND status IN ('wartet', 'laeuft')", ['id' => $id]);
+        } elseif ($p['aktion'] === 'wiederholen') {
+            db_tun("UPDATE connect_auftraege SET status = 'wartet', fehler = '' WHERE id = :id AND status IN ('fehler', 'abgebrochen')", ['id' => $id]);
+            connect_arbeiter_anstossen();
+        } elseif ($p['aktion'] === 'entfernen') {
+            db_tun("DELETE FROM connect_dateien WHERE auftrag_id = :id", ['id' => $id]);
+            db_tun("DELETE FROM connect_auftraege WHERE id = :id AND status NOT IN ('laeuft')", ['id' => $id]);
+        } else {
+            throw new ApiFehler(t('Unbekannte Aktion.'), 404);
+        }
+        return ['ok' => true];
+    }],
+    // Ausweis: „bist du wirklich der Server mit diesem Schlüssel?“ – Unterschrift über die Zufallszahl des Fragenden
+    ['GET', '/ausweis', function () {
+        require_once __DIR__ . '/../includes/ausweis.php';
+        header('Cache-Control: no-store');
+        $z = (string) ($_GET['z'] ?? '');
+        if (!preg_match('/^[0-9a-f]{32,64}$/', $z)) {
+            throw new ApiFehler(t('Ungültige Anfrage.'), 400);
+        }
+        return ausweis_beweis($z);
     }],
     ['GET', '/direkt/token', function () {
         $u = api_user();
@@ -1113,4 +1258,5 @@ function api_sortieren(callable $fn)
     }
 }
 
+direkt_ip_beobachten();   // zuhause per IP aufgerufen? Dann den Direktzugang ggf. auf die neue IP nachführen
 api_ausfuehren($routen, $pfad);
