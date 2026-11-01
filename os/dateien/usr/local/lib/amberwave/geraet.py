@@ -278,7 +278,29 @@ def name_setzen(w):
     tun(['hostnamectl', 'set-hostname', name])
     tun(['sed', '-i', f's/^127\\.0\\.1\\.1 .*/127.0.1.1 {name}/', '/etc/hosts'])
     tun(['systemctl', 'restart', 'avahi-daemon'])
+    # dem Router den neuen Namen sagen (DHCP) – sonst steht dort weiter der alte (z. B. amberwave.fritz.box)
+    for dev in os.listdir('/sys/class/net') if os.path.isdir('/sys/class/net') else []:
+        if dev != 'lo' and not re.match(r'^(docker|br-|veth)', dev):
+            tun(['networkctl', 'renew', dev])
     return {'ok': True, 'name': name}
+
+
+def name_frueh_setzen(e):
+    """Beim Start, noch vor dem Netzwerk: Gerätename aus den Einstellungen – so meldet sich das Gerät schon bei der
+    ersten DHCP-Anfrage mit dem richtigen Namen beim Router (FRITZ!Box & Co. zeigen ihn als Gerätename/Domain)"""
+    name = e.get('AW_NAME', '')
+    if not re.match(NAME_RE, name) or datei(P('/etc/hostname')).strip() == name:
+        return
+    with open(P('/etc/hostname'), 'w') as f:
+        f.write(name + '\n')
+    hosts = datei(P('/etc/hosts'))
+    if re.search(r'^127\.0\.1\.1\s', hosts, re.M):
+        hosts = re.sub(r'^127\.0\.1\.1\s.*$', f'127.0.1.1 {name}', hosts, flags=re.M)
+    else:
+        hosts += f'127.0.1.1 {name}\n'
+    with open(P('/etc/hosts'), 'w') as f:
+        f.write(hosts)
+    tun(['hostname', name])
 
 
 def netz_datei_schreiben(e=None):
@@ -555,6 +577,7 @@ if __name__ == '__main__':
         if e.get('AW_NETZ_PROBE') == '1':
             e = einstellungen_schreiben({'AW_NETZ_ART': 'auto', 'AW_NETZ_PROBE': ''})
         netz_datei_schreiben(e)
+        name_frueh_setzen(e)
         sys.exit(0)
     beim_start()
     ThreadingHTTPServer(('127.0.0.1', PORT), Anfrage).serve_forever()

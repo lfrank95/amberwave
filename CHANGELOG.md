@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Amberwave OS: the device name chosen in setup is set before the network starts, so the router (e.g. FRITZ!Box) shows it right away instead of "amberwave"; renaming in Settings also tells the router.
 - **Amberwave OS over Wi-Fi:** the USB Creator offers to include the Wi-Fi the PC is on (name and password come from Windows) – the device then joins it by itself, no network cable needed.
 - **Setup hotspot:** without cable and without a known Wi-Fi the device opens its own Wi-Fi "Amberwave-Einrichtung". Connect a phone and the setup page opens by itself; pick your home Wi-Fi there and the device switches over. The screen on the device says what to do.
 - Amberwave OS: Settings › Amberwave OS › Network shows the Wi-Fi connection and lets you choose another network or forget it; if the new network doesn't work, the device returns to the previous one.

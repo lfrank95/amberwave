@@ -4,7 +4,7 @@
 Wer die Adresse vom Bildschirm schon öffnet, sieht so „Amberwave wird geladen … 63 %“ statt „Seite nicht erreichbar“.
 Die Seite lädt sich alle paar Sekunden neu und landet von selbst bei Amberwave, sobald es antwortet. start.sh beendet
 diesen Dienst, bevor Amberwave Port 80 übernimmt."""
-import html, json
+import html, json, os
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 SEITE = '''<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -30,7 +30,7 @@ class Anfrage(BaseHTTPRequestHandler):
     def do_GET(self):
         s = stand()
         if self.path.startswith('/api/v1/ping'):
-            roh = json.dumps({'ok': True, 'app': 'amberwave-os', 'stand': s}).encode()
+            roh = json.dumps({'ok': True, 'app': 'amberwave-os', 'name': os.uname().nodename, 'stand': s}).encode()
             typ = 'application/json'
         else:
             fehler = s.startswith('fehler:')

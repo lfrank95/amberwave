@@ -80,7 +80,7 @@ try:
     melden('notice', 'Live-System', f'Einrichtung nach {int(time.time() - t0)} s erreichbar, Secure Boot an · Platten: ' + ', '.join(f"{p['name']} {p['groesse'] // 2**30} GB {p['art']}" for p in info['platten']))
     time.sleep(3); foto(q, '1-live-konsole')
     ziel = next(p for p in info['platten'] if p['name'].startswith('vd'))
-    r = holen('/api/installieren', {'platte': ziel['name'], 'name': 'amberwave', 'kanal': KANAL, 'musik': {'art': 'intern'}, 'zeitzone': 'Europe/Berlin'})
+    r = holen('/api/installieren', {'platte': ziel['name'], 'name': 'wohnzimmer', 'kanal': KANAL, 'musik': {'art': 'intern'}, 'zeitzone': 'Europe/Berlin'})
     if not r.get('ok'):
         raise RuntimeError('Installation abgelehnt: ' + json.dumps(r))
     t1 = time.time()
@@ -121,10 +121,12 @@ try:
             raise RuntimeError('Nach dem Neustart läuft wieder die Einrichtung vom Stick – die Firmware hat nicht von der SSD gestartet')
         if x.get('app') == 'amberwave-os' and not status_gesehen:
             status_gesehen.append(int(time.time() - t2))
+            if x.get('name') != 'wohnzimmer':
+                raise RuntimeError(f"Das Gerät heißt nach der Installation „{x.get('name')}“ statt „wohnzimmer“")
         return x if x.get('app') == 'amberwave' else None
     j = warten(bereit, 1500, 'Amberwave antwortet nach dem Neustart nicht')
     melden('notice', 'Erster Start', f"Amberwave {j.get('version')} antwortet {int(time.time() - t2)} s nach dem Neustart (inkl. Laden des Containers)"
-           + (f", Statusseite auf Port 80 schon nach {status_gesehen[0]} s" if status_gesehen else ', Statusseite nicht gesehen'))
+           + (f", Statusseite auf Port 80 schon nach {status_gesehen[0]} s, Gerätename „wohnzimmer“ übernommen" if status_gesehen else ', Statusseite nicht gesehen'))
     time.sleep(5); foto(q, '3-amberwave-laeuft')
     with urllib.request.urlopen(BASIS + '/', timeout=10) as r:
         melden('notice', 'Weboberfläche', f'{r.status} {r.geturl().replace(BASIS, "")}')

@@ -56,6 +56,9 @@ PARTUUID=$SYS_UUID  /          ext4  defaults,noatime,errors=remount-ro  0 1
 PARTLABEL=aw-efi    /boot/efi  vfat  umask=0077                          0 2
 PARTLABEL=aw-daten  /daten     ext4  defaults,noatime                    0 2
 F
+# Gerätename gleich ins System: so meldet es sich schon beim ersten Start mit diesem Namen beim Router
+echo "${AW_NAME:-amberwave}" > /mnt/aw/etc/hostname
+sed -i "s/^127\.0\.1\.1 .*/127.0.1.1 ${AW_NAME:-amberwave}/" /mnt/aw/etc/hosts
 for x in dev proc sys run; do mount --rbind /$x /mnt/aw/$x; mount --make-rslave /mnt/aw/$x; done
 # Startdateien wie auf dem Stick: shim → signierter GRUB → signierter Kernel (Secure Boot darf an bleiben)
 E=/mnt/aw/boot/efi/EFI
