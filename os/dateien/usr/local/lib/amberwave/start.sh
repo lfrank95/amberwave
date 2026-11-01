@@ -64,8 +64,10 @@ until docker image inspect "$BILD" >/dev/null 2>&1; do
   sleep 30
 done
 stand "Amberwave startet …"
-docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 \
-  -p 80:80 -p 9950:80 -v /daten/appdata:/appdata -v /musik:/musik \
+# Netz des Geräts direkt (kein Docker-NAT): Amberwave ist auf Port 80 (http://amberwave.local) und 8443 (Direktzugang)
+# erreichbar, Heimnetz-Funktionen (DLNA, Cast, Suche der Apps) sehen das echte Netz
+docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 --network host \
+  -v /daten/appdata:/appdata -v /musik:/musik \
   -e TZ="${AW_ZEITZONE:-Europe/Berlin}" -e AMBERWAVE_OS=1 \
   "$BILD" >/dev/null || { stand "fehler:Amberwave ließ sich nicht starten."; exit 1; }
 for i in $(seq 1 90); do
