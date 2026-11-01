@@ -6,8 +6,9 @@ set -u
 . /usr/local/lib/amberwave/gemeinsam.sh
 
 # Name im Netz (amberwave.local)
-if [ "$(hostname)" != "$AW_NAME" ]; then
-  hostnamectl set-hostname "$AW_NAME"
+if [ "$(hostname)" != "$AW_NAME" ] || [ "$(cat /etc/hostname 2>/dev/null)" != "$AW_NAME" ]; then
+  echo "$AW_NAME" > /etc/hostname
+  hostname "$AW_NAME"
   sed -i "s/^127\.0\.1\.1 .*/127.0.1.1 $AW_NAME/" /etc/hosts
   systemctl restart avahi-daemon
 fi
@@ -33,6 +34,18 @@ fi
 command -v docker >/dev/null || { stand "fehler:Docker fehlt im System – bitte neu installieren."; exit 1; }
 status_an
 versuch=0
+# Amberwave-Paket vom Stick (bei der Installation mitkopiert): auspacken statt aus dem Internet laden
+PAKET=/daten/system/amberwave-aio.tar.zst
+if [ -f "$PAKET" ] && ! docker image inspect "$BILD" >/dev/null 2>&1; then
+  for i in $(seq 1 60); do docker info >/dev/null 2>&1 && break; stand "Docker startet …"; sleep 2; done
+  stand "Amberwave wird ausgepackt … (einmalig, ein, zwei Minuten)"
+  if zstd -dc "$PAKET" | docker load >/dev/null 2>&1 && docker image inspect "$BILD" >/dev/null 2>&1; then
+    echo "[amberwave] Paket vom Stick geladen"
+  else
+    stand "Das Paket vom Stick passt nicht – lade Amberwave stattdessen aus dem Internet …"
+  fi
+  rm -f "$PAKET"   # Platz zurück; Updates kommen ohnehin aus dem Internet
+fi
 until docker image inspect "$BILD" >/dev/null 2>&1; do
   versuch=$((versuch+1))
   if ! docker info >/dev/null 2>&1; then

@@ -18,7 +18,7 @@ PAKETE=(systemd-sysv systemd-resolved systemd-timesyncd udev dbus kmod linux-ima
   kbd console-setup-linux iproute2 iputils-ping avahi-daemon libnss-mdns ca-certificates curl python3
   docker.io docker-cli iptables apparmor cifs-utils exfatprogs ntfs-3g firmware-linux-free firmware-realtek firmware-misc-nonfree firmware-amd-graphics firmware-bnx2 firmware-bnx2x
   amd64-microcode intel-microcode unattended-upgrades openssh-server debian-archive-keyring
-  firmware-iwlwifi firmware-mediatek firmware-atheros firmware-brcm80211 wireless-regdb iw wpasupplicant hostapd)
+  firmware-iwlwifi firmware-mediatek firmware-atheros firmware-brcm80211 wireless-regdb iw wpasupplicant hostapd zstd)
 echo "== Grundsystem ($SUITE)"
 mmdebstrap --variant=minbase --components=main,contrib,non-free-firmware \
   --include="$(IFS=,; echo "${PAKETE[*]}")" \
@@ -75,6 +75,12 @@ cp "$HIER/grub-stick.cfg" "$W/stick/boot/grub/grub.cfg"
 mkdir -p "$W/stick/amberwave"
 { printf '#AMBERWAVE-WLAN-PLATZHALTER-7f3a9c#\n'; head -c $(( 4096 - 36 )) /dev/zero | tr '\0' '\n'; } > "$W/stick/amberwave/wlan.txt"
 [ "$(stat -c %s "$W/stick/amberwave/wlan.txt")" = 4096 ] || { echo "WLAN-Platzhalter hat die falsche Größe"; exit 1; }
+# Amberwave selbst (Docker-Paket, zstd) mit auf den Stick: dann lädt das Gerät nach der Installation nichts aus dem
+# Internet. Ohne AW_PAKET holt es sich Amberwave beim ersten Start von GitHub.
+if [ -n "${AW_PAKET:-}" ]; then
+  cp "$AW_PAKET" "$W/stick/amberwave/amberwave-aio.tar.zst"
+  echo "Amberwave-Paket auf dem Stick: $(du -h "$AW_PAKET" | cut -f1)"
+fi
 # Start mit Secure Boot: shim (von Microsoft signiert) → GRUB (von Debian signiert) → Kernel (von Debian signiert).
 # Der signierte GRUB liest seine Konfiguration aus EFI/debian bzw. neben sich – beide Stellen bekommen denselben Wegweiser.
 SHIM="$(ls "$R"/usr/lib/shim/shimx64.efi.signed* 2>/dev/null | head -1)"

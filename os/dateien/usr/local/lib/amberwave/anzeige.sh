@@ -10,6 +10,8 @@ setterm --blank 0 --powerdown 0 2>/dev/null
 setfont /usr/share/consolefonts/Lat15-TerminusBold32x16.psf.gz 2>/dev/null || setfont /usr/share/consolefonts/Lat15-Terminus24x12.psf.gz 2>/dev/null
 while true; do
   NAME="$(hostname)"
+  # installiert: der Name aus den Einstellungen (so wie ihn die Einrichtung bzw. Einstellungen › Amberwave OS setzen)
+  [ "$LIVE" = 0 ] && [ -f /daten/system/einstellungen ] && NAME="$(. /daten/system/einstellungen 2>/dev/null; echo "${AW_NAME:-$NAME}")"
   IPS="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 !~ /^(docker|br-|veth|lo)/ {split($4,a,"/"); if (a[1] != "10.42.0.1") print a[1]}' | paste -sd' ')"
   HOTSPOT="$(cat /run/amberwave/hotspot 2>/dev/null)"
   STAND="$(cat /run/amberwave/stand 2>/dev/null)"

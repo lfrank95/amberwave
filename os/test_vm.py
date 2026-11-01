@@ -127,6 +127,11 @@ try:
     j = warten(bereit, 1500, 'Amberwave antwortet nach dem Neustart nicht')
     melden('notice', 'Erster Start', f"Amberwave {j.get('version')} antwortet {int(time.time() - t2)} s nach dem Neustart (inkl. Laden des Containers)"
            + (f", Statusseite auf Port 80 schon nach {status_gesehen[0]} s, Gerätename „wohnzimmer“ übernommen" if status_gesehen else ', Statusseite nicht gesehen'))
+    log = open(os.path.join(AUS, 'seriell.log'), errors='replace').read()
+    if 'Paket vom Stick geladen' in log:
+        melden('notice', 'Amberwave-Paket', 'vom Stick ausgepackt – nach der Installation nichts aus dem Internet geladen')
+    else:
+        raise RuntimeError('Amberwave wurde nicht aus dem Paket vom Stick geladen' + (' (stattdessen aus dem Internet)' if 'wird geladen' in log else ''))
     time.sleep(5); foto(q, '3-amberwave-laeuft')
     with urllib.request.urlopen(BASIS + '/', timeout=10) as r:
         melden('notice', 'Weboberfläche', f'{r.status} {r.geturl().replace(BASIS, "")}')

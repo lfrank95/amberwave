@@ -101,6 +101,21 @@ stand "Einstellungen speichern" 92
 mkdir -p /mnt/aw/daten
 mount "$(teil 3)" /mnt/aw/daten
 mkdir -p /mnt/aw/daten/system /mnt/aw/daten/appdata /mnt/aw/daten/musik
+# Amberwave-Paket vom Stick (falls dabei): dann muss beim ersten Start nichts aus dem Internet geladen werden.
+# Das Live-System läuft aus dem Arbeitsspeicher, der Stick ist also nicht eingehängt – kurz lesend einhängen.
+STICK=""; for g in /dev/disk/by-partlabel/aw-stick /dev/disk/by-label/AMBERWAVE; do [ -e "$g" ] && STICK="$g" && break; done
+if [ -n "$STICK" ] && [ "${AW_PAKET_LADEN:-1}" = 1 ]; then
+  mkdir -p /run/amberwave/stick
+  if mount -o ro "$STICK" /run/amberwave/stick 2>/dev/null; then
+    if [ -f /run/amberwave/stick/amberwave/amberwave-aio.tar.zst ]; then
+      stand "Amberwave-Paket kopieren" 94
+      cp /run/amberwave/stick/amberwave/amberwave-aio.tar.zst /mnt/aw/daten/system/amberwave-aio.tar.zst.teil \
+        && mv /mnt/aw/daten/system/amberwave-aio.tar.zst.teil /mnt/aw/daten/system/amberwave-aio.tar.zst \
+        || rm -f /mnt/aw/daten/system/amberwave-aio.tar.zst.teil
+    fi
+    umount /run/amberwave/stick || umount -l /run/amberwave/stick
+  fi
+fi
 {
   echo "# Amberwave OS – Einstellungen dieses Geräts (werden in der Weboberfläche geändert)"
   for k in AW_NAME AW_KANAL AW_ZEITZONE AW_MUSIK_ART AW_MUSIK_UUID AW_MUSIK_OPTIONEN AW_NAS_PFAD; do

@@ -275,8 +275,7 @@ def name_setzen(w):
     if not re.match(NAME_RE, name):
         return {'ok': False, 'fehler': 'name'}
     einstellungen_schreiben({'AW_NAME': name})
-    tun(['hostnamectl', 'set-hostname', name])
-    tun(['sed', '-i', f's/^127\\.0\\.1\\.1 .*/127.0.1.1 {name}/', '/etc/hosts'])
+    name_anwenden(name)
     tun(['systemctl', 'restart', 'avahi-daemon'])
     # dem Router den neuen Namen sagen (DHCP) – sonst steht dort weiter der alte (z. B. amberwave.fritz.box)
     for dev in os.listdir('/sys/class/net') if os.path.isdir('/sys/class/net') else []:
@@ -289,8 +288,12 @@ def name_frueh_setzen(e):
     """Beim Start, noch vor dem Netzwerk: Gerätename aus den Einstellungen – so meldet sich das Gerät schon bei der
     ersten DHCP-Anfrage mit dem richtigen Namen beim Router (FRITZ!Box & Co. zeigen ihn als Gerätename/Domain)"""
     name = e.get('AW_NAME', '')
-    if not re.match(NAME_RE, name) or datei(P('/etc/hostname')).strip() == name:
-        return
+    if re.match(NAME_RE, name):
+        name_anwenden(name)
+
+
+def name_anwenden(name):
+    """Gerätename direkt setzen (Datei, /etc/hosts, laufendes System) – ohne hostnamectl, das D-Bus braucht"""
     with open(P('/etc/hostname'), 'w') as f:
         f.write(name + '\n')
     hosts = datei(P('/etc/hosts'))
