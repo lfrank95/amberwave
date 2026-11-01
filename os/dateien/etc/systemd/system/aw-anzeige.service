@@ -1,0 +1,15 @@
+[Unit]
+Description=Amberwave – Anzeige auf dem Bildschirm (Adresse und Stand)
+After=systemd-user-sessions.service
+
+[Service]
+ExecStart=/usr/local/lib/amberwave/anzeige.sh
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

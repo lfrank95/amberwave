@@ -1,0 +1,11 @@
+[Unit]
+Description=Amberwave – Einrichtung im Browser (nur vom USB-Stick)
+ConditionKernelCommandLine=boot=live
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/amberwave/installer.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

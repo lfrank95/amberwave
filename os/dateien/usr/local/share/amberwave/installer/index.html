@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amberwave einrichten</title>
+<meta name="theme-color" content="#120d0a">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<style>
+@font-face { font-family: "Space Grotesk"; src: url(fonts/spacegrotesk-latin-v1.woff2) format("woff2"); font-weight: 300 700; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-v1.woff2) format("woff2"); font-weight: 200 800; }
+@font-face { font-family: "Manrope"; src: url(fonts/manrope-latin-ext-v1.woff2) format("woff2"); font-weight: 200 800; unicode-range: U+0100-024F, U+1E00-1EFF; }
+/* Amberwave OS – Einrichtung. Ein Schritt nach dem anderen, nichts, was Linux-Wissen braucht. */
+:root { --grund: #120d0a; --karte: #1d1510; --feld: #0d0907; --rand: rgba(255, 195, 90, .16); --text: #f6efe7; --leise: #b8a898; --akzent: #ffa94d;
+  --verlauf: linear-gradient(135deg, #ffc35a, #ff6a3d); --gut: #5fdca4; --fehler: #ff7a5c; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: radial-gradient(1200px 600px at 20% -10%, rgba(255,140,60,.14), transparent 60%), var(--grund);
+  color: var(--text); font: 16px/1.55 "Manrope", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  padding: 28px max(16px, env(safe-area-inset-left)) 60px max(16px, env(safe-area-inset-right)); }
+.rahmen { max-width: 640px; margin: 0 auto; }
+.kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+.kopf img { width: 40px; height: 40px; }
+.kopf b { font: 700 1.3rem "Space Grotesk", system-ui, sans-serif; }
+.kopf small { margin-left: auto; color: var(--leise); }
+.schritte { display: flex; gap: 6px; margin-bottom: 22px; }
+.schritte i { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,244,230,.1); }
+.schritte i.an { background: var(--verlauf); }
+h1 { font: 700 clamp(1.6rem, 5vw, 2.1rem)/1.15 "Space Grotesk", system-ui, sans-serif; margin: 0 0 8px; text-wrap: balance; }
+p { margin: 0 0 14px; color: var(--leise); }
+.karte { background: var(--karte); border: 1px solid var(--rand); border-radius: 18px; padding: 18px; margin: 18px 0; }
+.wahl { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px 16px; margin: 0 0 10px; border-radius: 14px;
+  border: 1px solid var(--rand); background: var(--feld); color: var(--text); font: inherit; cursor: pointer; }
+.wahl:last-child { margin-bottom: 0; }
+.wahl[aria-pressed="true"] { border-color: rgba(255,169,77,.7); background: linear-gradient(135deg, rgba(255,195,90,.12), rgba(255,106,61,.06)); }
+.wahl .sym { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,169,77,.12); color: var(--akzent); font-weight: 700; font-size: .78rem; }
+.wahl span { flex: 1; min-width: 0; }
+.wahl b { display: block; }
+.wahl small { color: var(--leise); overflow-wrap: anywhere; }
+.marke { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(95,220,164,.14); color: var(--gut); margin-left: 6px; vertical-align: 2px; }
+label { display: block; font-weight: 600; margin: 14px 0 6px; }
+input[type=text], input[type=password] { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--rand); background: var(--feld); color: var(--text); font: inherit; }
+input:focus { outline: none; border-color: var(--akzent); box-shadow: 0 0 0 3px rgba(255,169,77,.22); }
+.haken { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; color: var(--leise); font-weight: 400; }
+.haken input { margin-top: 4px; accent-color: #ffa94d; }
+.knoepfe { display: flex; gap: 10px; justify-content: space-between; margin-top: 22px; }
+button.los, button.zurueck { min-height: 48px; padding: 0 22px; border-radius: 999px; font: 700 1rem "Manrope", system-ui, sans-serif; cursor: pointer; border: 0; }
+button.los { background: var(--verlauf); color: #1a0f08; margin-left: auto; }
+button.los:disabled { opacity: .45; cursor: default; }
+button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 1px solid var(--rand); }
+.warnung { border-color: rgba(255,122,92,.45); background: rgba(255,122,92,.07); color: var(--text); }
+.warnung b { color: var(--fehler); }
+.meldung { color: var(--fehler); min-height: 1.4em; margin-top: 10px; }
+.meldung.gut { color: var(--gut); }
+.balken { height: 10px; border-radius: 5px; background: rgba(255,244,230,.1); overflow: hidden; margin: 18px 0 10px; }
+.balken i { display: block; height: 100%; width: 2%; background: var(--verlauf); transition: width .6s ease; }
+.zusammen dt { color: var(--leise); font-size: .82rem; margin-top: 10px; }
+.zusammen dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.adresse { font: 700 1.3rem "Space Grotesk", system-ui, sans-serif; color: var(--akzent); }
+.leer { color: var(--leise); padding: 6px 2px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="rahmen">
+  <div class="kopf"><img src="logo.svg" alt=""><b>Amberwave</b><small data-version></small></div>
+  <div class="schritte" data-schritte><i></i><i></i><i></i><i></i></div>
+
+  <!-- 1 Zielplatte -->
+  <section data-s="platte">
+    <h1 data-t="t_platte">Wohin soll Amberwave?</h1>
+    <p data-t="p_platte">Wähle die interne Platte (am besten eine SSD), auf die Amberwave installiert wird.</p>
+    <div class="karte" data-platten></div>
+    <div class="karte warnung" data-warnung hidden></div>
+    <div class="knoepfe"><button class="los" data-weiter="musik" disabled data-t="weiter">Weiter</button></div>
+  </section>
+
+  <!-- 2 Musik -->
+  <section data-s="musik" hidden>
+    <h1 data-t="t_musik">Wo liegt deine Musik?</h1>
+    <p data-t="p_musik">Das lässt sich später jederzeit ändern.</p>
+    <div class="karte" data-musik-art>
+      <button class="wahl" data-art="platte"><i class="sym">HDD</i><span><b data-t="m_platte">Auf einer weiteren Platte</b><small data-t="m_platte2">Eingebaut oder per USB angesteckt</small></span></button>
+      <button class="wahl" data-art="nas"><i class="sym">NAS</i><span><b data-t="m_nas">Auf einem NAS im Netzwerk</b><small data-t="m_nas2">Freigabe z. B. von Synology, QNAP oder Unraid</small></span></button>
+      <button class="wahl" data-art="intern"><i class="sym">SSD</i><span><b data-t="m_intern">Auf derselben Platte</b><small data-t="m_intern2">Neu anfangen – Musik später über das Netzwerk hineinkopieren</small></span></button>
+    </div>
+    <div class="karte" data-musik-platten hidden></div>
+    <div class="karte" data-musik-nas hidden>
+      <label for="nas-pfad" data-t="nas_pfad">Adresse der Freigabe</label>
+      <input type="text" id="nas-pfad" placeholder="//192.168.1.5/musik" autocomplete="off" spellcheck="false">
+      <label for="nas-benutzer" data-t="nas_benutzer">Benutzername</label>
+      <input type="text" id="nas-benutzer" autocomplete="username">
+      <label for="nas-passwort" data-t="nas_passwort">Passwort</label>
+      <input type="password" id="nas-passwort" autocomplete="current-password">
+      <div class="meldung" data-nas-meldung></div>
+    </div>
+    <div class="knoepfe"><button class="zurueck" data-zurueck="platte" data-t="zurueck">Zurück</button><button class="los" data-weiter="name" disabled data-t="weiter">Weiter</button></div>
+  </section>
+
+  <!-- 3 Name + Bestätigung -->
+  <section data-s="name" hidden>
+    <h1 data-t="t_name">Fast fertig</h1>
+    <p data-t="p_name">Unter diesem Namen findest du Amberwave im Netzwerk.</p>
+    <div class="karte">
+      <label for="name" style="margin-top:0" data-t="name">Name im Netzwerk</label>
+      <input type="text" id="name" value="amberwave" autocomplete="off" spellcheck="false" maxlength="32">
+      <p style="margin:8px 0 0">→ <span class="adresse" data-adresse>http://amberwave.local</span></p>
+    </div>
+    <div class="karte zusammen"><dl data-zusammen></dl></div>
+    <div class="karte warnung" data-loeschen></div>
+    <div class="knoepfe"><button class="zurueck" data-zurueck="musik" data-t="zurueck">Zurück</button><button class="los" data-installieren data-t="installieren">Installieren</button></div>
+    <div class="meldung" data-meldung></div>
+  </section>
+
+  <!-- 4 Installation -->
+  <section data-s="laeuft" hidden>
+    <h1 data-t="t_laeuft">Amberwave wird installiert</h1>
+    <p data-schritt>…</p>
+    <div class="balken"><i data-balken></i></div>
+    <p data-t="p_laeuft">Das dauert ein paar Minuten. Bitte das Gerät nicht ausschalten.</p>
+  </section>
+
+  <!-- 5 Fertig -->
+  <section data-s="fertig" hidden>
+    <h1 data-t="t_fertig">Fertig! Jetzt den USB-Stick abziehen</h1>
+    <p data-t="p_fertig">Das Gerät startet dann von selbst neu und lädt Amberwave (einmalig, etwa 400 MB – mit schnellem Internet wenige Minuten). Danach geht es hier weiter:</p>
+    <div class="karte"><span class="adresse" data-ende-adresse>http://amberwave.local</span><p style="margin:8px 0 0" data-t="p_fertig2">Diese Seite wechselt von selbst dorthin, sobald Amberwave bereit ist.</p></div>
+    <div class="knoepfe"><button class="zurueck" data-neustart data-t="neustart">Stick ist ab – jetzt neu starten</button></div>
+  </section>
+
+  <!-- Fehler -->
+  <section data-s="fehler" hidden>
+    <h1 data-t="t_fehler">Das hat nicht geklappt</h1>
+    <div class="karte warnung"><b data-fehler></b></div>
+    <p data-t="p_fehler">Am Gerät ist nichts kaputt. Versuche es noch einmal – oder wähle eine andere Platte.</p>
+    <div class="knoepfe"><button class="los" data-zurueck="platte" data-t="nochmal">Noch einmal</button></div>
+  </section>
+</div>
+<script>
+(() => {
+  const de = !/^en/i.test(navigator.language || '') ? true : false;
+  const EN = {
+    weiter: 'Next', zurueck: 'Back', installieren: 'Install', nochmal: 'Try again', neustart: 'Stick is out – restart now',
+    t_platte: 'Where should Amberwave go?', p_platte: 'Choose the internal drive (ideally an SSD) to install Amberwave on.',
+    t_musik: 'Where is your music?', p_musik: 'You can change this any time later.',
+    m_platte: 'On another drive', m_platte2: 'Built in or plugged in via USB', m_nas: 'On a NAS on the network', m_nas2: 'A share on e.g. Synology, QNAP or Unraid',
+    m_intern: 'On the same drive', m_intern2: 'Start fresh – copy music over the network later',
+    nas_pfad: 'Address of the share', nas_benutzer: 'User name', nas_passwort: 'Password',
+    t_name: 'Almost done', p_name: 'This is the name Amberwave has on your network.', name: 'Name on the network',
+    t_laeuft: 'Installing Amberwave', p_laeuft: 'This takes a few minutes. Please don’t switch the device off.',
+    t_fertig: 'Done! Now unplug the USB stick', p_fertig: 'The device then restarts by itself and downloads Amberwave (once, about 400 MB – a few minutes with fast internet). Then it continues here:',
+    p_fertig2: 'This page switches there by itself as soon as Amberwave is ready.',
+    t_fehler: 'That didn’t work', p_fehler: 'Nothing is broken. Try again – or choose another drive.',
+  };
+  const T = { keine_platte: ['Keine passende Platte gefunden. Amberwave braucht eine interne Platte mit mindestens 16 GB.', 'No suitable drive found. Amberwave needs an internal drive with at least 16 GB.'],
+    usb: ['USB', 'USB'], loeschen: ['<b>Alles auf {p} wird gelöscht.</b> Ist dort noch etwas Wichtiges drauf, jetzt abbrechen.', '<b>Everything on {p} will be erased.</b> If anything important is still on it, stop now.'],
+    behalten: ['Amberwave war hier schon installiert. Bibliothek, Konten und Einstellungen behalten (nur das System wird neu aufgespielt)', 'Amberwave was installed here before. Keep library, accounts and settings (only the system is reinstalled)'],
+    behalten_warn: ['<b>Das System auf {p} wird neu aufgespielt.</b> Deine Amberwave-Daten bleiben erhalten.', '<b>The system on {p} will be reinstalled.</b> Your Amberwave data stays.'],
+    gefunden: ['Amberwave gefunden', 'Amberwave found'], keine_musik: ['Keine weitere Platte gefunden. Steck sie an – die Liste aktualisiert sich von selbst.', 'No other drive found. Plug it in – the list updates by itself.'],
+    nur_lesen: ['Nur lesen (Amberwave verändert an den Dateien nichts)', 'Read only (Amberwave never changes the files)'],
+    nas_pruefen: ['Prüfe die Freigabe …', 'Checking the share …'], nas_ok: ['Verbunden – {n} Einträge gefunden.', 'Connected – {n} entries found.'],
+    nas_adresse: ['Bitte eine Adresse wie //192.168.1.5/musik eingeben.', 'Please enter an address like //192.168.1.5/music.'],
+    nas_zugang: ['Benutzername oder Passwort stimmen nicht.', 'User name or password is wrong.'], nas_weg: ['Die Freigabe antwortet nicht. Stimmt die Adresse?', 'The share doesn’t answer. Is the address right?'],
+    z_platte: ['Installieren auf', 'Install on'], z_musik: ['Musik', 'Music'], intern: ['auf derselben Platte (Ordner „musik“)', 'on the same drive (folder “musik”)'],
+    name_falsch: ['Nur Kleinbuchstaben, Ziffern und Bindestriche.', 'Lowercase letters, digits and hyphens only.'],
+    laeuft_schon: ['Die Installation läuft schon.', 'Setup is already running.'], unbekannt: ['Unbekannter Fehler.', 'Unknown error.'],
+  };
+  const tx = (k, w = {}) => (T[k] ? T[k][de ? 0 : 1] : k).replace(/\{(\w+)\}/g, (_, x) => w[x] ?? '');
+  if (!de) { document.documentElement.lang = 'en'; document.querySelectorAll('[data-t]').forEach((e) => { if (EN[e.dataset.t]) e.textContent = EN[e.dataset.t]; }); document.title = 'Set up Amberwave'; }
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const gb = (b) => (b >= 1e12 ? `${(b / 1e12).toFixed(1)} TB` : `${Math.round(b / 1e9)} GB`);
+  const api = async (pfad, daten) => (await fetch('/api/' + pfad, daten ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten) } : {})).json();
+  const wahl = { platte: null, behalten: true, musik: { art: '' }, name: 'amberwave' };
+  let info = null;
+  const SCHRITTE = ['platte', 'musik', 'name', 'laeuft'];
+  function zeigen(s) {
+    document.querySelectorAll('[data-s]').forEach((x) => { x.hidden = x.dataset.s !== s; });
+    const i = SCHRITTE.indexOf(s === 'fertig' ? 'laeuft' : s);
+    document.querySelectorAll('[data-schritte] i').forEach((x, j) => x.classList.toggle('an', j <= (s === 'fertig' ? 3 : i)));
+    scrollTo(0, 0);
+  }
+  const platte = () => info?.platten.find((p) => p.name === wahl.platte);
+  const plattenName = (p) => `${p.modell || p.name} (${gb(p.groesse)})`;
+
+  function plattenZeichnen() {
+    const box = $('[data-platten]');
+    const liste = info.platten.filter((p) => !p.entfernbar).concat(info.platten.filter((p) => p.entfernbar));
+    if (!liste.length) { box.innerHTML = `<div class="leer">${tx('keine_platte')}</div>`; return; }
+    if (!wahl.platte || !platte()) wahl.platte = (liste.find((p) => p.amberwave) || liste.find((p) => !p.entfernbar) || liste[0]).name;
+    box.innerHTML = liste.map((p) => `<button class="wahl" data-platte="${esc(p.name)}" aria-pressed="${p.name === wahl.platte}"><i class="sym">${esc(p.art.toUpperCase())}</i>
+      <span><b>${esc(p.modell || p.name)}${p.amberwave ? `<span class="marke">${tx('gefunden')}</span>` : ''}</b><small>${gb(p.groesse)} · ${esc(p.name)}</small></span></button>`).join('');
+    const p = platte();
+    const w = $('[data-warnung]');
+    w.hidden = false;
+    w.innerHTML = p.amberwave
+      ? `<label class="haken"><input type="checkbox" data-behalten ${wahl.behalten ? 'checked' : ''}><span>${tx('behalten')}</span></label>`
+      : tx('loeschen', { p: esc(plattenName(p)) });
+    $('[data-behalten]')?.addEventListener('change', (e) => { wahl.behalten = e.target.checked; });
+    $('[data-s="platte"] .los').disabled = false;
+  }
+  $('[data-platten]').addEventListener('click', (e) => { const b = e.target.closest('[data-platte]'); if (b) { wahl.platte = b.dataset.platte; plattenZeichnen(); } });
+
+  function musikZeichnen() {
+    document.querySelectorAll('[data-art]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.art === wahl.musik.art)));
+    $('[data-musik-platten]').hidden = wahl.musik.art !== 'platte';
+    $('[data-musik-nas]').hidden = wahl.musik.art !== 'nas';
+    if (wahl.musik.art === 'platte') {
+      const l = info.musik.filter((m) => m.platte !== wahl.platte);
+      $('[data-musik-platten]').innerHTML = l.length ? l.map((m) => `<button class="wahl" data-uuid="${esc(m.uuid)}" aria-pressed="${m.uuid === wahl.musik.uuid}"><i class="sym">${esc(m.fstype.toUpperCase().slice(0, 4))}</i>
+        <span><b>${esc(m.label || m.modell || m.name)}</b><small>${gb(m.groesse)} · ${esc(m.modell || m.platte)}</small></span></button>`).join('')
+        + `<label class="haken"><input type="checkbox" data-nur-lesen ${wahl.musik.nur_lesen !== false ? 'checked' : ''}><span>${tx('nur_lesen')}</span></label>`
+        : `<div class="leer">${tx('keine_musik')}</div>`;
+      $('[data-nur-lesen]')?.addEventListener('change', (e) => { wahl.musik.nur_lesen = e.target.checked; });
+    }
+    const ok = wahl.musik.art === 'intern' || (wahl.musik.art === 'platte' && wahl.musik.uuid) || (wahl.musik.art === 'nas' && wahl.musik.geprueft);
+    $('[data-s="musik"] .los').disabled = !ok;
+  }
+  $('[data-musik-art]').addEventListener('click', (e) => { const b = e.target.closest('[data-art]'); if (b) { wahl.musik = { art: b.dataset.art, nur_lesen: true }; musikZeichnen(); } });
+  $('[data-musik-platten]').addEventListener('click', (e) => { const b = e.target.closest('[data-uuid]'); if (b) { wahl.musik.uuid = b.dataset.uuid; musikZeichnen(); } });
+  let nasTimer = 0;
+  document.querySelectorAll('[data-musik-nas] input').forEach((f) => f.addEventListener('input', () => {
+    wahl.musik.geprueft = false; musikZeichnen();
+    clearTimeout(nasTimer);
+    nasTimer = setTimeout(async () => {
+      const m = $('[data-nas-meldung]'); m.className = 'meldung';
+      const d = { pfad: $('#nas-pfad').value.trim().replace(/\\/g, '/'), benutzer: $('#nas-benutzer').value, passwort: $('#nas-passwort').value };
+      if (!d.pfad) { m.textContent = ''; return; }
+      m.textContent = tx('nas_pruefen');
+      const r = await api('nas-pruefen', d).catch(() => ({ ok: false }));
+      if (r.ok) { Object.assign(wahl.musik, d, { geprueft: true }); m.className = 'meldung gut'; m.textContent = tx('nas_ok', { n: r.eintraege }); }
+      else m.textContent = tx(r.fehler === 'adresse' ? 'nas_adresse' : r.fehler === 'zugang' ? 'nas_zugang' : 'nas_weg');
+      musikZeichnen();
+    }, 700);
+  }));
+
+  function nameZeichnen() {
+    const p = platte();
+    const n = $('#name').value.trim().toLowerCase();
+    $('[data-adresse]').textContent = `http://${n || 'amberwave'}.local`;
+    const m = wahl.musik;
+    const mt = m.art === 'intern' ? tx('intern') : m.art === 'nas' ? m.pfad : (info.musik.find((x) => x.uuid === m.uuid)?.label || info.musik.find((x) => x.uuid === m.uuid)?.modell || '');
+    $('[data-zusammen]').innerHTML = `<dt>${tx('z_platte')}</dt><dd>${esc(plattenName(p))}</dd><dt>${tx('z_musik')}</dt><dd>${esc(mt)}</dd>`;
+    $('[data-loeschen]').innerHTML = p.amberwave && wahl.behalten ? tx('behalten_warn', { p: esc(plattenName(p)) }) : tx('loeschen', { p: esc(plattenName(p)) });
+  }
+  $('#name').addEventListener('input', nameZeichnen);
+
+  document.addEventListener('click', (e) => {
+    const w = e.target.closest('[data-weiter]'), z = e.target.closest('[data-zurueck]');
+    if (w && !w.disabled) { if (w.dataset.weiter === 'musik') musikZeichnen(); if (w.dataset.weiter === 'name') nameZeichnen(); zeigen(w.dataset.weiter); }
+    if (z) { if (z.dataset.zurueck === 'platte') laden(); zeigen(z.dataset.zurueck); }
+  });
+  $('[data-installieren]').addEventListener('click', async (e) => {
+    const n = $('#name').value.trim().toLowerCase();
+    if (!/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/.test(n)) { $('[data-meldung]').textContent = tx('name_falsch'); return; }
+    e.target.disabled = true;
+    const p = platte();
+    const r = await api('installieren', { platte: p.name, behalten: p.amberwave && wahl.behalten, name: n, musik: wahl.musik, kanal: new URLSearchParams(location.search).get('kanal') || 'beta',
+      zeitzone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin' }).catch(() => ({ ok: false }));
+    e.target.disabled = false;
+    if (!r.ok) { $('[data-meldung]').textContent = tx(r.fehler === 'name' ? 'name_falsch' : r.fehler === 'laeuft' ? 'laeuft_schon' : 'unbekannt'); return; }
+    wahl.name = n;
+    zeigen('laeuft'); verfolgen();
+  });
+  $('[data-neustart]').addEventListener('click', () => api('neustart', {}));
+
+  async function verfolgen() {
+    const s = await api('stand').catch(() => null);
+    if (s) {
+      $('[data-schritt]').textContent = s.schritt || '…';
+      $('[data-balken]').style.width = `${Math.max(2, s.prozent || 0)}%`;
+      if (s.fehler) { $('[data-fehler]').textContent = s.fehler; zeigen('fehler'); return; }
+      if (s.fertig) { $('[data-ende-adresse]').textContent = `http://${wahl.name}.local`; zeigen('fertig'); warten(); return; }
+    }
+    setTimeout(verfolgen, 1500);
+  }
+  // Nach dem Neustart: sobald unter dieser Adresse Amberwave selbst antwortet (statt der Einrichtung), dorthin wechseln.
+  // Bekommt das Gerät eine neue IP, hilft die angezeigte .local-Adresse.
+  function warten() {
+    const probe = () => fetch('/api/v1/ping', { cache: 'no-store' }).then((r) => r.json())
+      .then((j) => { if (j.app === 'amberwave') location.href = '/'; else setTimeout(probe, 4000); })
+      .catch(() => setTimeout(probe, 4000));
+    setTimeout(probe, 8000);
+  }
+
+  async function laden() {
+    info = await api('info');
+    $('[data-version]').textContent = info.version;
+    if (info.stand && !info.stand.fehler) { zeigen(info.stand.fertig ? 'fertig' : 'laeuft'); verfolgen(); return; }
+    plattenZeichnen();
+  }
+  laden();
+  // Platten können angesteckt werden, während die Seite offen ist
+  setInterval(async () => {
+    const s = document.querySelector('[data-s]:not([hidden])')?.dataset.s;
+    if (s !== 'platte' && s !== 'musik') return;
+    info = await api('info').catch(() => info);
+    if (s === 'platte') plattenZeichnen(); else musikZeichnen();
+  }, 5000);
+})();
+</script>
+</body>
+</html>

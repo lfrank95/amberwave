@@ -1,0 +1,15 @@
+[Unit]
+Description=Amberwave – Einstellungen anwenden, Musik einbinden, Amberwave starten
+ConditionKernelCommandLine=!boot=live
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+RequiresMountsFor=/daten
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=infinity
+ExecStart=/usr/local/lib/amberwave/start.sh
+
+[Install]
+WantedBy=multi-user.target

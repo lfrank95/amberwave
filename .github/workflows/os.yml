@@ -1,0 +1,59 @@
+# Amberwave OS: bootfähiges USB-Image (x86-64, UEFI) bauen und in einer virtuellen Maschine komplett durchspielen –
+# vom Stick starten, im Browser einrichten, auf eine leere SSD installieren, Stick abziehen, Amberwave startet.
+# Nur von Hand: Actions → Amberwave OS → Run workflow (kanal: welches Amberwave-Image der Test lädt).
+name: Amberwave OS
+on:
+  workflow_dispatch:
+    inputs:
+      kanal:
+        description: 'Amberwave-Image für den Test (main, beta, latest)'
+        default: main
+permissions:
+  contents: read
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Werkzeuge
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq mmdebstrap debian-archive-keyring squashfs-tools grub-efi-amd64-bin grub-common mtools gdisk dosfstools >/dev/null
+      - name: Image bauen
+        run: |
+          sudo bash os/bauen.sh "$RUNNER_TEMP/os"
+          V="$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")"
+          echo "V=$V" >> "$GITHUB_ENV"
+          ls -la "$RUNNER_TEMP/os"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amberwave-os-img
+          path: ${{ runner.temp }}/os/amberwave-os-${{ env.V }}.img
+          retention-days: 7
+  vm:
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules >/dev/null
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf >/dev/null
+      - uses: actions/download-artifact@v4
+        with:
+          name: amberwave-os-img
+          path: ${{ runner.temp }}/img
+      - name: Stick → Einrichtung → Installation → Neustart → Amberwave
+        run: python3 os/test_vm.py "$(ls "$RUNNER_TEMP"/img/*.img)" "$RUNNER_TEMP/vm" "${{ inputs.kanal || 'main' }}"
+      - name: Konsole (Ende)
+        if: always()
+        run: tail -n 60 "$RUNNER_TEMP/vm/seriell.log" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vm-test
+          path: |
+            ${{ runner.temp }}/vm/*.png
+            ${{ runner.temp }}/vm/seriell.log
+          retention-days: 7

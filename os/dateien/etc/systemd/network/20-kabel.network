@@ -1,0 +1,11 @@
+# Jede Kabelverbindung holt sich ihre Adresse per DHCP vom Router
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes
+MulticastDNS=no
+LinkLocalAddressing=ipv6
+
+[DHCPv4]
+UseHostname=no
