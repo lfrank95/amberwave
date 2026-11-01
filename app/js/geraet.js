@@ -11,7 +11,6 @@ const zeile = (k, name, hinweis, regler = '', attr = '') => `<div class="einst-z
 const chip = (text, art = '') => `<span class="einst-chip ${art}">${h(text)}</span>`;
 const schalter = (an, attr) => `<button type="button" class="schalter" role="switch" aria-checked="${an ? 'true' : 'false'}" ${attr}></button>`;
 const segment = (optionen, wert, attr) => `<div class="segment" role="radiogroup" ${attr}>${optionen.map(([w, tx]) => `<button type="button" role="radio" data-w="${h(w)}" aria-checked="${w === wert}">${h(tx)}</button>`).join('')}</div>`;
-const balken = (s) => s && s.gesamt ? `<div class="os-balken"><div class="flac-balken"><i style="width:${Math.max(1, Math.round(s.belegt * 100 / s.gesamt))}%"></i></div><small>${t('{belegt} von {gesamt}', { belegt: groesse(s.belegt), gesamt: groesse(s.gesamt) })}</small></div>` : '';
 
 function dauer(s) {
   const tage = Math.floor(s / 86400), std = Math.floor(s / 3600);
@@ -50,6 +49,44 @@ function wartenBisDa(titel, text, danach = null) {
     setTimeout(runde, 3000);
   };
   setTimeout(runde, 4000);
+}
+
+/**
+ * Speicher: die interne Platte als ein Balken – Amberwave OS (Systemteil), Amberwave selbst (Programm und Paket),
+ * Bibliothek (Datenbank, Cover), Sicherungen, Musik (wenn sie auf dem Gerät liegt), Platz für Updates und frei.
+ * Liegt die Musik auf einer USB-Platte oder im Netz, bekommt sie einen eigenen Balken.
+ */
+function speicherKarte(g, m) {
+  const sp = g.speicher || {};
+  const a = sp.aufteilung || {};
+  const sys = sp.system || { gesamt: 0, belegt: 0 }, dat = sp.daten || { gesamt: 0, belegt: 0 };
+  const teile = [
+    ['system', t('Amberwave OS'), sys.belegt, t('das Betriebssystem des Geräts')],
+    // ältere Gerätedienste kennen die Aufteilung noch nicht: dann die Daten als ein Block
+    ...(sp.aufteilung ? [] : [['programm', t('Daten'), dat.belegt, t('Amberwave, Datenbank, Cover, Sicherungen und Musik auf dem Gerät')]]),
+    ...(!sp.aufteilung ? [] : [['programm', 'Amberwave', a.programm || 0, t('die App selbst und das Paket für Updates ohne Internet')]]),
+    ...(!sp.aufteilung ? [] : [['bibliothek', t('Bibliothek'), (a.datenbank || 0) + (a.cover || 0), t('Datenbank, Cover, Künstlerbilder, Zwischenspeicher')],
+      ['sicherungen', t('Sicherungen'), a.sicherungen || 0, t('nächtliche Sicherungen von Datenbank und Einstellungen')]]),
+    ...(a.musik != null ? [['musik', t('Musik'), a.musik, t('deine Sammlung auf diesem Gerät')]] : []),
+    ...(a.sonstiges ? [['sonstiges', t('Sonstiges'), a.sonstiges, '']] : []),
+    ['reserve', t('Platz für Updates'), Math.max(0, sys.gesamt - sys.belegt), t('freier Teil des Systembereichs')],
+    ['frei', t('Frei'), Math.max(0, dat.gesamt - dat.belegt), m.art === 'intern' ? t('für Musik und Daten') : t('für Daten')],
+  ];
+  const gesamt = sys.gesamt + dat.gesamt || 1;
+  const balkenTeile = (liste, summe) => `<div class="os-platte" role="img" aria-label="${h(liste.map(([, n, b]) => `${n}: ${groesse(b)}`).join(', '))}">${liste.filter(([, , b]) => b > 0)
+    .map(([k, n, b]) => `<i class="os-teil-${k}" style="width:${Math.max(0.6, b * 100 / summe)}%" title="${h(`${n}: ${groesse(b)}`)}"></i>`).join('')}</div>`;
+  const legende = (liste) => `<div class="os-legende">${liste.map(([k, n, b, u]) => `<div class="os-leg"><span class="os-punkt os-teil-${k}"></span>
+    <span class="os-leg-text"><b>${h(n)}</b>${u ? `<small>${h(u)}</small>` : ''}</span><span class="os-leg-wert">${groesse(b)}</span></div>`).join('')}</div>`;
+  let html = `<div class="einst-zeile os-speicher"><div class="einst-text" style="width:100%">
+    <span class="einst-name">${t('Interne Platte')} <small class="os-leise">${t('{belegt} von {gesamt} belegt', { belegt: groesse(sys.belegt + dat.belegt), gesamt: groesse(gesamt) })}</small></span>
+    ${balkenTeile(teile, gesamt)}${legende(teile)}</div></div>`;
+  if (sp.musik) {
+    const mt = [['musik', t('Musik'), sp.musik.belegt, ''], ['frei', t('Frei'), Math.max(0, sp.musik.gesamt - sp.musik.belegt), '']];
+    html += `<div class="einst-zeile os-speicher"><div class="einst-text" style="width:100%">
+      <span class="einst-name">${m.art === 'nas' ? h(m.pfad) : t('USB-Platte')} <small class="os-leise">${t('{belegt} von {gesamt} belegt', { belegt: groesse(sp.musik.belegt), gesamt: groesse(sp.musik.gesamt) })}</small></span>
+      ${balkenTeile(mt, sp.musik.gesamt || 1)}${legende(mt)}</div></div>`;
+  }
+  return html;
 }
 
 export async function geraetZeichnen(app, inhalt, signal) {
@@ -123,10 +160,7 @@ export async function geraetZeichnen(app, inhalt, signal) {
         <div class="einst-regler"><button type="button" class="btn btn-zweit btn-klein" data-musik-pruefen>${t('Verbindung prüfen')}</button><button type="button" class="btn btn-klein" data-musik-uebernehmen>${t('Übernehmen')}</button></div></div>`,
       m.eingebunden ? chip(t('eingebunden'), 'gut') : chip(t('nicht eingebunden'), 'warn'))}
 
-    ${karte(t('Speicher'), `
-      ${zeile('speicher-system', t('System'), t('Amberwave OS selbst – wird bei großen Updates frisch aufgespielt') + balken(g.speicher.system))}
-      ${zeile('speicher-daten', t('Daten'), t('Datenbank, Cover, Sicherungen und das Amberwave-Paket – bleibt bei jedem Update') + balken(g.speicher.daten))}
-      ${g.speicher.musik ? zeile('speicher-musik', t('Musik'), h(m.art === 'nas' ? m.pfad : m.art === 'platte' ? t('USB-Platte') : t('Auf diesem Gerät')) + balken(g.speicher.musik)) : ''}`)}
+    ${karte(t('Speicher'), speicherKarte(g, m))}
 
     ${karte(t('Updates'), `
       ${zeile('update', 'Amberwave', g.update

@@ -898,5 +898,18 @@
  "Jetzt suchen": "Check now",
  "Neue Version {version} gefunden.": "New version {version} found.",
  "Suche …": "Checking …",
- "zuletzt gesucht {datum}": "last checked {datum}"
+ "zuletzt gesucht {datum}": "last checked {datum}",
+ "Datenbank, Cover, Künstlerbilder, Zwischenspeicher": "Database, covers, artist images, cache",
+ "Frei": "Free",
+ "Interne Platte": "Internal drive",
+ "Platz für Updates": "Room for updates",
+ "das Betriebssystem des Geräts": "the device's operating system",
+ "deine Sammlung auf diesem Gerät": "your collection on this device",
+ "die App selbst und das Paket für Updates ohne Internet": "the app itself and the package for updates without internet",
+ "freier Teil des Systembereichs": "free part of the system area",
+ "für Daten": "for data",
+ "für Musik und Daten": "for music and data",
+ "nächtliche Sicherungen von Datenbank und Einstellungen": "nightly backups of database and settings",
+ "{belegt} von {gesamt} belegt": "{belegt} of {gesamt} used",
+ "Amberwave, Datenbank, Cover, Sicherungen und Musik auf dem Gerät": "Amberwave, database, covers, backups and music on the device"
 }

@@ -4152,3 +4152,25 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .cn-koppeln .einst-feld { width: 240px; max-width: 100%; }
 .cn-koppeln .cn-code-feld { width: 110px; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
 @media (max-width: 700px) { .cn-gekoppelt { flex-direction: column; } .cn-knoepfe { flex-direction: row; } .cn-koppeln { justify-content: stretch; } .cn-koppeln .einst-feld { flex: 1 1 100%; width: auto; } }
+
+/* Amberwave OS › Speicher: die Platte als ein Balken mit Legende */
+.os-speicher .einst-name { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.os-leise { color: var(--text-muted); font-weight: 400; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.os-platte { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: rgba(255,244,230,.06); margin: 12px 0 14px; gap: 2px; }
+.os-platte i { display: block; height: 100%; min-width: 3px; }
+.os-legende { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 10px 22px; }
+.os-leg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 10px; }
+.os-punkt { width: 12px; height: 12px; border-radius: 4px; margin-top: 3px; }
+.os-leg-text { display: flex; flex-direction: column; min-width: 0; }
+.os-leg-text b { font-size: .9rem; font-weight: 600; }
+.os-leg-text small { color: var(--text-muted); font-size: .76rem; line-height: 1.35; }
+.os-leg-wert { font-size: .86rem; font-variant-numeric: tabular-nums; color: var(--text-primary); white-space: nowrap; }
+.os-teil-system { background: #8d7b6c; }
+.os-teil-programm { background: var(--accent-a); }
+.os-teil-bibliothek { background: #f2c27a; }
+.os-teil-sicherungen { background: #7aa7d8; }
+.os-teil-musik { background: var(--success); }
+.os-teil-sonstiges { background: #b46a8f; }
+.os-teil-reserve { background: repeating-linear-gradient(135deg, rgba(255,244,230,.22) 0 4px, rgba(255,244,230,.08) 4px 8px); }
+.os-teil-frei { background: rgba(255,244,230,.06); box-shadow: inset 0 0 0 1px rgba(255,244,230,.18); }
+.os-platte .os-teil-frei { box-shadow: none; background: transparent; }

@@ -117,6 +117,39 @@ def speicher(pfad):
         return None
 
 
+_aufteilung = {'zeit': 0, 'daten': None}
+
+
+def groesse_ordner(pfad):
+    """Bytes eines Ordners (nur dieses Dateisystem); 0, wenn es ihn nicht gibt"""
+    if not os.path.isdir(P(pfad)):
+        return 0
+    try:
+        r = subprocess.run(['du', '-sxb', P(pfad)], capture_output=True, text=True, timeout=30)
+        return int((r.stdout.split() or ['0'])[0])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0
+
+
+def aufteilung(musik_intern):
+    """Was belegt die Datenpartition: Amberwave selbst, Datenbank, Cover, Sicherungen – der Rest ist (bei interner
+    Musik) die Musik. Die großen Musikordner werden nicht gezählt, sondern ergeben sich aus dem Rest (schnell).
+    Zwischengespeichert für 5 Minuten."""
+    if time.time() - _aufteilung['zeit'] < 300 and _aufteilung['daten'] is not None:
+        return _aufteilung['daten']
+    t = {
+        'programm': groesse_ordner('/daten/docker') + groesse_ordner('/daten/system'),
+        'datenbank': groesse_ordner('/daten/appdata/db'),
+        'cover': groesse_ordner('/daten/appdata/cache'),
+        'sicherungen': groesse_ordner('/daten/appdata/backups'),
+    }
+    d = speicher('/daten')
+    rest = max(0, (d['belegt'] if d else 0) - sum(t.values()))
+    t['musik' if musik_intern else 'sonstiges'] = rest
+    _aufteilung.update(zeit=time.time(), daten=t)
+    return t
+
+
 def schnittstelle():
     """Kabel-Schnittstelle mit Standardroute (oder die erste mit Kabel)"""
     try:
@@ -262,7 +295,8 @@ def info():
         'hardware': hardware(), 'netz': netz(),
         'musik': {'art': art, 'eingebunden': eingebunden, 'uuid': e.get('AW_MUSIK_UUID', ''), 'nur_lesen': e.get('AW_MUSIK_OPTIONEN') == 'ro',
                   'pfad': e.get('AW_NAS_PFAD', ''), 'benutzer': nas_benutzer() if art == 'nas' else '', 'platten': musik_teile},
-        'speicher': {'system': speicher('/'), 'daten': speicher('/daten'), 'musik': speicher('/musik') if eingebunden else None},
+        'speicher': {'system': speicher('/'), 'daten': speicher('/daten'), 'musik': speicher('/musik') if eingebunden and art != 'intern' else None,
+                     'aufteilung': aufteilung(art == 'intern')},
         'system': system_info(), 'sicherheitsupdates': e.get('AW_SICHERHEITSUPDATES', '1') == '1',
         'wlan': wlan_info(),
         'ssh': {'an': ssh_an, 'liste': [z.strip() for z in datei(SSH_ORDNER + '/authorized_keys').splitlines() if z.strip() and not z.startswith('#')]},
