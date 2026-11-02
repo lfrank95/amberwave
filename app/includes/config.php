@@ -61,7 +61,7 @@ if (!function_exists('konfig')) {
         }
 
         $k = [
-            'version' => '0.9.1-beta.17',
+            'version' => '0.9.1-beta.18',
             'zeitzone' => date_default_timezone_get(),
             'db' => [
                 'host' => $env('DB_HOST', 'db'),

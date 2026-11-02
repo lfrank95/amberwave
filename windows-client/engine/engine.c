@@ -1156,6 +1156,8 @@ static int stueck_ausgeben(void *dst, const AusInfo *ai, const int32_t *src, int
 }
 
 static int fmt_bytes(AusFormat f) { return f == FMT_S16 ? 2 : f == FMT_S24P ? 3 : 4; }
+/** wie viele Bit das Geräteformat verlustfrei trägt */
+static int fmt_bits(AusFormat f) { return f == FMT_S16 ? 16 : f == FMT_S32 ? 32 : 24; }
 static const char *fmt_name(AusFormat f) {
   switch (f) { case FMT_S16: return "16 Bit"; case FMT_S24P: return "24 Bit"; case FMT_S32_24: return "24 Bit (in 32)"; case FMT_S32: return "32 Bit"; default: return "32 Bit Float"; }
 }
@@ -1190,6 +1192,17 @@ static int marken_abarbeiten(AusZustand *z, uint64_t dev_frame, int hat_geraet, 
       if (!hat_geraet || m.rate != q_rate || m.kanaele != q_kan || m.bits != q_bits) {
         // feste Ausgaberate und gleiche Kanäle: nur die Umrechnung wechseln, ohne Pause
         double t_nahtlos = jetzt_s();
+        // Nur die Bittiefe ändert sich und das Gerät fasst sie schon: ASIO hat ein festes Sampleformat (meist 32 Bit),
+        // geteilter Modus rechnet in Float, exklusiv kann ein 24-/32-Bit-Format auch 16 Bit verlustfrei tragen. Dann nur
+        // anders umwandeln und das Gerät weiterlaufen lassen – Anhalten und neu Einrichten schmatzt am Übergang.
+        if (hat_geraet && z->dev && m.rate == q_rate && m.kanaele == q_kan && !z->ai->umgerechnet
+            && (z->ai->asio || z->ai->fmt == FMT_F32 || fmt_bits(z->ai->fmt) >= m.bits)) {
+          melden("{\"e\":\"formatwechsel\",\"art\":\"bittiefe\",\"von\":%d,\"nach\":%d,\"bits\":%d,\"ms\":0}", q_bits, m.bits, m.bits);
+          *z->q_bits = q_bits = m.bits;
+          *z->bitgenau_gemeldet = -1;
+          format_melden(z->ai, m.rate, m.bits, q_kan);
+          continue;
+        }
         if (hat_geraet && z->dev && ger_fest(z->dev) && m.kanaele == q_kan && ger_nahtlos(z->dev, m.rate, m.bits, z->ai) == 0) {
           melden("{\"e\":\"formatwechsel\",\"art\":\"nahtlos\",\"von\":%d,\"nach\":%d,\"bits\":%d,\"ms\":%.1f}", q_rate, m.rate, m.bits, (jetzt_s() - t_nahtlos) * 1000.0);
           *z->q_rate = q_rate = m.rate; *z->q_bits = q_bits = m.bits;
