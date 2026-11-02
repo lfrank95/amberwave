@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Connect: **servers on the same network find each other much more reliably.** Each server now tells its partner which address a request came from – so both learn their own home-network IP (even inside Docker) and their public IP without anyone opening them via the IP in a browser. Servers behind the same public IP search the home network for each other (also on ports 9950, 80 and 8095), and every home-network address that worked is remembered.
+
 ## 0.9.1-beta.12 – Home network first, client updates
 - Connect: **the home network always wins** – when two servers with a back channel are on the same network, they talk directly again instead of going through the back channel (checked at most once a minute, quickly).
 - **Windows Client: "Check for updates"** in the tray menu and under Settings › Windows output, with "Update now" right there. The installer runs as its own process outside Amberwave: it waits until the client (and its engine) has closed, ends anything still running from the program folder if needed, replaces it and starts the new version.

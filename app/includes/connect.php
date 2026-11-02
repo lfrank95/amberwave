@@ -92,8 +92,10 @@ function connect_eigene_adressen(): array
     require_once __DIR__ . '/direktzugang.php';
     $lan = json_decode((string) @file_get_contents(connect_ordner() . '/eigene_lan.json'), true) ?: [];
     $os = trim((string) getenv('AMBERWAVE_OS')) === '1' ? ['http://' . (gethostname() ?: 'amberwave') . '.local'] : [];
+    $ips = connect_eigene_ips();
     return array_filter([
-        'lan' => array_values(array_unique(array_merge($lan, $os))),
+        'lan' => array_slice(array_values(array_unique(array_merge($lan, connect_lan_aus_ips($lan, $ips['lan'] ?? []), $os))), 0, 6),
+        'netz' => $ips['oeffentlich'] ?? null,
         'direkt' => direkt_url() ?: null,
         'oeffentlich' => rtrim((string) konfig()['app_url'], '/') ?: null,
         'tunnel' => connect_tunnel_adresse(),
@@ -217,7 +219,7 @@ function connect_empfangen(): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();
     }
-    $r = connect_verarbeiten($roh, connect_anfrage_im_heimnetz());
+    $r = connect_verarbeiten($roh, connect_anfrage_im_heimnetz(), connect_gesehen());
     if ($r === null) {
         http_response_code(404);
         header('Content-Type: application/json');
@@ -242,7 +244,7 @@ function connect_empfangen(): void
  * Eine versiegelte Anfrage einer Gegenstelle ausführen – direkt über HTTP oder über den Rückkanal hereingereicht.
  * Gibt [versiegelte Antwort, enthält Dateidaten] zurück oder null (unbekannt, ungültig, zu alt, schon gesehen).
  */
-function connect_verarbeiten(string $roh, bool $heimnetz = false): ?array
+function connect_verarbeiten(string $roh, bool $heimnetz = false, ?array $gesehen = null): ?array
 {
     if (strlen($roh) < 4 + 32 + 40 || substr($roh, 0, 4) !== CONNECT_MAGIE) {
         return null;
@@ -275,6 +277,9 @@ function connect_verarbeiten(string $roh, bool $heimnetz = false): ?array
         error_log('Connect ' . ($a['m'] ?? '') . ': ' . log_sauber($e->getMessage()));
         [$kopf, $binaer] = [['ok' => false, 'fehler' => t('Interner Fehler auf dem anderen Server.')], ''];
     }
+    if ($gesehen) {
+        $kopf['_gesehen'] = $gesehen;   // „du kamst von …“ – so lernt die Gegenstelle ihre eigene Heimnetz- bzw. öffentliche IP
+    }
     return [CONNECT_MAGIE . connect_versiegeln(connect_packen($kopf, $binaer), $pk), $binaer !== ''];
 }
 
@@ -286,6 +291,7 @@ function connect_adressen_saeubern(array $ad): array
         'direkt' => $url($ad['direkt'] ?? null),
         'oeffentlich' => $url($ad['oeffentlich'] ?? null),
         'tunnel' => $url($ad['tunnel'] ?? null),
+        'netz' => is_string($ad['netz'] ?? null) && filter_var($ad['netz'], FILTER_VALIDATE_IP) ? $ad['netz'] : null,
     ]);
 }
 
@@ -515,7 +521,11 @@ function connect_antwort_oeffnen(array $peer, $roh): ?array
         return null;
     }
     $klar = connect_oeffnen(substr($roh, 4), hex2bin($peer['schluessel']));
-    return $klar === null ? null : connect_entpacken($klar);
+    $r = $klar === null ? null : connect_entpacken($klar);
+    if ($r && is_array($r[0]['_gesehen'] ?? null)) {
+        connect_gesehen_merken($r[0]['_gesehen']);
+    }
+    return $r;
 }
 
 /** Kandidaten-Adressen einer Gegenstelle: [[art, basis], …] – Heimnetz zuerst */
@@ -523,7 +533,7 @@ function connect_kandidaten(array $peer): array
 {
     $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
     $k = [];
-    foreach ((array) ($ad['lan'] ?? []) as $u) {
+    foreach (array_unique(array_merge(connect_lan_gefunden((int) $peer['id']), (array) ($ad['lan'] ?? []))) as $u) {
         $k[] = ['heimnetz', $u];
     }
     if (!empty($ad['direkt'])) {
@@ -568,6 +578,9 @@ function connect_weg_suchen(array $peer, bool $heimnetz_suchen = true): array
         throw new ApiFehler(t('„{name}“ ist gerade nicht erreichbar.', ['name' => $peer['name']]), 503);
     }
     [$art, $basis, $ms, $kopf] = $treffer;
+    if ($art === 'heimnetz') {
+        connect_lan_gefunden((int) $peer['id'], $basis);
+    }
     $ad = is_array($kopf['adressen'] ?? null) ? connect_adressen_saeubern($kopf['adressen']) : (json_decode((string) $peer['adressen'], true) ?: []);
     if ($art === 'heimnetz' && !in_array($basis, $ad['lan'] ?? [], true)) {
         $ad['lan'] = array_values(array_unique(array_merge([$basis], $ad['lan'] ?? [])));
@@ -639,15 +652,28 @@ function connect_heimnetz_absuchen(array $peer): array
 {
     $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
     $basen = [];
+    $ports = [];
     foreach ((array) ($ad['lan'] ?? []) as $u) {
         $t = parse_url($u);
+        $ports[] = (int) ($t['port'] ?? 80);
         if (!empty($t['host']) && filter_var($t['host'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
             $netz = implode('.', array_slice(explode('.', $t['host']), 0, 3));
             $basen[$netz . '|' . ($t['scheme'] ?? 'http') . '|' . ($t['port'] ?? '')] = [$netz, $t['scheme'] ?? 'http', $t['port'] ?? null];
         }
     }
+    // Hinter derselben öffentlichen IP wie wir? Dann steht er sehr wahrscheinlich in unserem Netz – dort suchen,
+    // auf den Ports, die er nennt, und den üblichen (9950 Windows/Docker, 80 Amberwave OS, 8095)
+    $eigen = connect_eigene_ips();
+    if (!empty($ad['netz']) && ($eigen['oeffentlich'] ?? '') === $ad['netz']) {
+        foreach ((array) ($eigen['lan'] ?? []) as $ip) {
+            $netz = implode('.', array_slice(explode('.', $ip), 0, 3));
+            foreach (array_slice(array_values(array_unique(array_merge($ports, [9950, 80, 8095]))), 0, 4) as $port) {
+                $basen[$netz . '|http|' . $port] ??= [$netz, 'http', $port === 80 ? null : $port];
+            }
+        }
+    }
     $funde = [];
-    foreach (array_slice($basen, 0, 2) as [$netz, $schema, $port]) {
+    foreach (array_slice($basen, 0, 6) as [$netz, $schema, $port]) {
         $mh = curl_multi_init();
         $griffe = [];
         for ($i = 1; $i < 255; $i++) {
@@ -913,7 +939,10 @@ function connect_heimnetz_finden(): array
             $netze[implode('.', array_slice(explode('.', $t['host']), 0, 3))] = true;
         }
     }
-    $ports = [80, 8095, 8080];
+    foreach ((array) (connect_eigene_ips()['lan'] ?? []) as $ip) {   // von Gegenstellen gelernt
+        $netze[implode('.', array_slice(explode('.', $ip), 0, 3))] = true;
+    }
+    $ports = [80, 9950, 8095, 8080];
     foreach ($eigen as $u) {
         $p = parse_url($u, PHP_URL_PORT);
         if ($p) {
@@ -996,8 +1025,19 @@ function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
     $kand = array_values(array_filter(connect_kandidaten($peer), static fn($k) => $k[0] === 'heimnetz'));
     $treffer = $kand ? connect_parallel_hallo($peer, $kand, true) : null;   // im Heimnetz antwortet er sofort – kurz warten
     if (!$treffer) {
+        $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
+        $suche = connect_rueck_ordner((int) $peer['id']) . '/lan_gesucht';
+        $sm = @filemtime($suche);
+        if (!empty($ad['netz']) && (connect_eigene_ips()['oeffentlich'] ?? '') === $ad['netz'] && ($sm === false || time() - $sm > 600)) {
+            @touch($suche);
+            $funde = connect_heimnetz_absuchen($peer);
+            $treffer = $funde ? connect_parallel_hallo($peer, $funde, true) : null;
+        }
+    }
+    if (!$treffer) {
         return null;
     }
+    connect_lan_gefunden((int) $peer['id'], $treffer[1]);
     [, $basis, $ms] = $treffer;
     db_tun("UPDATE connect_server SET weg = :w, weg_art = 'heimnetz', weg_ms = :ms, weg_am = NOW(), zuletzt_am = NOW() WHERE id = :id",
         ['w' => $basis, 'ms' => $ms, 'id' => $peer['id']]);
@@ -1129,5 +1169,93 @@ function connect_rueck_partner(): array
         $ad = json_decode((string) ($p['adressen'] ?? ''), true) ?: [];
         return $erzwungen || !empty($ad['tunnel']) || (!empty($ad['oeffentlich']) && connect_adresse_oeffentlich($ad['oeffentlich']));
     }));
+}
+
+// ---------- Heimnetz besser erkennen ----------
+
+/** Von wo kam die Anfrage? Im Heimnetz die private IP des Anrufers, über Tunnel/Internet seine öffentliche */
+function connect_gesehen(): ?array
+{
+    $cf = (string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? '');
+    if ($cf !== '' && filter_var($cf, FILTER_VALIDATE_IP)) {
+        return ['oeffentlich' => $cf];
+    }
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        return null;   // hinter einem anderen Proxy: nicht sicher zu sagen
+    }
+    $von = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if (!filter_var($von, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return null;
+    }
+    $privat = filter_var($von, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    return $privat ? (str_starts_with($von, '127.') ? null : ['lan' => $von]) : ['oeffentlich' => $von];
+}
+
+/** Eigene IPs, wie Gegenstellen sie gesehen haben: lan (bis zu 3) und oeffentlich */
+function connect_eigene_ips(): array
+{
+    static $c = null;
+    return $c ??= (json_decode((string) @file_get_contents(connect_ordner() . '/eigene_ips.json'), true) ?: []);
+}
+
+function connect_gesehen_merken(array $g): void
+{
+    $alt = connect_eigene_ips();
+    $neu = $alt;
+    $lan = (string) ($g['lan'] ?? '');
+    if ($lan !== '' && filter_var($lan, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+        && filter_var($lan, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false && !preg_match('/^172\.(1[7-9]|2\d|3[01])\./', $lan)) {
+        // (Docker-Netze 172.17–31 sind die eigene Brücke, nicht das Heimnetz)
+        $neu['lan'] = array_slice(array_values(array_unique(array_merge([$lan], (array) ($alt['lan'] ?? [])))), 0, 3);
+    }
+    $oe = (string) ($g['oeffentlich'] ?? '');
+    if ($oe !== '' && filter_var($oe, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        $neu['oeffentlich'] = $oe;
+    }
+    if ($neu != $alt) {
+        @file_put_contents(connect_ordner() . '/eigene_ips.json', json_encode($neu), LOCK_EX);
+    }
+}
+
+/** Aus gelernten Heimnetz-IPs Adressen bauen: mit den Ports, unter denen wir bekannt sind, sonst den üblichen */
+function connect_lan_aus_ips(array $urls, array $ips): array
+{
+    $ports = [];
+    foreach ($urls as $u) {
+        $ports[] = (int) (parse_url((string) $u, PHP_URL_PORT) ?: 80);
+    }
+    $app = parse_url((string) konfig()['app_url']);
+    if (!empty($app['port'])) {
+        $ports[] = (int) $app['port'];
+    }
+    $ports = array_slice(array_values(array_unique($ports ?: [9950, 80])), 0, 2);
+    $aus = [];
+    foreach ($ips as $ip) {
+        foreach ($ports as $p) {
+            $u = 'http://' . $ip . ($p === 80 ? '' : ':' . $p);
+            $da = false;
+            foreach ($urls as $x) {
+                $da = $da || parse_url((string) $x, PHP_URL_HOST) === $ip;
+            }
+            if (!$da) {
+                $aus[] = $u;
+            }
+        }
+    }
+    return $aus;
+}
+
+/** Heimnetz-Adressen einer Gegenstelle, unter denen wir sie selbst schon erreicht haben (bleiben, auch wenn sie sie nicht nennt) */
+function connect_lan_gefunden(int $peerId, ?string $neu = null): array
+{
+    $datei = connect_ordner() . '/lan_gefunden.json';
+    $alle = json_decode((string) @file_get_contents($datei), true) ?: [];
+    $l = (array) ($alle[$peerId] ?? []);
+    if ($neu !== null && ($l[0] ?? '') !== $neu) {
+        $l = array_slice(array_values(array_unique(array_merge([$neu], $l))), 0, 3);
+        $alle[$peerId] = $l;
+        @file_put_contents($datei, json_encode($alle), LOCK_EX);
+    }
+    return $l;
 }
 
