@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta.12 – Home network first, client updates
 - Connect: **the home network always wins** – when two servers with a back channel are on the same network, they talk directly again instead of going through the back channel (checked at most once a minute, quickly).
 - **Windows Client: "Check for updates"** in the tray menu and under Settings › Windows output, with "Update now" right there. The installer runs as its own process outside Amberwave: it waits until the client (and its engine) has closed, ends anything still running from the program folder if needed, replaces it and starts the new version.
 
