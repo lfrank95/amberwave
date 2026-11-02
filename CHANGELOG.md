@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta.17 – Connect: home network found automatically
 - **Connect: coming home switches to the home network on its own.** When a request from a partner arrives directly from the home network while it's still listed as "back channel" or "tunnel", the server knocks on the sender's address right away (under a second) instead of waiting for the next check or a click on "Check connection". The other way round, a partner that suddenly calls in over the internet is re-checked at the next request.
 - Connect: the back-channel loop also looks once a minute whether a partner it reaches over the internet is now on the home network – this works even where a server can't notice its own network change (Docker with its own network).
 - Connect tab and Connect settings: the connection chips and the network map update by themselves every few seconds, so a switch shows without reloading.
