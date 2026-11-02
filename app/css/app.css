@@ -3794,6 +3794,8 @@ html.app-offline .kopf-suche, html.app-offline .haupt-nav a:not([data-nav="/"]) 
 /* Cover außerhalb des Sichtfensters (vorgebaut) bleiben beim Wechsel unsichtbar – die Regeln unten schalten sonst ihre Hülle sichtbar und blenden sie aus */
 .pk-platte.unsichtbar, .pk-platte.unsichtbar * { visibility: hidden !important; animation: none !important; }
 .pk-platte > .pk-cv { --ob: var(--a, 1); }
+/* Scheiben und ihre Spiegelungen blenden von ihrer echten Deckkraft aus (ohne --ob fingen sie bei 1 an – auch am Rand ausgeblendete) */
+.pk-platte > :is(.pk-sch, .pk-spiegel-d), .pk-skd > i { --ob: var(--a, 1); }
 /* Während des Wechsels behält die Hülle ihre Dicke (sonst schrumpfen Kanten und Tiefe sofort) – die Scheibe bleibt so hinter der Hülle */
 .pk.wechsel-cd .pk-platte { --t: calc(var(--g) * .016); }
 /* → Nur CDs: die Hülle bleibt sichtbar (cd-modus würde sie sofort ausblenden) und blendet dann mit Kanten und Spiegelung aus */

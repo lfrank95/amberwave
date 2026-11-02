@@ -678,7 +678,9 @@ export class Plattenkiste {
       // --a wird von allen Teilen der Platte geerbt: jede Änderung lässt den Browser die ganze Platte neu berechnen –
       // deshalb in Stufen von 0,05 (unsichtbar) und nur am Rand, wo wirklich geblendet wird
       const as = (Math.round(a * 20) / 20).toFixed(2);
-      if (p.__a !== as) { p.__a = as; p.style.setProperty('--a', as); p.style.visibility = a <= 0 ? 'hidden' : ''; p.classList.toggle('unsichtbar', a <= 0); }
+      // unsichtbar nach dem gerundeten Wert: sonst blieb eine Platte, die über 0,01 auf 0 auslief, mit --a 0 „sichtbar“ – und beim Wechsel
+      // Hülle ↔ CD blendete ihre Scheibe von voll aus (links mehr CDs als Cover)
+      if (p.__a !== as) { p.__a = as; p.style.setProperty('--a', as); const weg = as === '0.00'; p.style.visibility = weg ? 'hidden' : ''; p.classList.toggle('unsichtbar', weg); }
       if (p.__gi !== i) { p.__gi = i; p.dataset.gi = i; }
       if (!this.cds.has(k)) this.cds.set(k, { ang: 0, w: 0, m: 'ruhe', anim: null });
       // Größe nach echten Gerätepixeln: ein 360-px-Cover auf einem 3x-Handy braucht 1080 px, sonst wirkt es pixelig. Am Handy bekommen
