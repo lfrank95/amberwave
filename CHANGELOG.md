@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta.13 – Better home-network detection
 - Connect: **servers on the same network find each other much more reliably.** Each server now tells its partner which address a request came from – so both learn their own home-network IP (even inside Docker) and their public IP without anyone opening them via the IP in a browser. Servers behind the same public IP search the home network for each other (also on ports 9950, 80 and 8095), and every home-network address that worked is remembered.
 
 ## 0.9.1-beta.12 – Home network first, client updates
