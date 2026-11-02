@@ -179,6 +179,7 @@ section.teil { padding: 96px 0 0; }
 .code { position: relative; margin-top: 20px; }
 .code pre { margin: 0; background: #0d0907; border: 1px solid var(--linie); border-radius: 14px; padding: 18px 20px; overflow-x: auto; font: 500 .86rem/1.65 ui-monospace, "Cascadia Mono", Consolas, monospace; color: #f1e3d2; }
 .code button { position: absolute; top: 10px; right: 10px; background: #241a14; border: 1px solid var(--linie); color: var(--leise); border-radius: 8px; padding: 6px 10px; font: 600 .78rem var(--fliess); cursor: pointer; }
+.wahl-hinweis { margin-top: 16px; color: var(--leise); font-size: .9rem; }
 .wahl-inhalt .knoepfe { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 
 /* Apps */
@@ -222,7 +223,7 @@ section.teil { padding: 96px 0 0; }
   .funktionen { grid-template-columns: 1fr; }
   .fn, .fn.gross { grid-column: auto; }
   .wahl { grid-template-columns: 1fr; }
-  .wahl-liste { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .wahl-liste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .wahl-liste button { padding: 12px 8px; text-align: center; border-radius: 14px; }
   .wahl-liste button b { font-size: .95rem; text-wrap: balance; }
   .wahl-liste button > span { display: none; }
@@ -304,7 +305,7 @@ section.teil { padding: 96px 0 0; }
 
   <div class="fakten">
     <div class="innen">
-      <div class="fakt"><b>5</b><span lang="de">Wege: Docker, All-in-One, Windows, Android, Browser</span><span lang="en">ways to run it: Docker, all-in-one, Windows, Android, browser</span></div>
+      <div class="fakt"><b>4</b><span lang="de">Wege zum Server: Unraid, Docker, Windows, Amberwave OS</span><span lang="en">ways to run the server: Unraid, Docker, Windows, Amberwave OS</span></div>
       <div class="fakt"><b>−23 … −14</b><span lang="de">LUFS – Lautstärke angleichen nach EBU R128</span><span lang="en">LUFS – loudness levelling per EBU R128</span></div>
       <div class="fakt"><b><span lang="de">sample-genau</span><span lang="en">sample-accurate</span></b><span lang="de">lückenlos, auch Live-Alben</span><span lang="en">gapless, live albums too</span></div>
       <div class="fakt"><b>0</b><span lang="de">Abos, Tracker, Werbung</span><span lang="en">subscriptions, trackers, ads</span></div>
@@ -325,6 +326,7 @@ section.teil { padding: 96px 0 0; }
       <button type="button" role="tab" aria-selected="false" data-bild="3"><span lang="de">Alben</span><span lang="en">Albums</span></button>
       <button type="button" role="tab" aria-selected="false" data-bild="4"><span lang="de">Effektrack</span><span lang="en">Effects rack</span></button>
       <button type="button" role="tab" aria-selected="false" data-bild="5"><span lang="de">Handy</span><span lang="en">Phone</span></button>
+      <button type="button" role="tab" aria-selected="false" data-bild="6">Dashboard</button>
     </div>
     <div class="buehne" data-buehne><img src="bilder/now-playing.png" alt="Amberwave: Läuft gerade" width="1440" height="900"></div>
     <p class="bild-text" data-bild-text></p>
@@ -349,6 +351,18 @@ section.teil { padding: 96px 0 0; }
         <h3><span lang="de">Klang ohne Kompromisse</span><span lang="en">Sound without compromise</span></h3>
         <p><span lang="de">Lückenlose Wiedergabe auf das Sample genau, Lautstärke-Angleich ohne Limiter und im Windows-Client die Originaldatei unverändert ans Interface, exklusiv über WASAPI oder ASIO, mit VST3-Plug-ins wenn du willst.</span><span lang="en">Gapless playback to the sample, loudness levelling without a limiter, and in the Windows client the original file goes to your interface untouched, exclusive via WASAPI or ASIO, with VST3 plug-ins if you like.</span></p>
         <div class="daten"><span>EBU R128</span><span>WASAPI</span><span>ASIO</span><span>VST3</span></div>
+      </div>
+      <div class="fn gross">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="2" y="4" width="8" height="16" rx="1.5"/><rect x="14" y="4" width="8" height="16" rx="1.5"/><path d="M5 8h2M17 8h2M10 12h4"/></svg>
+        <h3>Amberwave Connect</h3>
+        <p><span lang="de">Koppel deinen Server mit einem zweiten Amberwave, etwa dem kleinen im Wohnwagen oder dem bei der Familie. Dann stöberst du in seiner Musik wie in deiner eigenen, hörst sofort rein und holst ganze Alben herüber, in der Qualität, die du willst. Die beiden finden sich von selbst, zuhause direkt, sonst über Tunnel oder einen Rückkanal, der auch hinter CGNAT wie bei Starlink funktioniert. Alles dazwischen ist Ende zu Ende verschlüsselt.</span><span lang="en">Pair your server with a second Amberwave, say the small one in the caravan or the one at your family’s. Then you browse its music like your own, listen right away and copy whole albums over in the quality you choose. The two find each other by themselves, directly at home, otherwise via a tunnel or a back channel that works behind CGNAT such as Starlink. Everything between them is end-to-end encrypted.</span></p>
+        <div class="daten"><span><span lang="de">6-stelliger Code</span><span lang="en">6-digit code</span></span><span><span lang="de">Ende-zu-Ende verschlüsselt</span><span lang="en">end-to-end encrypted</span></span><span><span lang="de">fortsetzbar</span><span lang="en">resumable</span></span><span>CGNAT</span></div>
+      </div>
+      <div class="fn gross">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M7 8h4M7 11h7"/></svg>
+        <h3>Amberwave OS</h3>
+        <p><span lang="de">Aus einem alten PC oder Mini-PC wird ein Musikserver, ohne ein einziges Mal ein Terminal zu öffnen. Der USB Creator schreibt den Stick, du startest davon und richtest alles im Browser ein, auf Wunsch übers WLAN. Updates kommen per Knopf aus der App, und geht etwas schief, springt das Gerät von selbst auf die alte Version zurück.</span><span lang="en">An old PC or mini PC becomes a music server without ever opening a terminal. The USB Creator writes the stick, you boot from it and set everything up in the browser, over Wi-Fi if you like. Updates come with one button in the app, and if anything goes wrong the device switches back to the previous version by itself.</span></p>
+        <div class="daten"><span>x86-64 · UEFI</span><span>Secure Boot</span><span>amberwave.local</span><span><span lang="de">WLAN</span><span lang="en">Wi-Fi</span></span></div>
       </div>
       <div class="fn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 18v-6a8 8 0 0 1 16 0v6"/><rect x="2" y="14" width="4" height="6" rx="1.5"/><rect x="18" y="14" width="4" height="6" rx="1.5"/></svg>
@@ -380,6 +394,18 @@ section.teil { padding: 96px 0 0; }
         <h3><span lang="de">Umziehen in einem Rutsch</span><span lang="en">Move in one go</span></h3>
         <p><span lang="de">Von Docker zu Windows oder zurück: ein verschlüsseltes Umzugspaket mit Bibliothek, Konten, Playlists und Verlauf.</span><span lang="en">From Docker to Windows or back: one encrypted migration package with library, accounts, playlists and history.</span></p>
       </div>
+      <div class="fn gross">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 18a9 9 0 1 1 15 0"/><path d="M12 14l4-5"/><circle cx="12" cy="14" r="1.6" fill="currentColor"/></svg>
+        <h3>Dashboard</h3>
+        <p><span lang="de">Auf einen Blick, was bei dir los ist: wer gerade was hört, auf welchem Gerät, zuhause oder unterwegs und in welcher Qualität. Dazu ein Bild aller Verbindungen, laufende Übertragungen und Downloads mit Tempo und Restzeit, Speicher, Hintergrundaufgaben und der Zustand des Rechners.</span><span lang="en">At a glance what’s going on: who is listening to what, on which device, at home or on the go and in which quality. Plus a picture of every connection, running transfers and downloads with speed and time left, storage, background jobs and the state of the machine.</span></p>
+        <div class="daten"><span><span lang="de">Gerade läuft</span><span lang="en">Now playing</span></span><span><span lang="de">Verbindungen</span><span lang="en">Connections</span></span><span><span lang="de">Übertragungen</span><span lang="en">Transfers</span></span></div>
+      </div>
+      <div class="fn gross">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+        <h3><span lang="de">Updates mit einem Klick</span><span lang="en">One-click updates</span></h3>
+        <p><span lang="de">Windows-Client, Android-App, Windows-Server und Amberwave OS suchen und installieren neue Versionen direkt aus den Einstellungen, mit Fortschrittsanzeige. Für Docker und Unraid zeigt Amberwave genau, was zu tun ist. Gesucht wird zweimal am Tag, installiert nur, wenn du es sagst.</span><span lang="en">The Windows client, the Android app, the Windows server and Amberwave OS find and install new versions right from the settings, with a progress bar. For Docker and Unraid Amberwave shows exactly what to do. It checks twice a day and installs only when you say so.</span></p>
+        <div class="daten"><span>Windows</span><span>Android</span><span>Amberwave OS</span><span>Docker · Unraid</span></div>
+      </div>
     </div>
   </div>
 </section>
@@ -389,13 +415,14 @@ section.teil { padding: 96px 0 0; }
     <div class="teil-kopf">
       <div class="ueber"><span lang="de">Installieren</span><span lang="en">Install</span></div>
       <h2><span lang="de">Wo soll Amberwave laufen?</span><span lang="en">Where should Amberwave run?</span></h2>
-      <p><span lang="de">Der Server läuft dort, wo deine Musik liegt. Hören kannst du danach überall: im Browser, mit dem Windows-Client und mit der Android-App.</span><span lang="en">The server runs where your music lives. After that you can listen anywhere: in the browser, with the Windows client and with the Android app.</span></p>
+      <p><span lang="de">Der Server läuft dort, wo deine Musik liegt, oder als eigenes Gerät mit Amberwave OS. Hören kannst du danach überall: im Browser, mit dem Windows-Client und mit der Android-App.</span><span lang="en">The server runs where your music lives, or as its own device with Amberwave OS. After that you can listen anywhere: in the browser, with the Windows client and with the Android app.</span></p>
     </div>
     <div class="wahl">
       <div class="wahl-liste" role="tablist" aria-label="Variante">
         <button type="button" role="tab" aria-selected="true" data-wahl="unraid"><b>Unraid</b><span lang="de">aus dem App-Store, ein Container</span><span lang="en">from the app store, one container</span></button>
-        <button type="button" role="tab" aria-selected="false" data-wahl="docker"><b>Docker · NAS</b><span lang="de">Synology, QNAP, Linux-Server</span><span lang="en">Synology, QNAP, Linux server</span></button>
+        <button type="button" role="tab" aria-selected="false" data-wahl="docker"><b>Docker · NAS</b><span lang="de">Synology, QNAP, Linux, Raspberry Pi</span><span lang="en">Synology, QNAP, Linux, Raspberry Pi</span></button>
         <button type="button" role="tab" aria-selected="false" data-wahl="windows"><b>Windows-PC</b><span lang="de">ohne Docker, mit Installer</span><span lang="en">no Docker, with installer</span></button>
+        <button type="button" role="tab" aria-selected="false" data-wahl="os"><b>Amberwave OS</b><span lang="de">eigenes Gerät aus einem alten PC</span><span lang="en">its own device from an old PC</span></button>
       </div>
 
       <div class="wahl-inhalt" role="tabpanel" data-wahl-inhalt="unraid">
@@ -414,6 +441,7 @@ section.teil { padding: 96px 0 0; }
           <li><span lang="de"><b>All-in-One:</b> ein Container mit Datenbank und Fernzugang, ideal für den Anfang.</span><span lang="en"><b>All-in-one:</b> one container with database and remote access, ideal to start with.</span></li>
           <li><span lang="de">Pfade anpassen, starten, im Browser <b>http://dein-server:9950</b> öffnen.</span><span lang="en">Adjust the paths, start, open <b>http://your-server:9950</b> in the browser.</span></li>
           <li><span lang="de">Lieber mit eigenem Datenbank-Container? Die Compose-Datei liegt im Repository.</span><span lang="en">Prefer a separate database container? The Compose file is in the repository.</span></li>
+          <li><span lang="de">Läuft auf x86-64 und ARM (Raspberry Pi, ARM-NAS).</span><span lang="en">Runs on x86-64 and ARM (Raspberry Pi, ARM NAS).</span></li>
         </ol>
         <div class="code"><pre data-code>docker run -d --name amberwave --stop-timeout 60 -p 9950:80 \
   -e ADMIN_BENUTZER=admin -e ADMIN_PASSWORT='choose-a-good-one' \
@@ -430,6 +458,17 @@ section.teil { padding: 96px 0 0; }
           <li><span lang="de">Im Browser einrichten. Amberwave sitzt danach im Infobereich neben der Uhr und holt sich Updates auf Nachfrage.</span><span lang="en">Set up in the browser. Afterwards Amberwave sits in the notification area next to the clock and fetches updates on request.</span></li>
         </ol>
         <div class="knoepfe"><a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-Windows-Server"><span lang="de">Windows-Server laden</span><span lang="en">Download Windows server</span></a></div>
+      </div>
+
+      <div class="wahl-inhalt" role="tabpanel" data-wahl-inhalt="os" hidden>
+        <h3>Amberwave OS</h3>
+        <ol>
+          <li><span lang="de">Den <b>USB Creator</b> unter Windows starten und einen USB-Stick wählen (ab 2 GB). Er lädt das aktuelle Amberwave OS selbst und prüft den Stick nach dem Schreiben. Auf Wunsch nimmt er gleich das WLAN des PCs mit.</span><span lang="en">Run the <b>USB Creator</b> on Windows and pick a USB stick (2 GB or more). It downloads the current Amberwave OS itself and verifies the stick after writing. If you like, it takes the PC’s Wi-Fi along.</span></li>
+          <li><span lang="de">Den Ziel-PC vom Stick starten (Startmenü meist F11, F12 oder Esc). Secure Boot darf an bleiben. Am Bildschirm steht die Adresse, ohne Kabel und WLAN öffnet das Gerät das WLAN <b>Amberwave-Setup</b>.</span><span lang="en">Boot the target PC from the stick (boot menu usually F11, F12 or Esc). Secure Boot can stay on. The screen shows the address; without cable and Wi-Fi the device opens the <b>Amberwave-Setup</b> Wi-Fi.</span></li>
+          <li><span lang="de">Im Browser interne Platte und Musikquelle wählen (auf dem Gerät, USB-Platte oder NAS), installieren, Stick abziehen. Danach erreichst du es unter <b>http://amberwave.local</b>.</span><span lang="en">In the browser pick the internal drive and the music source (on the device, USB drive or NAS), install, unplug the stick. Afterwards you reach it at <b>http://amberwave.local</b>.</span></li>
+        </ol>
+        <p class="wahl-hinweis"><span lang="de">Braucht einen x86-64-PC mit UEFI (praktisch alles ab 2012), 2 GB Arbeitsspeicher (4 GB empfohlen) und eine interne Platte ab 16 GB.</span><span lang="en">Needs an x86-64 PC with UEFI (practically anything since 2012), 2 GB of memory (4 GB recommended) and an internal drive of 16 GB or more.</span></p>
+        <div class="knoepfe"><a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-USB-Creator"><span lang="de">USB Creator laden</span><span lang="en">Download USB Creator</span></a><a class="knopf rand" href="https://github.com/lfrank95/amberwave/releases" data-datei="amberwave-os"><span lang="de">Nur das Image</span><span lang="en">Image only</span></a></div>
       </div>
     </div>
   </div>
@@ -448,7 +487,8 @@ section.teil { padding: 96px 0 0; }
           <li lang="de">bitgenau über WASAPI exklusiv oder ASIO</li><li lang="en">bit-perfect via WASAPI exclusive or ASIO</li>
           <li lang="de">Abtastrate folgt der Datei</li><li lang="en">sample rate follows the file</li>
           <li lang="de">VST3-Plug-ins im Effektrack</li><li lang="en">VST3 plug-ins in the effects rack</li>
-          <li lang="de">findet den Server im Heimnetz selbst</li><li lang="en">finds the server on your network by itself</li>
+          <li lang="de">findet den Server im Heimnetz selbst, auch nach einem Netzwechsel</li><li lang="en">finds the server on your network by itself, also after a network change</li>
+          <li lang="de">Updates mit einem Klick in den Einstellungen</li><li lang="en">one-click updates in the settings</li>
         </ul>
         <a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-Windows-Client"><span lang="de">Für Windows laden</span><span lang="en">Download for Windows</span></a>
         <small>Windows 10 / 11 · x64</small>
@@ -459,6 +499,8 @@ section.teil { padding: 96px 0 0; }
           <li lang="de">Musik offline als Datei auf dem Handy</li><li lang="en">music offline as files on your phone</li>
           <li lang="de">läuft im Hintergrund, Sperrbildschirm, Bluetooth-Tasten</li><li lang="en">plays in the background, lock screen, Bluetooth buttons</li>
           <li lang="de">wechselt ohne Netz selbst in den Offline-Modus</li><li lang="en">switches to offline mode by itself</li>
+          <li lang="de">wechselt zuhause und unterwegs selbst den Weg zum Server</li><li lang="en">switches between home and on-the-go routes by itself</li>
+          <li lang="de">Updates direkt aus der App, mit Fortschritt</li><li lang="en">updates right from the app, with progress</li>
           <li lang="de">unterstützt Faltgeräte</li><li lang="en">supports foldables</li>
         </ul>
         <a class="knopf voll" href="https://github.com/lfrank95/amberwave/releases" data-datei="Amberwave-Android"><span lang="de">APK laden</span><span lang="en">Download APK</span></a>
@@ -497,6 +539,14 @@ section.teil { padding: 96px 0 0; }
       <details>
         <summary><span lang="de">Brauche ich einen Cloudflare-Account?</span><span lang="en">Do I need a Cloudflare account?</span></summary>
         <p><span lang="de">Nur für den Zugriff von unterwegs, und auch dann nur das kostenlose Konto. Zuhause läuft alles ohne. Wer schon Tailscale, WireGuard oder einen eigenen Reverse Proxy nutzt, nimmt einfach den.</span><span lang="en">Only for access on the go, and then just the free account. At home everything works without it. If you already use Tailscale, WireGuard or your own reverse proxy, just use that.</span></p>
+      </details>
+      <details>
+        <summary><span lang="de">Was bringt Amberwave Connect, wenn ich nur einen Server habe?</span><span lang="en">What’s Amberwave Connect for if I only have one server?</span></summary>
+        <p><span lang="de">Erstmal nichts, und das ist in Ordnung. Spannend wird es mit einem zweiten Amberwave: bei Eltern, Geschwistern, Freunden oder im Ferienhaus. Konten, Favoriten und Verlauf bleiben auf jedem Server für sich, geteilt wird nur die Musik, und nur zwischen Servern, die ihr ausdrücklich mit einem Code gekoppelt habt.</span><span lang="en">Nothing yet, and that’s fine. It gets interesting with a second Amberwave: at your parents’, siblings’, friends’ or in a holiday home. Accounts, favourites and history stay on each server; only music is shared, and only between servers you paired on purpose with a code.</span></p>
+      </details>
+      <details>
+        <summary><span lang="de">Für wen ist Amberwave OS gedacht?</span><span lang="en">Who is Amberwave OS for?</span></summary>
+        <p><span lang="de">Für alle ohne NAS oder Unraid, die einen alten PC oder Mini-PC übrig haben und sich nicht mit Docker beschäftigen wollen. Das Gerät macht danach nur Amberwave, holt sich Sicherheitsupdates nachts selbst und lässt sich komplett aus der App verwalten.</span><span lang="en">For anyone without a NAS or Unraid who has an old PC or mini PC lying around and doesn’t want to deal with Docker. Afterwards the device does nothing but Amberwave, fetches security updates at night by itself and can be managed entirely from the app.</span></p>
       </details>
       <details>
         <summary><span lang="de">Welche Formate spielt Amberwave?</span><span lang="en">Which formats does Amberwave play?</span></summary>
@@ -550,6 +600,7 @@ section.teil { padding: 96px 0 0; }
     { src: 'albums.png', de: 'Die ganze Sammlung als Albenwand, filterbar nach Genre, Jahr und Format.', en: 'The whole collection as an album wall, filterable by genre, year and format.' },
     { src: 'effects-rack.png', de: 'Das Effektrack: Space, Glow, Iron, Silk und EQ in beliebiger Reihenfolge, jeder mit Bypass.', en: 'The effects rack: Space, Glow, Iron, Silk and EQ in any order, each with bypass.' },
     { src: 'phone.png', de: 'Am Handy mit Mini-Player, Offline-Musik und Wiedergabe im Hintergrund.', en: 'On the phone with mini player, offline music and background playback.', handy: true },
+    { src: 'dashboard.png', de: 'Das Dashboard: wer gerade was hört, auf welchem Gerät und in welcher Qualität, dazu alle Verbindungen, Speicher und der Zustand des Servers.', en: 'The dashboard: who is listening to what, on which device and in which quality, plus every connection, storage and the state of the server.' },
   ];
   let aktuell = 0;
   const buehne = document.querySelector('[data-buehne]');
