@@ -3781,10 +3781,16 @@ html.app-offline .kopf-suche, html.app-offline .haupt-nav a:not([data-nav="/"]) 
 .pk-sk > .pk-kante { --ob: var(--a, 1); }
 @keyframes pk-b-aus { from { opacity: var(--ob, 1); scale: 1; } to { opacity: 0; scale: var(--w-skal); } }
 @keyframes pk-b-ein { from { opacity: 0; scale: var(--w-skal); } }
-@keyframes pk-aus-sp { 0% { translate: var(--x0, 0px) 0 0; opacity: 0; } 30% { opacity: 0; } 38% { translate: var(--w-xm) 0 0; opacity: 1; } 100% { translate: 0 0 0; opacity: 1; } }
-@keyframes pk-rein-sp { 0% { translate: 0 0 0; opacity: 1; } 38% { translate: var(--w-xm) 0 0; opacity: 1; } 45% { opacity: 0; } 100% { translate: var(--x0, 0px) 0 0; opacity: 0; } }
-@keyframes pk-cd-raus { 0% { translate: 0 0 0; opacity: 1; } 30% { opacity: 1; } 38% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 0; } 100% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 0; } }
-@keyframes pk-cd-rein { 0% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 0; } 38% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 0; } 45% { opacity: 1; } 100% { translate: 0 0 0; opacity: 1; } }
+/* Übergabe zwischen der gespielten Scheibe (Ansicht „Nur CDs“, so groß wie das Cover) und der CD in der Hülle (90 %): beide fahren dieselbe
+   Bahn, die Scheibe schrumpft auf dem Weg auf 90 %, und am Umkehrpunkt (38 %) wird hart getauscht – erst ist die neue ganz da, dann geht die
+   alte. Ein Überblenden ließ beide halb durchsichtig übereinanderliegen (der Nachbar schien durch) und die kleinere sprang sichtbar. */
+@keyframes pk-aus-sp { 0% { translate: var(--x0, 0px) 0 0; opacity: 0; scale: .9; } 37.9% { opacity: 0; } 38% { translate: var(--w-xm) 0 0; opacity: 1; scale: .9; } 100% { translate: 0 0 0; opacity: 1; scale: 1; } }
+@keyframes pk-rein-sp { 0% { translate: 0 0 0; opacity: 1; scale: 1; } 38% { translate: var(--w-xm) 0 0; opacity: 1; scale: .9; } 38.6% { opacity: 0; } 100% { translate: var(--x0, 0px) 0 0; opacity: 0; scale: .9; } }
+/* dieselbe Bahn für die Spiegelungen, ohne Schrumpfen (sie hängen unter dem Cover, ein Skalieren um ihre eigene Mitte verschöbe sie) */
+@keyframes pk-aus-sp-s { 0% { translate: var(--x0, 0px) 0 0; opacity: 0; } 37.9% { opacity: 0; } 38% { translate: var(--w-xm) 0 0; opacity: 1; } 100% { translate: 0 0 0; opacity: 1; } }
+@keyframes pk-rein-sp-s { 0% { translate: 0 0 0; opacity: 1; } 38% { translate: var(--w-xm) 0 0; opacity: 1; } 38.6% { opacity: 0; } 100% { translate: var(--x0, 0px) 0 0; opacity: 0; } }
+@keyframes pk-cd-raus { 0% { translate: 0 0 0; opacity: 1; } 38% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 1; } 38.6% { opacity: 0; } 100% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 0; } }
+@keyframes pk-cd-rein { 0% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 0; } 37.9% { opacity: 0; } 38% { translate: calc(var(--w-xm) - var(--x0, 0px)) 0 0; opacity: 1; } 100% { translate: 0 0 0; opacity: 1; } }
 /* Cover außerhalb des Sichtfensters (vorgebaut) bleiben beim Wechsel unsichtbar – die Regeln unten schalten sonst ihre Hülle sichtbar und blenden sie aus */
 .pk-platte.unsichtbar, .pk-platte.unsichtbar * { visibility: hidden !important; animation: none !important; }
 .pk-platte > .pk-cv { --ob: var(--a, 1); }
@@ -3795,13 +3801,15 @@ html.app-offline .kopf-suche, html.app-offline .haupt-nav a:not([data-nav="/"]) 
 .pk.wechsel-cd .pk-platte > :is(.pk-kante, .pk-sk) { display: block; }
 .pk.wechsel-cd .pk-platte > :is(.pk-cv, .pk-rueck, .pk-kante, .pk-spiegel:not(.pk-spiegel-d)), .pk.wechsel-cd .pk-sk > .pk-kante { animation: pk-b-aus calc(var(--w-dauer) * var(--w-aus-d)) var(--w-aus-k) both; animation-delay: calc(var(--n, 0) * var(--w-staffel) + var(--w-dauer) * var(--w-aus-s)); }
 .pk.wechsel-cd .pk-platte > :is(.pk-sch, .pk-spiegel-d), .pk.wechsel-cd .pk-skd > i { animation: pk-b-ein calc(var(--w-dauer) * var(--w-ein-d)) var(--w-kurve) both; animation-delay: calc(var(--n, 0) * var(--w-staffel) + var(--w-dauer) * var(--w-ein-s)); }
-.pk.wechsel-cd .pk-platte.laeuft > :is(.pk-sch, .pk-spiegel-d), .pk.wechsel-cd .pk-platte.laeuft .pk-skd > i { animation: pk-aus-sp var(--w-dauer) var(--w-kurve) both; animation-delay: 0s; }
+.pk.wechsel-cd .pk-platte.laeuft > .pk-sch { animation: pk-aus-sp var(--w-dauer) var(--w-kurve) both; animation-delay: 0s; }
+.pk.wechsel-cd .pk-platte.laeuft > .pk-spiegel-d, .pk.wechsel-cd .pk-platte.laeuft .pk-skd > i { animation: pk-aus-sp-s var(--w-dauer) var(--w-kurve) both; animation-delay: 0s; }
 .pk.wechsel-cd .pk-cd, .pk.wechsel-huelle .pk-cd { clip-path: none; }
 .pk.wechsel-cd .pk-cd { display: block; animation: pk-cd-raus var(--w-dauer) var(--w-kurve) both; }
 /* → Hülle */
 .pk.wechsel-huelle .pk-platte > :is(.pk-cv, .pk-rueck, .pk-kante, .pk-spiegel:not(.pk-spiegel-d)), .pk.wechsel-huelle .pk-sk > .pk-kante { animation: pk-b-ein calc(var(--w-dauer) * var(--w-ein-d)) var(--w-kurve) both; animation-delay: calc(var(--n, 0) * var(--w-staffel) + var(--w-dauer) * var(--w-ein-s)); }
 .pk.wechsel-huelle .pk-platte > :is(.pk-sch, .pk-spiegel-d), .pk.wechsel-huelle .pk-skd > i { animation: pk-b-aus calc(var(--w-dauer) * var(--w-aus-d)) var(--w-aus-k) both; animation-delay: calc(var(--n, 0) * var(--w-staffel) + var(--w-dauer) * var(--w-aus-s)); }
-.pk.wechsel-huelle .pk-platte.laeuft > :is(.pk-sch, .pk-spiegel-d), .pk.wechsel-huelle .pk-platte.laeuft .pk-skd > i { animation: pk-rein-sp var(--w-dauer) var(--w-kurve) both; animation-delay: 0s; }
+.pk.wechsel-huelle .pk-platte.laeuft > .pk-sch { animation: pk-rein-sp var(--w-dauer) var(--w-kurve) both; animation-delay: 0s; }
+.pk.wechsel-huelle .pk-platte.laeuft > .pk-spiegel-d, .pk.wechsel-huelle .pk-platte.laeuft .pk-skd > i { animation: pk-rein-sp-s var(--w-dauer) var(--w-kurve) both; animation-delay: 0s; }
 .pk.wechsel-huelle .pk-cd { animation: pk-cd-rein var(--w-dauer) var(--w-kurve) both; }
 /* Handy/Tablet: schnellerer Wechsel, weniger Ebenen und keine Weichzeichner – flüssiger bei weniger Rechenleistung */
 .pk.leicht { --w-dauer: 700ms; --w-staffel: 28ms; }

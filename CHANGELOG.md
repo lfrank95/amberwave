@@ -2,6 +2,7 @@
 
 ## 0.9.1-beta.18 – No more smacking on bit-depth changes
 - **Windows client: no more smacking when only the bit depth changes** (e.g. a 16-bit album followed by a 24-bit one at the same sample rate). Over ASIO the driver was stopped and set up again although its sample format stays the same – now the engine just converts differently and the driver keeps running: the last sample of one track is followed directly by the first of the next, bit-perfect. The same applies to shared mode and to exclusive mode when the device format already holds the new bit depth (e.g. a 16-bit track after a 24-bit one).
+- Now playing: switching between case view and "CDs only" no longer shows two discs at the turning point. The playing disc and the CD in the case are now the same size where they meet (the bare disc shrinks to the CD's size on its way out) and swap in a single frame instead of cross-fading – before, both were half transparent for a moment with the neighbouring cover shining through, and the smaller one popped in.
 - Dashboard: a device with its own name (e.g. "Living room PC") is still recognised as Windows client or Android app; "+ n more" in the connection graph shows the line of the active devices it contains; the tile reads "Tracks".
 
 ## 0.9.1-beta.17 – Dashboard, cleaner settings, home network found automatically
