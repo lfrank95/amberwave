@@ -29,7 +29,9 @@ function knoten(x, y, k, w, hoehe, eigen = false) {
 function reihe(liste) {
   if (liste.length <= MAX_JE_REIHE) return liste;
   const rest = liste.length - (MAX_JE_REIHE - 1);
-  return [...liste.slice(0, MAX_JE_REIHE - 1), { name: t('+ {n} weitere', { n: rest }), unter: liste.slice(MAX_JE_REIHE - 1).map((x) => x.name).join(', '), linie: 'aus', blass: false }];
+  const uebrig = liste.slice(MAX_JE_REIHE - 1);
+  const aktiv = uebrig.find((x) => !x.blass);
+  return [...liste.slice(0, MAX_JE_REIHE - 1), { name: t('+ {n} weitere', { n: rest }), unter: uebrig.map((x) => x.name).join(', '), linie: aktiv ? aktiv.linie : 'aus', blass: false }];
 }
 
 /**

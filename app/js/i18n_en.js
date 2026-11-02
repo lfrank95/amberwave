@@ -3212,6 +3212,7 @@ export default {
 "Titel bearbeiten …": "Edit track …",
 "Titel bearbeitet": "Track edited",
 "Titel gesamt": "Tracks",
+"Titel insgesamt": "Tracks",
 "Titel ließ sich nicht abspielen": "Track could not be played",
 "Titel merken": "Save track",
 "Titel nicht gefunden.": "Track not found.",

@@ -83,7 +83,7 @@ export async function dashboardAnsicht({ app, ziel, signal }) {
       ${kachel(spielt.length, t('hören gerade'), spielt.length ? t('{a} zuhause · {b} unterwegs', { a: heim, b: spielt.length - heim }) : t('gerade niemand'))}
       ${kachel(apps.length, t('Geräte verbunden'), apps.length ? [...new Set(apps.map((g) => g.user))].join(', ') : '')}
       ${kachel(peers.length, t('Connect-Partner'), peers.length ? t('{n} erreichbar', { n: peers.filter((p) => p.erreichbar).length }) : t('noch keiner gekoppelt'))}
-      ${kachel(zahl(d.zahlen.titel), t('Titel'), t('{a} Alben · {g}', { a: zahl(d.zahlen.alben), g: groesse(d.zahlen.groesse) }))}</div>`;
+      ${kachel(zahl(d.zahlen.titel), t('Titel insgesamt'), t('{a} Alben · {g}', { a: zahl(d.zahlen.alben), g: groesse(d.zahlen.groesse) }))}</div>`;
   };
 
   const sitzungenHtml = () => {

@@ -93,14 +93,14 @@ function dashboard_geraete(): array
         $online[(int) $f['geraet_id']] = true;
     }
     $aus = [];
-    foreach (db_alle("SELECT g.id, g.art, COALESCE(NULLIF(g.eigener_name, ''), g.name) AS name, g.ip, g.zuletzt_am,
+    foreach (db_alle("SELECT g.id, g.art, COALESCE(NULLIF(g.eigener_name, ''), g.name) AS name, g.name AS roh_name, g.ip, g.zuletzt_am,
             TIMESTAMPDIFF(SECOND, g.zuletzt_am, NOW()) AS vor, u.vorname, u.benutzername
             FROM nutzer_geraete g JOIN users u ON u.id = g.user_id
             WHERE g.beendet_am IS NULL AND (g.zuletzt_am > NOW() - INTERVAL 3 MINUTE OR g.id IN " . db_ids(array_keys($online + $spielend)) . ')
             ORDER BY g.zuletzt_am DESC LIMIT 30') as $g) {
         $id = (int) $g['id'];
         $s = $spielend[$id] ?? null;
-        $aus[] = ['id' => $id, 'name' => (string) $g['name'], 'art' => dashboard_geraet_art((string) $g['name'], (string) $g['art']),
+        $aus[] = ['id' => $id, 'name' => (string) $g['name'], 'art' => dashboard_geraet_art((string) $g['roh_name'], (string) $g['art']),
             'user' => (string) ($g['vorname'] ?: $g['benutzername']), 'ort' => ($s ? $s['heim'] : $zuhause((string) $g['ip'])) ? 'heim' : 'unterwegs',
             'spielt' => (bool) ($s['spielt'] ?? false), 'aktiv' => isset($online[$id]) || (int) $g['vor'] < 120, 'zuletzt' => iso($g['zuletzt_am'])];
     }
