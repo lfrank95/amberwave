@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.9.1-beta.14 – Connect hardened after an independent review
+- **Server ID bound to the address** (apps and servers need this version): the signature a server gives when an app asks "is it really you?" now also covers the address the app used – a captured proof can't be replayed under another address. Older apps won't accept servers on this version and vice versa, so update the Windows Client and the Android app together with the server.
+- Connect "You have it" markers: instead of a list of all your tracks held in memory (seconds and many megabytes with 100,000 tracks), every album and track now has a fingerprint in the database; while browsing a partner, one query per page suffices however large your library is. Fingerprints are kept up to date incrementally – after a scan, a rename or when a file goes away – and are filled in once after this update (a few seconds per 100,000 tracks).
+- Connect: a reverse proxy without forwarding headers no longer counts as "home network" – only requests from addresses that aren't known proxies (your trusted-proxy list, the cloudflared container, or one observed forwarding before) do.
+- Windows Server: the number of PHP workers goes from 6 to 8 (unless set in the ini), and at most a third of them may be held by partners' back-channel waits – users and apps always have workers left. The same cap (6) applies on other platforms.
+- Connect: the track list for copying and the extras (artists, album texts) are fetched with a few collective queries instead of one per track – noticeable with long playlists.
+- Connect listening: a range request beyond the end of the file is answered with 416 as players expect, instead of an empty reply.
+- Android: a fresh "server is there" check (ping and ID) is kept for 30 s, so quick page changes don't ask the server twice each time; any network change (Wi-Fi ↔ hotspot, new IP) resets it immediately.
+- Connect tab: the network map is readable with a screen reader (each server and its connection in words, nodes focusable with the keyboard, full names as tooltips).
 - **Connect hardened after an independent code review** (both servers need this version):
   - Requests now name their sender and every reply is bound to its request – a captured message can't be reflected back or swapped for an older reply.
   - Pairing reveals name and addresses only after the code was proven; home-network addresses from a partner are accepted only if they are private.

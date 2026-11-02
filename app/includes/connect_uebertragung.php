@@ -489,7 +489,15 @@ function connect_stream_senden(int $serverId, int $track): void
     [$kopf, $bytes] = connect_rufen($peer, 'datei', ['track' => $track, 'qualitaet' => $q, 'ab' => $start, 'laenge' => $stueck, 'zweck' => 'hoeren'], 120);
     $groesse = (int) $kopf['groesse'];
     $bis = $bis === null ? $groesse - 1 : min($bis, $groesse - 1);
-    $mime = ['opus' => 'audio/ogg', 'm4a' => 'audio/mp4', 'flac' => 'audio/flac', 'mp3' => 'audio/mpeg', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav'][$kopf['endung']] ?? 'application/octet-stream';
+    if ($start >= $groesse || $start > $bis) {
+        // Bereich hinter dem Dateiende: 416 statt einer leeren 206-Antwort (so erwarten es Player laut RFC 9110)
+        db_schliessen();
+        http_response_code(416);
+        header('Content-Range: bytes */' . $groesse);
+        header('Content-Length: 0');
+        exit;
+    }
+    $mime =['opus' => 'audio/ogg', 'm4a' => 'audio/mp4', 'flac' => 'audio/flac', 'mp3' => 'audio/mpeg', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav'][$kopf['endung']] ?? 'application/octet-stream';
     db_schliessen();
     header('Content-Type: ' . $mime);
     header('Accept-Ranges: bytes');
@@ -570,38 +578,95 @@ function connect_bild_senden(int $serverId, string $art, string $schluessel): vo
 }
 
 /** Lesen in der Bibliothek der Gegenstelle – Bild-Adressen auf unseren Zwischenspeicher umgebogen, Titel gekennzeichnet */
+const CONNECT_ABDRUCK_ALBUM = 1;
+const CONNECT_ABDRUCK_TITEL = 2;
+const CONNECT_ABDRUCK_FASSUNG = 1;      // hochzählen, wenn sich connect_schluessel ändert → alles neu rechnen
+
 /**
- * Was haben wir selbst schon? Schlüssel „Künstler|Titel“ (normalisiert) für Alben und Titel mit Dateien – zum Markieren
- * beim Stöbern auf anderen Servern. Liegt als Datei im Cache und wird neu gebaut, wenn sich die Bibliothek ändert.
+ * Was haben wir selbst schon? Je Album/Titel mit Dateien steht ein Abdruck (md5 aus „Künstler|Titel“, normalisiert) in
+ * connect_abdruecke – für den Künstlernamen und seine Schreibweise im Credit je einer. Gepflegt wird schrittweise: nur Zeilen,
+ * die seit dem letzten Mal dazukamen, geändert wurden oder verschwunden sind (Datei weg, Künstler umbenannt). Ohne Änderung
+ * an der Bibliothek kostet der Aufruf eine kurze Abfrage; die wird höchstens alle 20 s gemacht.
  */
-function connect_lokal_schluessel(): array
+function connect_abdruecke_pflegen(bool $erzwingen = false): void
 {
-    static $s = null;
-    if ($s !== null) {
-        return $s;
+    static $zuletzt = 0.0;
+    if (!$erzwingen && microtime(true) - $zuletzt < 20) {
+        return;
     }
-    $stand = db_zeile('SELECT COUNT(*) AS n, COALESCE(MAX(id), 0) AS m FROM dateien');
-    $marke = ($stand['n'] ?? 0) . '-' . ($stand['m'] ?? 0);
-    $datei = connect_ordner() . '/lokal.json';
-    $c = json_decode((string) @file_get_contents($datei), true);
-    if (is_array($c) && ($c['marke'] ?? '') === $marke) {
-        return $s = ['alben' => array_flip($c['alben']), 'titel' => array_flip($c['titel'])];
+    $zuletzt = microtime(true);
+    $standDatei = connect_ordner() . '/abdruecke.json';
+    $stand = json_decode((string) @file_get_contents($standDatei), true);
+    $stand = is_array($stand) ? $stand : [];
+    $jetzt = db_zeile("SELECT (SELECT MAX(aktualisiert_am) FROM tracks) AS t, (SELECT MAX(aktualisiert_am) FROM alben) AS a,
+        (SELECT MAX(aktualisiert_am) FROM editionen) AS e, (SELECT MAX(aktualisiert_am) FROM kuenstler) AS k,
+        (SELECT COUNT(*) FROM tracks) AS tn, (SELECT COUNT(*) FROM alben) AS an,
+        (SELECT CONCAT(COUNT(*), '-', COALESCE(MAX(id), 0)) FROM dateien WHERE fehler = '') AS dn") ?: [];
+    $marke = CONNECT_ABDRUCK_FASSUNG . '|' . implode('|', array_map('strval', $jetzt));
+    if (!$erzwingen && ($stand['marke'] ?? '') === $marke) {
+        return;
     }
-    $alben = $titel = [];
-    foreach (db_alle("SELECT a.titel, k.name, cn.name_als FROM alben a JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0
-            JOIN credit_namen cn ON cn.credit_id = a.credit_id AND cn.pos = (SELECT MIN(pos) FROM credit_namen WHERE credit_id = a.credit_id)
-            JOIN kuenstler k ON k.id = cn.kuenstler_id") as $r) {
-        $alben[connect_schluessel($r['name'], $r['titel'])] = 1;
-        $alben[connect_schluessel($r['name_als'], $r['titel'])] = 1;
+    $sperre = @fopen(connect_ordner() . '/abdruecke.sperre', 'c');
+    if (!$sperre || !flock($sperre, LOCK_EX | LOCK_NB)) {
+        return;     // ein anderer Prozess ist gerade dabei – mit dem alten Stand weitermachen
     }
-    foreach (db_alle("SELECT DISTINCT t.titel, k.name, cn.name_als FROM dateien d JOIN tracks t ON t.id = d.track_id
-            JOIN credit_namen cn ON cn.credit_id = t.credit_id AND cn.pos = (SELECT MIN(pos) FROM credit_namen WHERE credit_id = t.credit_id)
-            JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE d.fehler = ''") as $r) {
-        $titel[connect_schluessel($r['name'], $r['titel'])] = 1;
-        $titel[connect_schluessel($r['name_als'], $r['titel'])] = 1;
+    try {
+        $neu = ($stand['fassung'] ?? 0) !== CONNECT_ABDRUCK_FASSUNG;
+        if ($neu) {
+            db_tun('DELETE FROM connect_abdruecke');
+        }
+        $seit = $neu ? '1970-01-01 00:00:00' : (string) ($stand['seit'] ?? '1970-01-01 00:00:00');
+        // 1) Zeilen weg, deren Vorlage sich geändert hat oder deren Künstler umbenannt wurde – die werden unten neu gerechnet
+        db_tun('DELETE c FROM connect_abdruecke c JOIN tracks t ON t.id = c.ziel_id WHERE c.art = ' . CONNECT_ABDRUCK_TITEL . ' AND t.aktualisiert_am >= :s', ['s' => $seit]);
+        db_tun('DELETE c FROM connect_abdruecke c JOIN alben a ON a.id = c.ziel_id LEFT JOIN editionen e ON e.id = a.anzeige_edition_id
+            WHERE c.art = ' . CONNECT_ABDRUCK_ALBUM . ' AND (a.aktualisiert_am >= :s OR e.aktualisiert_am >= :s2)', ['s' => $seit, 's2' => $seit]);
+        $credits = 'SELECT DISTINCT cn.credit_id FROM credit_namen cn JOIN kuenstler k ON k.id = cn.kuenstler_id WHERE k.aktualisiert_am >= :s';
+        db_tun('DELETE c FROM connect_abdruecke c JOIN tracks t ON t.id = c.ziel_id WHERE c.art = ' . CONNECT_ABDRUCK_TITEL . ' AND t.credit_id IN (' . $credits . ')', ['s' => $seit]);
+        db_tun('DELETE c FROM connect_abdruecke c JOIN alben a ON a.id = c.ziel_id WHERE c.art = ' . CONNECT_ABDRUCK_ALBUM . ' AND a.credit_id IN (' . $credits . ')', ['s' => $seit]);
+        // 2) Zeilen weg, zu denen es nichts mehr gibt (gelöscht, keine brauchbare Datei mehr)
+        db_tun('DELETE c FROM connect_abdruecke c LEFT JOIN dateien d ON d.track_id = c.ziel_id AND d.fehler = \'\' WHERE c.art = ' . CONNECT_ABDRUCK_TITEL . ' AND d.id IS NULL');
+        db_tun('DELETE c FROM connect_abdruecke c LEFT JOIN alben a ON a.id = c.ziel_id LEFT JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0
+            WHERE c.art = ' . CONNECT_ABDRUCK_ALBUM . ' AND e.id IS NULL');
+        // 3) Fehlende rechnen – häppchenweise, damit auch 100.000 Titel beim ersten Mal nicht den Speicher sprengen
+        $kuenstlerJoin = 'JOIN credit_namen cn ON cn.credit_id = %s.credit_id AND cn.pos = (SELECT MIN(pos) FROM credit_namen WHERE credit_id = %s.credit_id)
+            JOIN kuenstler k ON k.id = cn.kuenstler_id';
+        $einfuegen = static function (int $art, array $zeilen): void {
+            $werte = $p = [];
+            foreach ($zeilen as $i => $r) {
+                foreach (array_unique([connect_schluessel((string) $r['name'], (string) $r['titel']), connect_schluessel((string) $r['name_als'], (string) $r['titel'])]) as $j => $s) {
+                    $werte[] = "({$art}, :i{$i}_{$j}, UNHEX(:h{$i}_{$j}))";
+                    $p["i{$i}_{$j}"] = (int) $r['id'];
+                    $p["h{$i}_{$j}"] = md5($s);
+                }
+            }
+            if ($werte) {
+                db_tun('INSERT IGNORE INTO connect_abdruecke (art, ziel_id, abdruck) VALUES ' . implode(',', $werte), $p);
+            }
+        };
+        $letzte = 0;
+        do {
+            $z = db_alle('SELECT a.id, a.titel, k.name, cn.name_als FROM alben a JOIN editionen e ON e.id = a.anzeige_edition_id AND e.anzahl_dateien > 0 '
+                . sprintf($kuenstlerJoin, 'a', 'a') . ' WHERE a.id > :l AND NOT EXISTS (SELECT 1 FROM connect_abdruecke c WHERE c.art = ' . CONNECT_ABDRUCK_ALBUM . ' AND c.ziel_id = a.id)
+                ORDER BY a.id LIMIT 2000', ['l' => $letzte]);
+            $einfuegen(CONNECT_ABDRUCK_ALBUM, $z);
+            $letzte = $z ? (int) end($z)['id'] : 0;
+        } while (count($z) === 2000);
+        $letzte = 0;
+        do {
+            $z = db_alle('SELECT t.id, t.titel, k.name, cn.name_als FROM tracks t ' . sprintf($kuenstlerJoin, 't', 't') . '
+                WHERE t.id > :l AND EXISTS (SELECT 1 FROM dateien d WHERE d.track_id = t.id AND d.fehler = \'\')
+                AND NOT EXISTS (SELECT 1 FROM connect_abdruecke c WHERE c.art = ' . CONNECT_ABDRUCK_TITEL . ' AND c.ziel_id = t.id)
+                ORDER BY t.id LIMIT 2000', ['l' => $letzte]);
+            $einfuegen(CONNECT_ABDRUCK_TITEL, $z);
+            $letzte = $z ? (int) end($z)['id'] : 0;
+        } while (count($z) === 2000);
+        // „seit“ ist der jüngste Zeitstempel, den wir gesehen haben – Änderungen in derselben Sekunde holt der nächste Lauf nach (>=)
+        $seitNeu = max(array_filter([$jetzt['t'] ?? '', $jetzt['a'] ?? '', $jetzt['e'] ?? '', $jetzt['k'] ?? ''], 'strlen') ?: ['1970-01-01 00:00:00']);
+        @file_put_contents($standDatei, json_encode(['fassung' => CONNECT_ABDRUCK_FASSUNG, 'marke' => $marke, 'seit' => $seitNeu]), LOCK_EX);
+    } finally {
+        flock($sperre, LOCK_UN);
+        fclose($sperre);
     }
-    @file_put_contents($datei, json_encode(['marke' => $marke, 'alben' => array_keys($alben), 'titel' => array_keys($titel)], JSON_UNESCAPED_UNICODE), LOCK_EX);
-    return $s = ['alben' => $alben, 'titel' => $titel];
 }
 
 function connect_schluessel(string $kuenstler, string $titel): string
@@ -612,19 +677,55 @@ function connect_schluessel(string $kuenstler, string $titel): string
     return name_norm($kuenstler) . '|' . name_norm($titel);
 }
 
+/** Welche dieser Schlüssel haben wir? Liefert je Art die Menge der getroffenen Schlüssel – eine Abfrage für die ganze Seite. */
+function connect_abdruecke_treffer(array $schluessel): array
+{
+    $hash = [];
+    foreach (array_unique($schluessel) as $s) {
+        $hash[md5($s)] = $s;
+    }
+    $aus = [CONNECT_ABDRUCK_ALBUM => [], CONNECT_ABDRUCK_TITEL => []];
+    foreach (array_chunk(array_keys($hash), 500) as $teil) {
+        [$in, $p] = db_in(array_map('hex2bin', $teil), 'h');
+        foreach (db_alle('SELECT DISTINCT art, HEX(abdruck) AS h FROM connect_abdruecke WHERE abdruck IN ' . $in, $p) as $r) {
+            $aus[(int) $r['art']][$hash[strtolower((string) $r['h'])] ?? ''] = true;
+        }
+    }
+    return $aus;
+}
+
 /** Alben und Titel eines anderen Servers markieren, die wir selbst schon haben (_da) */
 function connect_markieren(string $methode, array &$d): void
 {
-    $l = connect_lokal_schluessel();
-    $album = static function (array &$a) use ($l): void {
-        $k = $a['kuenstler'][0]['name'] ?? '';
-        if (is_string($a['titel'] ?? null) && isset($l['alben'][connect_schluessel((string) $k, $a['titel'])])) {
+    connect_abdruecke_pflegen();
+    $schluesselVon = static function (array $x): ?string {
+        $k = $x['kuenstler'][0]['name'] ?? '';
+        return is_string($x['titel'] ?? null) ? connect_schluessel((string) $k, $x['titel']) : null;
+    };
+    $alle = [];
+    foreach (['alben', 'gast'] as $f) {
+        foreach ((array) ($d[$f] ?? []) as $a) {
+            if (is_array($a) && ($s = $schluesselVon($a)) !== null) {
+                $alle[] = $s;
+            }
+        }
+    }
+    foreach ((array) ($d['tracks'] ?? []) as $t) {
+        if (is_array($t) && ($s = $schluesselVon($t)) !== null) {
+            $alle[] = $s;
+        }
+    }
+    if ($methode === 'album' && ($s = $schluesselVon($d)) !== null) {
+        $alle[] = $s;
+    }
+    $l = $alle ? connect_abdruecke_treffer($alle) : [CONNECT_ABDRUCK_ALBUM => [], CONNECT_ABDRUCK_TITEL => []];
+    $album = static function (array &$a) use ($l, $schluesselVon): void {
+        if (($s = $schluesselVon($a)) !== null && isset($l[CONNECT_ABDRUCK_ALBUM][$s])) {
             $a['_da'] = true;
         }
     };
-    $titel = static function (array &$t) use ($l): void {
-        $k = $t['kuenstler'][0]['name'] ?? '';
-        if (is_string($t['titel'] ?? null) && isset($l['titel'][connect_schluessel((string) $k, $t['titel'])])) {
+    $titel = static function (array &$t) use ($l, $schluesselVon): void {
+        if (($s = $schluesselVon($t)) !== null && isset($l[CONNECT_ABDRUCK_TITEL][$s])) {
             $t['_da'] = true;
         }
     };

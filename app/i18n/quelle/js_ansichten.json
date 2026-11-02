@@ -619,5 +619,6 @@
  "gerade nicht erreichbar": "not reachable right now",
  "nur ausgehend": "outgoing only",
  "nur ausgehend (z. B. CGNAT)": "outgoing only (e.g. CGNAT)",
- "offen – von außen erreichbar": "open – reachable from outside"
+ "offen – von außen erreichbar": "open – reachable from outside",
+ "verbunden über {weg}": "connected via {weg}"
 }

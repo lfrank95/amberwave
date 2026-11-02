@@ -4214,6 +4214,8 @@ html.aw-android, html.aw-android body { overscroll-behavior: none; }
 .nk-knoten rect { fill: rgba(20,14,10,.92); stroke: rgba(255,236,214,.18); stroke-width: 1.5; }
 .nk-knoten.nk-eigen rect { stroke: var(--accent-a); stroke-width: 2; }
 .nk-knoten.nk-weg { opacity: .55; }
+.nk-knoten:focus { outline: none; }
+.nk-knoten:focus-visible rect { stroke: var(--accent-a); stroke-width: 3; }
 .nk-knoten text, .nk-netz text { text-anchor: middle; fill: var(--text-primary); font-family: var(--font-body); }
 .nk-name { font-size: 15px; font-weight: 700; }
 .nk-unter { font-size: 11.5px; fill: var(--text-muted) !important; }

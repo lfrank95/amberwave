@@ -63,11 +63,22 @@ object Netz {
     fun serverErreichbar(server: String = Einstellungen.server, zeit: Int = 3000): Boolean {
         fremd = false
         if (server.isEmpty() || !verbunden()) return false
+        // Ein frisches „ja“ (Ping + Unterschrift) gilt 30 s – beim schnellen Blättern nicht bei jeder Seite zwei Anfragen;
+        // ein Netzwechsel (WLAN → Hotspot) setzt es sofort zurück (MainActivity.netzHoerer → vergessen())
+        val m = gemerkt
+        if (m != null && m.server == server && System.nanoTime() - m.wann < 30_000_000_000L) return true
         val j = ping(server, zeit) ?: return false
         val ok = ausweisPasst(server, j, server == Einstellungen.server, zeit)
         fremd = !ok
+        if (ok) gemerkt = Gemerkt(server, System.nanoTime())
         return ok
     }
+
+    private class Gemerkt(val server: String, val wann: Long)
+    @Volatile private var gemerkt: Gemerkt? = null
+
+    /** Gemerkte Erreichbarkeit verwerfen – nach jedem Netzwechsel, damit die nächste Seite wieder wirklich prüft */
+    fun vergessen() { gemerkt = null }
 
     /** Beim letzten serverErreichbar() hat unter der Adresse ein anderer Amberwave geantwortet */
     @Volatile var fremd = false
@@ -84,12 +95,22 @@ object Netz {
         return true
     }
 
+    /** Host einer Basisadresse, wie ihn die Host-Kopfzeile trägt: klein, Port nur, wenn nicht der Standard des Schemas */
+    fun hostVon(server: String): String = runCatching {
+        val u = java.net.URI(server)
+        val h = (u.host ?: "").lowercase()
+        val standard = if (u.scheme.equals("https", true)) 443 else 80
+        if (u.port == -1 || u.port == standard) h else "$h:${u.port}"
+    }.getOrDefault("")
+
     /** Der Server unterschreibt eine frische Zufallszahl mit seinem geheimen Schlüssel – nachmachen kann das nur der echte */
     fun ausweisBelegt(server: String, schluessel: String, zeit: Int = 3000): Boolean = runCatching {
         val z = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         val c = oeffnen("$server/api/v1/ausweis?z=$z", zeit, zeit, mitCookie = false)
         val b = try { if (c.responseCode == 200) org.json.JSONObject(c.inputStream.bufferedReader().readText()) else null } finally { c.disconnect() }
+        // Die Unterschrift gilt nur für den Host, den wir selbst angesprochen haben (klein, ohne Standard-Port) –
+        // ein unter einer anderen Adresse abgefangener Beweis passt hier nicht
         b != null && b.optString("schluessel") == schluessel && b.optString("zufall") == z &&
-            Ed25519.pruefen(Ed25519.hex(schluessel), "amberwave-ausweis-v1|$z|$schluessel".toByteArray(Charsets.UTF_8), Ed25519.hex(b.optString("unterschrift")))
+            Ed25519.pruefen(Ed25519.hex(schluessel), "amberwave-ausweis-v2|$z|$schluessel|${hostVon(server)}".toByteArray(Charsets.UTF_8), Ed25519.hex(b.optString("unterschrift")))
     }.getOrDefault(false)
 }

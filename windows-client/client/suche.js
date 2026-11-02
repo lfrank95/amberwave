@@ -87,13 +87,16 @@ async function ausweisPruefen(basis, schluessel, ms = 3000) {
   if (!/^[0-9a-f]{64}$/.test(schluessel || '')) return false;
   try {
     const z = crypto.randomBytes(16).toString('hex');
+    const basisUrl = new URL(basis);
     const r = await fetch(`${basis.replace(/\/+$/, '')}/api/v1/ausweis?z=${z}`, { signal: AbortSignal.timeout(ms), cache: 'no-store' });
     if (!r.ok) return false;
     const b = await r.json();
     if (b.schluessel !== schluessel || b.zufall !== z || !/^[0-9a-f]{128}$/.test(b.unterschrift || '')) return false;
     const spki = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(schluessel, 'hex')]);
     const key = crypto.createPublicKey({ key: spki, format: 'der', type: 'spki' });
-    return crypto.verify(null, Buffer.from(`amberwave-ausweis-v1|${z}|${schluessel}`), key, Buffer.from(b.unterschrift, 'hex'));
+    // Die Unterschrift gilt nur für den Host, den wir selbst angesprochen haben (URL.host: klein, ohne Standard-Port) –
+    // ein unter einer anderen Adresse abgefangener Beweis passt hier nicht
+    return crypto.verify(null, Buffer.from(`amberwave-ausweis-v2|${z}|${schluessel}|${basisUrl.host.toLowerCase()}`), key, Buffer.from(b.unterschrift, 'hex'));
   } catch (e) {
     return false;
   }

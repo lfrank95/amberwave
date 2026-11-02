@@ -344,14 +344,31 @@ function connect_adressen_saeubern(array $ad): array
     ]);
 }
 
-/** Kam die Anfrage direkt aus dem Heimnetz (nicht über Tunnel oder Proxy)? */
+/**
+ * Kam die Anfrage direkt aus dem Heimnetz (nicht über Tunnel oder Proxy)? Ein Proxy ohne Kopfzeilen sähe aus wie ein Gerät im
+ * Heimnetz – deshalb zählt eine Absenderadresse nicht, wenn sie ein bekannter Proxy ist (Liste, cloudflared-Container) oder
+ * schon einmal weitergeleitete Adressen mitgeschickt hat (Proxy-Beobachtung) – dann wissen wir nur: von irgendwoher.
+ */
 function connect_anfrage_im_heimnetz(): bool
 {
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) || !empty($_SERVER['HTTP_X_FORWARDED_FOR']) || !empty($_SERVER['HTTP_X_REAL_IP']) || !empty($_SERVER['HTTP_FORWARDED'])) {
         return false;
     }
     $von = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-    return filter_var($von, FILTER_VALIDATE_IP) && filter_var($von, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    if (!filter_var($von, FILTER_VALIDATE_IP) || filter_var($von, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+        return false;
+    }
+    return !connect_absender_ist_proxy($von);
+}
+
+/** Absenderadresse, hinter der erfahrungsgemäß ein Proxy steckt (eingetragen, cloudflared im Stack oder beobachtet) */
+function connect_absender_ist_proxy(string $ip): bool
+{
+    if (konfig()['sicherheit']['proxy_vertrauen'] === 'ja' || ist_bekannter_proxy($ip)) {
+        return true;
+    }
+    $b = is_file(proxy_beobachtung_datei()) ? (json_decode((string) @file_get_contents(proxy_beobachtung_datei()), true) ?: []) : [];
+    return ($b['ip'] ?? '') === $ip;
 }
 
 /** Ein „Gast-Benutzer“ für das Zusammenstellen der Bibliothek (ohne Favoriten, Verlauf o. Ä. eines Kontos) */
@@ -462,6 +479,24 @@ function connect_bild_liefern(string $art, string $schluessel, int $g): array
     return [['mime' => 'image/jpeg'], (string) file_get_contents($pfad)];
 }
 
+/** Einen der Plätze für offene „warten“ belegen (Sperrdatei, bis zum Prozessende gehalten); null = alle belegt */
+function connect_rueck_platz()
+{
+    $prozesse = (int) getenv('AW_PHP_PROZESSE');
+    $max = $prozesse > 0 ? max(1, intdiv($prozesse, 3)) : 6;
+    $d = connect_ordner('rueck');
+    for ($i = 0; $i < $max; $i++) {
+        $h = @fopen($d . '/platz.' . $i . '.sperre', 'c');
+        if ($h && flock($h, LOCK_EX | LOCK_NB)) {
+            return $h;      // offen lassen – die Sperre fällt mit dem Prozessende
+        }
+        if ($h) {
+            fclose($h);
+        }
+    }
+    return null;
+}
+
 /** Playlists, die wir einer Gegenstelle ausdrücklich geschickt haben (24 Stunden abholbar) */
 function connect_freigaben(int $peerId, ?int $neu = null): array
 {
@@ -491,8 +526,11 @@ function connect_beiwerk(string $art, int $id, int $peerId = 0): array
         UNION SELECT DISTINCT cn.kuenstler_id FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id
         JOIN alben a ON a.id = e.album_id JOIN credit_namen cn ON cn.credit_id = a.credit_id WHERE t.id IN ($in)"), 'kuenstler_id'));
     $kuenstler = [];
-    foreach (array_slice($kids, 0, 60) as $kid) {
-        $k = db_zeile('SELECT name, mbid, bio, bio_quelle, bio_maschinell, bild_datei FROM kuenstler WHERE id = :id', ['id' => $kid]);
+    $kids = array_slice($kids, 0, 60);
+    $zeilen = $kids ? db_alle('SELECT id, name, mbid, bio, bio_quelle, bio_maschinell, bild_datei FROM kuenstler WHERE id IN ' . db_ids($kids)) : [];
+    $nachId = array_column($zeilen, null, 'id');
+    foreach ($kids as $kid) {       // in der Reihenfolge der Beteiligung
+        $k = $nachId[$kid] ?? null;
         if ($k && $k['name'] !== '[unbekannt]' && ($k['bild_datei'] !== '' || trim((string) $k['bio']) !== '')) {
             $kuenstler[] = ['name' => $k['name'], 'mbid' => (string) $k['mbid'], 'bild' => (string) $k['bild_datei'],
                 'bio' => (string) $k['bio'], 'bio_quelle' => (string) $k['bio_quelle'], 'bio_maschinell' => (bool) $k['bio_maschinell']];
@@ -526,23 +564,37 @@ function connect_titel_liste(string $art, int $id, int $peerId = 0): array
     } else {
         throw new ApiFehler(t('Unbekannte Art.'), 400);
     }
-    $aus = [];
-    foreach (array_unique($ids) as $tid) {
-        $z = db_zeile('SELECT t.id, t.titel, t.nummer, t.pos, m.pos AS disc, t.mbid, au.mbid AS aufnahme_mbid, a.id AS album_id, a.titel AS album, a.erstjahr,
+    $ids = array_values(array_unique($ids));
+    // Eine Abfrage je 500 Titel statt einer pro Titel (eine Playlist mit 2.000 Titeln wären sonst 2.000 Abfragen);
+    // die beste fehlerfreie Datei je Titel kommt ebenfalls gesammelt – dieselbe Wahl wie beim Streamen
+    $zeilen = [];
+    foreach (array_chunk($ids, 500) as $teil) {
+        foreach (db_alle('SELECT t.id, t.titel, t.nummer, t.pos, m.pos AS disc, t.mbid, au.mbid AS aufnahme_mbid, a.id AS album_id, a.titel AS album, a.erstjahr,
                 ca.anzeige AS album_kuenstler, ct.anzeige AS kuenstler, e.cover_datei, e.id AS edition_id,
-                (SELECT COUNT(*) FROM datentraeger m2 WHERE m2.edition_id = e.id) AS discs,
-                (SELECT d.format FROM dateien d WHERE d.track_id = t.id AND d.fehler = \'\' ORDER BY d.bittiefe DESC, d.abtastrate DESC, d.id LIMIT 1) AS format,
-                (SELECT d.groesse FROM dateien d WHERE d.track_id = t.id AND d.fehler = \'\' ORDER BY d.bittiefe DESC, d.abtastrate DESC, d.id LIMIT 1) AS groesse,
-                (SELECT d.laenge_ms FROM dateien d WHERE d.track_id = t.id AND d.fehler = \'\' ORDER BY d.bittiefe DESC, d.abtastrate DESC, d.id LIMIT 1) AS laenge_ms
+                (SELECT COUNT(*) FROM datentraeger m2 WHERE m2.edition_id = e.id) AS discs
             FROM tracks t JOIN datentraeger m ON m.id = t.datentraeger_id JOIN editionen e ON e.id = m.edition_id JOIN alben a ON a.id = e.album_id
             LEFT JOIN aufnahmen au ON au.id = t.aufnahme_id LEFT JOIN credits ca ON ca.id = a.credit_id LEFT JOIN credits ct ON ct.id = t.credit_id
-            WHERE t.id = :t', ['t' => $tid]);
-        if ($z && $z['format'] !== null) {
+            WHERE t.id IN ' . db_ids($teil)) as $z) {
+            $zeilen[(int) $z['id']] = $z;
+        }
+    }
+    $dateien = [];
+    foreach (array_chunk(array_keys($zeilen), 1000) as $teil) {
+        foreach (db_alle('SELECT d.track_id, d.format, d.groesse, d.laenge_ms FROM dateien d WHERE d.fehler = \'\' AND d.track_id IN ' . db_ids($teil) . '
+            ORDER BY d.track_id, d.bittiefe DESC, d.abtastrate DESC, d.id') as $d) {
+            $dateien[(int) $d['track_id']] ??= $d;
+        }
+    }
+    $aus = [];
+    foreach ($ids as $tid) {
+        $z = $zeilen[$tid] ?? null;
+        $d = $dateien[$tid] ?? null;
+        if ($z && $d) {
             $aus[] = ['track' => (int) $z['id'], 'titel' => (string) $z['titel'], 'nummer' => (string) ($z['nummer'] ?: $z['pos']), 'disc' => (int) $z['disc'],
                 'discs' => (int) $z['discs'], 'mbid' => (string) $z['mbid'], 'aufnahme_mbid' => (string) $z['aufnahme_mbid'], 'album_id' => (int) $z['album_id'],
                 'album' => (string) $z['album'], 'jahr' => $z['erstjahr'] ? (int) $z['erstjahr'] : null, 'album_kuenstler' => (string) $z['album_kuenstler'],
-                'kuenstler' => (string) $z['kuenstler'], 'cover' => (string) $z['cover_datei'], 'format' => (string) $z['format'],
-                'groesse' => (int) $z['groesse'], 'laenge_ms' => (int) $z['laenge_ms']];
+                'kuenstler' => (string) $z['kuenstler'], 'cover' => (string) $z['cover_datei'], 'format' => (string) $d['format'],
+                'groesse' => (int) $d['groesse'], 'laenge_ms' => (int) $d['laenge_ms']];
         }
     }
     return ['titel' => $aus];
@@ -1149,6 +1201,15 @@ function connect_rueck_warten(array $peer): array
         usleep(300000);
         return [];
     }
+    // … und insgesamt nur so viele, dass für Nutzer und Apps genug PHP-Prozesse frei bleiben (Windows Server: php-cgi hat
+    // eine feste Zahl, ein Drittel davon; sonst 6). Wer keinen Platz bekommt, fragt nach einer kurzen Pause wieder.
+    $platz = connect_rueck_platz();
+    if ($platz === null) {
+        flock($sp, LOCK_UN);
+        fclose($sp);
+        usleep(500000);
+        return [];
+    }
     @touch($d . '/lebt');
     // Liegengebliebenes (abgebrochene Webprozesse) wegräumen – älter als 10 Minuten
     foreach (glob($d . '/*.{anfrage,geholt,antwort,tmp,teil,auftrag}', GLOB_BRACE) ?: [] as $f) {
@@ -1291,7 +1352,7 @@ function connect_gesehen(): ?array
     if ($cf !== '' && filter_var($cf, FILTER_VALIDATE_IP)) {
         return ['oeffentlich' => $cf];
     }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR']) || !empty($_SERVER['HTTP_X_REAL_IP']) || !empty($_SERVER['HTTP_FORWARDED'])) {
         return null;   // hinter einem anderen Proxy: nicht sicher zu sagen
     }
     $von = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
@@ -1299,6 +1360,9 @@ function connect_gesehen(): ?array
         return null;
     }
     $privat = filter_var($von, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    if ($privat && connect_absender_ist_proxy($von)) {
+        return null;   // ein Proxy ohne Kopfzeilen: weder Heimnetz noch eine brauchbare öffentliche Adresse
+    }
     return $privat ? (str_starts_with($von, '127.') ? null : ['lan' => $von]) : ['oeffentlich' => $von];
 }
 

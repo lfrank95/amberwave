@@ -251,7 +251,8 @@ function netzkarte(r) {
   const offenText = (o) => (o.von_aussen ? (o.tunnel ? t('Tunnel – von außen erreichbar') : t('offen – von außen erreichbar')) : t('nur ausgehend (z. B. CGNAT)'));
   const knoten = ({ x, y }, name, unter, klasse) => {
     const w = 184, hoehe = 58;
-    return `<g class="nk-knoten ${klasse}"><rect x="${x - w / 2}" y="${y - hoehe / 2}" width="${w}" height="${hoehe}" rx="14"/>
+    // <title> = Tooltip mit vollem Namen (die Anzeige kürzt lange) und Lesetext für Hilfstechnik
+    return `<g class="nk-knoten ${klasse}" tabindex="0" role="img" aria-label="${h(`${name} – ${unter}`)}"><title>${h(`${name} – ${unter}`)}</title><rect x="${x - w / 2}" y="${y - hoehe / 2}" width="${w}" height="${hoehe}" rx="14"/>
       <text x="${x}" y="${y - 4}" class="nk-name"${name.length > 18 ? ` textLength="${w - 20}" lengthAdjust="spacingAndGlyphs"` : ''}>${h(name.length > 26 ? `${name.slice(0, 25)}…` : name)}</text>
       <text x="${x}" y="${y + 16}" class="nk-unter">${h(unter)}</text></g>`;
   };
@@ -289,11 +290,20 @@ function netzkarte(r) {
     + (ueberNetz ? `<g class="nk-netz"><rect x="${netz.x - 70}" y="${netz.y - 18}" width="140" height="36" rx="18"/><text x="${netz.x}" y="${netz.y + 5}">${h(t('Internet'))}</text></g>` : '')
     + peers.map((s, i) => knoten(pos[i], s.name, offenText(s), s.erreichbar ? '' : 'nk-weg')).join('');
   const legende = [['nk-heimnetz', t('Heimnetz')], ['nk-direkt', t('Direktzugang')], ['nk-tunnel', t('Tunnel / offene Adresse')], ['nk-rueck', t('Rückkanal – hält eine Verbindung von innen offen (CGNAT)')], ['nk-aus', t('gerade nicht erreichbar')]];
+  // Dieselbe Karte in Worten – für Vorleseprogramme (und wer das Bild nicht sieht): je Partner Weg, Laufzeit, Erreichbarkeit
+  const inWorten = peers.map((s) => {
+    const a = art(s);
+    const weg = !s.erreichbar ? t('gerade nicht erreichbar') : `${t('verbunden über {weg}', { weg: WEG()[a] || a || t('Internet') })}${ms(s)}`;
+    return `<li>${h(`${s.name}: ${weg}; ${offenText(s)}`)}</li>`;
+  }).join('');
+  const beschreibung = `${r.ausweis.name}: ${offenText(r.ausweis)}`;
   return `<section class="nk" aria-label="${h(t('Wie die Server verbunden sind'))}">
-    <div class="nk-bild"><svg viewBox="0 0 ${B} ${H}" style="max-width:${B}px;min-width:${peers.length > 2 ? Math.min(B, 180 * peers.length) : 0}px" role="img" aria-label="${h(t('Netzkarte der gekoppelten Server'))}">
+    <div class="nk-bild"><svg viewBox="0 0 ${B} ${H}" style="max-width:${B}px;min-width:${peers.length > 2 ? Math.min(B, 180 * peers.length) : 0}px" role="group" aria-label="${h(t('Netzkarte der gekoppelten Server'))}" aria-describedby="nk-worte">
+      <title>${h(t('Netzkarte der gekoppelten Server'))}</title><desc>${h(beschreibung)}</desc>
       <defs><marker id="nk-pfeil" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="nk-pfeilspitze"/></marker></defs>
       ${linien}${knotenHtml}${texte}</svg></div>
-    <div class="nk-legende">${legende.map(([k, n]) => `<span><i class="${k}"></i>${h(n)}</span>`).join('')}</div>
+    <div class="nk-legende">${legende.map(([k, n]) => `<span><i class="${k}" aria-hidden="true"></i>${h(n)}</span>`).join('')}</div>
+    <ul id="nk-worte" class="nur-sr">${inWorten}</ul>
   </section>`;
 }
 

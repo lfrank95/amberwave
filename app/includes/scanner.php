@@ -268,6 +268,15 @@ function scan_ausfuehren(int $lauf, bool $voll): array
         scan_lauf_aktualisieren($lauf, ['aktuell' => t('Aufräumen …')]);
         bibliothek_aufraeumen();
         credits_anzeige_angleichen(); // Künstler-Anzeige auf den eingestellten Stil (Standard- oder Credit-Schreibweise) bringen
+        // „Hast du schon“-Abdrücke für Amberwave Connect gleich nachziehen, damit das erste Stöbern danach nicht wartet
+        try {
+            if (db_wert("SELECT COUNT(*) FROM connect_server") > 0) {
+                require_once __DIR__ . '/connect_uebertragung.php';
+                connect_abdruecke_pflegen(true);
+            }
+        } catch (Throwable $e) {
+            error_log('Scan: Connect-Abdrücke: ' . $e->getMessage());
+        }
     }
     return $stat;
 }

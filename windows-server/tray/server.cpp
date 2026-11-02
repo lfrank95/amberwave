@@ -46,7 +46,7 @@ static HWND g_fenster = nullptr;
 static NOTIFYICONDATAW g_nid{};
 static UINT WM_TRAY = WM_APP + 1;
 static UINT WM_UPDATE_AUFTRAG = WM_APP + 2;   // Weboberfläche: „Update installieren“ (Auftragsdatei im Cache-Ordner)
-static int g_port = 9950, g_dbPort = 3399, g_httpsPort = 8443, g_php = 6;
+static int g_port = 9950, g_dbPort = 3399, g_httpsPort = 8443, g_php = 8;
 static wstring g_musik, g_downloads;
 static wstring g_status = L"Startet …";
 
@@ -119,7 +119,7 @@ static void iniLaden()
     g_port = _wtoi(ini(L"port", L"9950").c_str());
     g_dbPort = _wtoi(ini(L"datenbank_port", L"3399").c_str());
     g_httpsPort = _wtoi(ini(L"https_port", L"8443").c_str());
-    g_php = std::max(2, std::min(32, _wtoi(ini(L"php_prozesse", L"6").c_str())));
+    g_php = std::max(2, std::min(32, _wtoi(ini(L"php_prozesse", L"8").c_str())));
 }
 
 // ---------- Prozesse ----------
@@ -207,6 +207,7 @@ static void umgebung()
     set(L"AW_PHP_EXT", P(L"php\\ext"));
     set(L"AW_PHP_LOG", D(L"logs\\php-fehler.log"));
     set(L"PHP_FCGI_MAX_REQUESTS", L"0");
+    set(L"AW_PHP_PROZESSE", std::to_wstring(g_php));   // damit PHP weiß, wie viele Anfragen gleichzeitig gehen (Rückkanal-Warten begrenzen)
     set(L"FFMPEG_PFAD", P(L"ffmpeg\\bin\\ffmpeg.exe"));
     set(L"FFPROBE_PFAD", P(L"ffmpeg\\bin\\ffprobe.exe"));
     set(L"KLANG_PYTHON", P(L"python\\python.exe"));

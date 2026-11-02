@@ -4227,6 +4227,7 @@ export default {
 "upmix space hall glow iron silk eq rack": "upmix space hall glow iron silk eq rack",
 "verbergen": "hide",
 "verbunden": "connected",
+"verbunden über {weg}": "connected via {weg}",
 "verknüpft": "linked",
 "verlustbehaftet übertragen ({q} kbit/s)": "transmitted lossy ({q} kbit/s)",
 "verlustfrei": "lossless",

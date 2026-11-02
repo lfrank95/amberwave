@@ -68,17 +68,41 @@ function ausweis_kennung(?string $pk = null): string
     return 'AW-' . substr($z, 0, 4) . '-' . substr($z, 4, 4);
 }
 
-/** Beweis für eine Zufallszahl des Fragenden: Unterschrift über Zweck, Zufallszahl und Kennung */
-function ausweis_beweis(string $zufall): array
+/**
+ * Beweis für eine Zufallszahl des Fragenden: Unterschrift über Zweck, Zufallszahl, Kennung und die Adresse, unter der uns der
+ * Fragende erreicht hat (Host-Kopfzeile). So lässt sich ein echter Beweis nicht unter einer fremden Adresse weiterreichen –
+ * die App prüft gegen den Host, den sie selbst angesprochen hat.
+ */
+function ausweis_beweis(string $zufall, ?string $host = null): array
 {
     $pk = ausweis_oeffentlich();
-    $nachricht = 'amberwave-ausweis-v1|' . $zufall . '|' . bin2hex($pk);
-    return ['schluessel' => bin2hex($pk), 'kennung' => ausweis_kennung($pk), 'zufall' => $zufall,
+    $host = ausweis_host_norm($host ?? ausweis_anfrage_host());
+    $nachricht = 'amberwave-ausweis-v2|' . $zufall . '|' . bin2hex($pk) . '|' . $host;
+    return ['schluessel' => bin2hex($pk), 'kennung' => ausweis_kennung($pk), 'zufall' => $zufall, 'host' => $host,
         'unterschrift' => bin2hex(sodium_crypto_sign_detached($nachricht, ausweis_geheim()))];
 }
 
-/** Prüft einen Beweis gegen den erwarteten öffentlichen Schlüssel (hex) */
-function ausweis_beweis_pruefen(array $b, string $zufall, string $erwartet_hex): bool
+/** Host, wie ihn der Fragende angesprochen hat – hinter einem vertrauten Proxy der ursprüngliche (X-Forwarded-Host) */
+function ausweis_anfrage_host(): string
+{
+    $h = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $xfh = trim((string) explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? ''))[0]);
+    if ($xfh !== '' && function_exists('client_ip') && client_ip() !== (string) ($_SERVER['REMOTE_ADDR'] ?? '')) {
+        $h = $xfh;   // client_ip() weicht nur ab, wenn wir dem Proxy trauen
+    }
+    return $h;
+}
+
+/** Host kleingeschrieben, ohne Standard-Port (so bilden ihn auch Browser und Apps) */
+function ausweis_host_norm(string $host): string
+{
+    $host = strtolower(trim($host));
+    $host = (string) preg_replace('/:(80|443)$/', '', $host);
+    return $host;
+}
+
+/** Prüft einen Beweis gegen den erwarteten öffentlichen Schlüssel (hex) und den Host, den wir angesprochen haben */
+function ausweis_beweis_pruefen(array $b, string $zufall, string $erwartet_hex, string $host): bool
 {
     if (($b['schluessel'] ?? '') !== $erwartet_hex || ($b['zufall'] ?? '') !== $zufall || !ctype_xdigit((string) ($b['unterschrift'] ?? ''))) {
         return false;
@@ -86,7 +110,7 @@ function ausweis_beweis_pruefen(array $b, string $zufall, string $erwartet_hex):
     $pk = hex2bin($erwartet_hex);
     $sig = hex2bin((string) $b['unterschrift']);
     return $pk !== false && $sig !== false && strlen($sig) === SODIUM_CRYPTO_SIGN_BYTES
-        && sodium_crypto_sign_verify_detached($sig, 'amberwave-ausweis-v1|' . $zufall . '|' . $erwartet_hex, $pk);
+        && sodium_crypto_sign_verify_detached($sig, 'amberwave-ausweis-v2|' . $zufall . '|' . $erwartet_hex . '|' . ausweis_host_norm($host), $pk);
 }
 
 /** Schlüssel für Verschlüsselung zwischen Servern (X25519, aus dem Ausweis abgeleitet) */

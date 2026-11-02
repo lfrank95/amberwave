@@ -68,7 +68,7 @@ assert b['schluessel'] == pk and b['zufall'] == z
 d = tempfile.mkdtemp()
 open(f'{d}/pk.der', 'wb').write(bytes.fromhex('302a300506032b6570032100' + pk))
 open(f'{d}/sig', 'wb').write(bytes.fromhex(b['unterschrift']))
-open(f'{d}/msg', 'wb').write(f'amberwave-ausweis-v1|{z}|{pk}'.encode())
+open(f'{d}/msg', 'wb').write(f'amberwave-ausweis-v2|{z}|{pk}|127.0.0.1:19951'.encode())
 r = subprocess.run(['openssl', 'pkeyutl', '-verify', '-pubin', '-inkey', f'{d}/pk.der', '-keyform', 'DER', '-rawin', '-in', f'{d}/msg', '-sigfile', f'{d}/sig'], capture_output=True)
 sys.exit(r.returncode)
 PY

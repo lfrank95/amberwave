@@ -264,10 +264,13 @@ class MainActivity : ComponentActivity() {
 
     // Netz weg / wieder da: sofort an die Oberfläche (die prüft dann selbst, ob der Server antwortet)
     private val netzHoerer = object : android.net.ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: android.net.Network) { WebHalter.js("window.awAndroidNetz && window.awAndroidNetz(true)") }
+        override fun onAvailable(network: android.net.Network) { Netz.vergessen(); WebHalter.js("window.awAndroidNetz && window.awAndroidNetz(true)") }
         override fun onLost(network: android.net.Network) {
+            Netz.vergessen()
             if (!Netz.verbunden()) WebHalter.js("window.awAndroidNetz && window.awAndroidNetz(false)")
         }
+        // Dasselbe Netz, aber andere Eigenschaften (z. B. WLAN-Wechsel, neue IP): ebenfalls neu prüfen
+        override fun onLinkPropertiesChanged(network: android.net.Network, lp: android.net.LinkProperties) { Netz.vergessen() }
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
