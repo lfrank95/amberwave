@@ -624,6 +624,12 @@ function connect_curl(string $basis, string $body, int $zeit = 60)
         // Die Verbindung ist ohnehin Ende zu Ende verschlüsselt; im Heimnetz gibt es oft nur HTTP oder ein Zertifikat für einen anderen Namen
         CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_MAXFILESIZE_LARGE => CONNECT_STUECK + 1024 * 1024, CURLOPT_BUFFERSIZE => 256 * 1024]);
+    // Im Heimnetz steht die Verbindung in Millisekunden – antwortet eine Heimnetz-Adresse nicht binnen 1,5 s, sind wir
+    // woanders (Ortswechsel) und suchen lieber gleich den neuen Weg
+    $host = (string) parse_url($basis, PHP_URL_HOST);
+    if (str_ends_with($host, '.local') || (filter_var($host, FILTER_VALIDATE_IP) && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false)) {
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 1500);
+    }
     return $ch;
 }
 
@@ -841,8 +847,93 @@ function connect_heimnetz_absuchen(array $peer): array
  * Methode bei einer Gegenstelle aufrufen. Nutzt den gemerkten Weg (höchstens 5 Minuten alt), sonst wird neu gesucht;
  * bricht der Weg weg, einmal neu suchen und wiederholen. Gibt [kopf, binaer] zurück oder wirft ApiFehler.
  */
+/** Gemerkten Weg zu einer Gegenstelle verwerfen (in der Datenbank und im übergebenen Datensatz) */
+function connect_weg_vergessen(array $peer): array
+{
+    db_tun("UPDATE connect_server SET weg = '', weg_art = '', weg_am = NULL WHERE id = :id", ['id' => $peer['id']]);
+    @unlink(connect_rueck_ordner((int) $peer['id']) . '/lan_geprueft');
+    return array_merge($peer, ['weg' => '', 'weg_art' => '', 'weg_am' => null]);
+}
+
+/** Antwortet unter dem gemerkten Weg noch genau diese Gegenstelle? (/ping mit Ausweis, höchstens 1,5 s) */
+function connect_weg_lebt(array $peer): bool
+{
+    $ch = curl_init(rtrim((string) $peer['weg'], '/') . '/api/v1/ping');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT_MS => 1500, CURLOPT_TIMEOUT_MS => 1500,
+        CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_FOLLOWLOCATION => false, CURLOPT_MAXFILESIZE => 65536]);
+    $j = json_decode((string) curl_exec($ch), true);
+    curl_close($ch);
+    return is_array($j) && hash_equals((string) $peer['schluessel'], (string) ($j['schluessel'] ?? ''));
+}
+
+/**
+ * Netzwechsel-Wächter: Fingerabdruck des eigenen Netzes (Standard-Gateway samt seiner MAC-Adresse und Schnittstelle, unter
+ * Windows die eigenen IPs). Ändert er sich – NUC vom Heim-WLAN an den Handy-Hotspot, neue IP –, sind alle gemerkten Wege
+ * hinfällig: verwerfen, Heimnetz-Merker zurücksetzen, eigene IPs neu lernen. Höchstens alle 3 s gerechnet (auch über
+ * Prozesse hinweg); liefert true, wenn sich das Netz seit dem letzten Mal geändert hat.
+ */
+function connect_netz_pruefen(): bool
+{
+    static $zuletzt = 0.0;
+    if (microtime(true) - $zuletzt < 3) {
+        return false;
+    }
+    $zuletzt = microtime(true);
+    $datei = connect_ordner() . '/netz.json';
+    $marke = connect_netz_marke();
+    if ($marke === '') {
+        return false;
+    }
+    $alt = (string) (json_decode((string) @file_get_contents($datei), true)['marke'] ?? '');
+    if ($alt === $marke) {
+        return false;
+    }
+    @file_put_contents($datei, json_encode(['marke' => $marke, 'am' => time()]), LOCK_EX);
+    if ($alt === '') {
+        return false;   // erstes Mal: nur merken
+    }
+    error_log('Connect: Netzwechsel erkannt – Wege werden neu gesucht');
+    db_tun("UPDATE connect_server SET weg_am = NULL");
+    foreach (glob(connect_ordner('rueck') . '/*/{lan_geprueft,lan_gesucht,scan_am}', GLOB_BRACE) ?: [] as $f) {
+        @unlink($f);
+    }
+    @unlink(connect_ordner() . '/eigene_ips.json');
+    return true;
+}
+
+function connect_netz_marke(): string
+{
+    $route = @file('/proc/net/route');
+    if ($route) {
+        $teile = [];
+        foreach ($route as $z) {
+            $f = preg_split('/\s+/', trim($z));
+            if (($f[1] ?? '') === '00000000' && isset($f[2]) && strlen($f[2]) === 8 && $f[2] !== '00000000') {
+                $gw = implode('.', array_reverse(array_map('hexdec', str_split($f[2], 2))));
+                $mac = '';
+                foreach (@file('/proc/net/arp') ?: [] as $a) {
+                    $af = preg_split('/\s+/', trim($a));
+                    if (($af[0] ?? '') === $gw) {
+                        $mac = (string) ($af[3] ?? '');
+                    }
+                }
+                $teile[] = $f[0] . '>' . $gw . '@' . $mac;
+            }
+        }
+        sort($teile);
+        return $teile ? implode(',', $teile) : 'kein-netz';
+    }
+    // Windows o. Ä.: die eigenen IPv4-Adressen
+    $ips = @gethostbynamel((string) gethostname()) ?: [];
+    sort($ips);
+    return implode(',', $ips);
+}
+
 function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): array
 {
+    if (connect_netz_pruefen()) {
+        $peer = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $peer['id']]) ?: $peer;   // Wege eben verworfen
+    }
     // Rückkanal nur, wenn es keinen Weg im Heimnetz gibt – das Heimnetz hat immer Vorrang
     if (connect_rueck_aktiv($peer) && ($lan = connect_lan_weg($peer)) !== null) {
         $peer = $lan;
@@ -861,9 +952,19 @@ function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): a
         }
         return [$kopf, $binaer];
     }
-    $alt = $peer['weg'] !== '' && $peer['weg'] !== 'rueckkanal' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300;
+    $alter = $peer['weg_am'] ? time() - strtotime((string) $peer['weg_am']) : PHP_INT_MAX;
+    $alt = $peer['weg'] !== '' && $peer['weg'] !== 'rueckkanal' && $alter < 300;
+    // Länger als eine Minute nicht benutzt: erst kurz anklopfen (1,5 s) – ein veralteter Weg (Ortswechsel, neue IP) kostet
+    // sonst bis zum Zeitlimit der eigentlichen Anfrage, statt gleich den neuen Weg zu suchen
+    if ($alt && $alter > 60 && !connect_weg_lebt($peer)) {
+        $peer = connect_weg_vergessen($peer);
+        $alt = false;
+    }
     if (!$alt) {
         $peer = connect_weg_suchen($peer);
+        if ($peer['weg'] === 'rueckkanal') {
+            return connect_rufen($peer, $m, $a, $zeit);
+        }
     }
     for ($versuch = 0; $versuch < 2; $versuch++) {
         $ch = connect_curl($peer['weg'], connect_anfrage_bauen($peer, $m, $a, $z), $zeit);
@@ -880,7 +981,9 @@ function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): a
             return [$kopf, $binaer];
         }
         if ($versuch === 0) {
-            $peer = connect_weg_suchen($peer);   // Weg weg (neue IP, Netzwechsel …): neu suchen und noch einmal
+            // Weg weg (neue IP, Netzwechsel …): den gemerkten Weg verwerfen – sonst fände die Suche ihn gleich wieder –,
+            // neu suchen und noch einmal
+            $peer = connect_weg_suchen(connect_weg_vergessen($peer));
             if ($peer['weg'] === 'rueckkanal') {
                 return connect_rufen($peer, $m, $a, $zeit);   // nur noch über den Rückkanal erreichbar
             }
@@ -1155,7 +1258,7 @@ function connect_rueck_aktiv(array $peer): bool
  */
 function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
 {
-    if ($peer['weg_art'] === 'heimnetz' && $peer['weg'] !== '' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300) {
+    if (!$erzwingen && $peer['weg_art'] === 'heimnetz' && $peer['weg'] !== '' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300) {
         return $peer;
     }
     $merker = connect_rueck_ordner((int) $peer['id']) . '/lan_geprueft';
@@ -1192,13 +1295,23 @@ function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
 function connect_rueck_warten(array $peer): array
 {
     $d = connect_rueck_ordner((int) $peer['id']);
-    // Je Gegenstelle höchstens eine offene „warten“ – sonst könnte ein Partner alle Webserver-Prozesse belegen
+    // Je Gegenstelle höchstens eine offene „warten“ – sonst könnte ein Partner alle Webserver-Prozesse belegen. Ein neues
+    // „warten“ löst ein noch offenes ab: das alte hängt meist an einer Verbindung, die nach einem Netzwechsel der Gegenstelle
+    // tot ist – es gibt sofort auf (Marke „neueste“), statt Anfragen in die tote Leitung zu schicken.
+    $ich = bin2hex(random_bytes(8));
+    @file_put_contents($d . '/warten.neueste', $ich, LOCK_EX);
     $sp = @fopen($d . '/warten.sperre', 'c');
-    if (!$sp || !flock($sp, LOCK_EX | LOCK_NB)) {
+    $hab = false;
+    for ($i = 0; $sp && $i < 30 && !($hab = flock($sp, LOCK_EX | LOCK_NB)); $i++) {
+        usleep(100000);
+        if (@file_get_contents($d . '/warten.neueste') !== $ich) {
+            break;   // ein noch neueres ist schon da
+        }
+    }
+    if (!$hab) {
         if ($sp) {
             fclose($sp);
         }
-        usleep(300000);
         return [];
     }
     // … und insgesamt nur so viele, dass für Nutzer und Apps genug PHP-Prozesse frei bleiben (Windows Server: php-cgi hat
@@ -1251,6 +1364,9 @@ function connect_rueck_warten(array $peer): array
         usleep(100000);
         if ((int) (microtime(true) * 10) % 10 === 0) {
             @touch($d . '/lebt');
+        }
+        if (@file_get_contents($d . '/warten.neueste') !== $ich) {
+            return [];   // abgelöst (die Gegenstelle hat neu angeklopft, vermutlich über einen neuen Weg)
         }
     } while (microtime(true) < $ende && !connection_aborted());
     return [];

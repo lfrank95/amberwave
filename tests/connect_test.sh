@@ -160,6 +160,17 @@ for i in $(seq 1 60); do [ "$(api 19951 "$TA" GET /connect/server | j "d['server
 BTID="$(api 19951 "$TA" GET "/connect/server/$BID/lesen/album?id=$(api 19951 "$TA" GET "/connect/server/$BID/lesen/alben" | j "d['alben'][0]['id']")" | j "d['tracks'][0]['id']")"
 CODE_HTTP="$(curl -s -o "$W/rueck.ogg" -w '%{http_code}' -H "Authorization: Bearer $TA" -H 'Range: bytes=0-' "http://127.0.0.1:19951/api/v1/connect/server/$BID/stream/$BTID?q=opus256")"
 [ "$CODE_HTTP" = "206" ] && head -c 4 "$W/rueck.ogg" | grep -q OggS && ok "A hört bei B rein (über den Rückkanal)" || fehler "Reinhören über den Rückkanal: HTTP $CODE_HTTP"
+# Ortswechsel: A hat sich noch einen (frischen) Heimnetz-Weg zu B gemerkt, unter dem niemand mehr antwortet –
+# A muss trotzdem sofort über den offenen Rückkanal durchkommen (früher bis zu 5 Minuten „nicht erreichbar“)
+docker exec -i aw-a sh -c 'cat > /tmp/weg.php' <<'PHP'
+<?php
+require '/var/www/html/includes/connect.php';
+db_tun("UPDATE connect_server SET weg = 'http://10.255.255.1:9950', weg_art = 'heimnetz', weg_am = NOW()");
+PHP
+docker exec -u www-data aw-a php /tmp/weg.php
+T0=$(date +%s)
+[ "$(api 19951 "$TA" GET "/connect/server/$BID/lesen/alben" | j "d['gesamt']")" = "2" ] && [ $(( $(date +%s) - T0 )) -le 8 ] \
+  && ok "veralteter Heimnetz-Weg: A kommt sofort über den Rückkanal durch ($(( $(date +%s) - T0 )) s)" || fehler "veralteter Heimnetz-Weg blockiert ($(( $(date +%s) - T0 )) s)"
 api 19952 "$TB" DELETE "/connect/server/$SID" >/dev/null
 [ "$(api 19952 "$TB" GET /connect/server | j "len(d['server'])")" = "0" ] && ok "Getrennt" || fehler "Trennen schlägt fehl"
 

@@ -497,7 +497,7 @@ function connect_stream_senden(int $serverId, int $track): void
         header('Content-Length: 0');
         exit;
     }
-    $mime =['opus' => 'audio/ogg', 'm4a' => 'audio/mp4', 'flac' => 'audio/flac', 'mp3' => 'audio/mpeg', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav'][$kopf['endung']] ?? 'application/octet-stream';
+    $mime = ['opus' => 'audio/ogg', 'm4a' => 'audio/mp4', 'flac' => 'audio/flac', 'mp3' => 'audio/mpeg', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav'][$kopf['endung']] ?? 'application/octet-stream';
     db_schliessen();
     header('Content-Type: ' . $mime);
     header('Accept-Ranges: bytes');
@@ -517,7 +517,21 @@ function connect_stream_senden(int $serverId, int $track): void
         if ($pos > $bis) {
             break;
         }
-        [, $bytes] = connect_rufen($peer, 'datei', ['track' => $track, 'qualitaet' => $q, 'ab' => $pos, 'laenge' => $stueck, 'zweck' => 'hoeren'], 120);
+        // Reißt ein Stück ab (Netzwechsel unterwegs), nach kurzer Pause noch zweimal über den dann frisch gesuchten Weg –
+        // die Wiedergabe läuft weiter, statt mitten im Lied abzubrechen
+        $bytes = '';
+        for ($versuch = 0; $versuch < 3 && !connection_aborted(); $versuch++) {
+            try {
+                if ($versuch > 0) {
+                    sleep($versuch);
+                    $peer = connect_server($serverId);
+                }
+                [, $bytes] = connect_rufen($peer, 'datei', ['track' => $track, 'qualitaet' => $q, 'ab' => $pos, 'laenge' => $stueck, 'zweck' => 'hoeren'], 120);
+                break;
+            } catch (Throwable $e) {
+                error_log('Connect Reinhören: Stück ab ' . $pos . ' – ' . log_sauber($e->getMessage()));
+            }
+        }
     }
     exit;
 }
@@ -807,9 +821,20 @@ function connect_rueckkanal_laufen(): void
     $mh = curl_multi_init();
     $griffe = [];  // id => curl
     $zs = [];      // id => Zufallswert der offenen Anfrage
+    $fehlerFolge = [];   // id => Fehlschläge in Folge
     $weiter = false;
     try {
         while (true) {
+            // Netzwechsel (WLAN → Hotspot, neue IP): offene „warten“ hängen jetzt an toten Verbindungen – sofort alle
+            // abbrechen und über den neuen Weg neu anklopfen, statt bis zum Zeitlimit zu warten
+            if (connect_netz_pruefen()) {
+                foreach ($griffe as $ch) {
+                    curl_multi_remove_handle($mh, $ch);
+                    curl_close($ch);
+                }
+                $griffe = $zs = $pause = [];
+                $liste_am = 0;
+            }
             $auslaufen = time() > $ende - 50;   // kurz vor Schluss keine neuen „warten“ mehr – offene zu Ende lesen
             if (!$auslaufen && time() - $liste_am > 120) {
                 $partner = [];
@@ -834,6 +859,9 @@ function connect_rueckkanal_laufen(): void
                     }
                     $ch = connect_curl($basis, connect_anfrage_bauen($p, 'warten', [], $z), 45);
                     curl_setopt($ch, CURLOPT_PRIVATE, (string) $id);
+                    // Lebenszeichen auf TCP-Ebene: eine Leitung, die unterwegs gestorben ist (Funkloch, Netzwechsel ohne
+                    // eigene neue IP), fällt so nach ~20 s auf statt erst nach 45 s
+                    curl_setopt_array($ch, [CURLOPT_TCP_KEEPALIVE => 1, CURLOPT_TCP_KEEPIDLE => 5, CURLOPT_TCP_KEEPINTVL => 5]);
                     curl_multi_add_handle($mh, $ch);
                     $griffe[$id] = $ch;
                     $zs[$id] = $z;
@@ -862,12 +890,15 @@ function connect_rueckkanal_laufen(): void
                     $p = $partner[$id] ?? db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $id]);
                     $r = $p && $info['result'] === CURLE_OK && $code === 200 ? connect_antwort_oeffnen($p, $roh, $zs[$id] ?? null) : null;
                     if (!$r || empty($r[0]['ok'])) {
-                        $pause[$id] = time() + 10;   // Partner gerade weg: kurz warten, dann neu (und Weg neu suchen)
+                        // Partner gerade weg: Weg neu suchen – erst nach 2 s, bei weiteren Fehlern länger (bis 30 s)
+                        $fehlerFolge[$id] = ($fehlerFolge[$id] ?? 0) + 1;
+                        $pause[$id] = time() + min(30, 2 * $fehlerFolge[$id] ** 2);
                         connect_rueck_status($id, 'fehler', $info['result'] !== CURLE_OK ? curl_strerror($info['result']) : 'HTTP ' . $code);
                         db_tun("UPDATE connect_server SET weg_am = NULL WHERE id = :id", ['id' => $id]);
                         continue;
                     }
                     connect_rueck_status($id, 'ok', '');
+                    $fehlerFolge[$id] = 0;
                     // Aufträge in eigenen Prozessen ausführen – die Schleife bleibt frei und stellt sofort die nächste „warten“
                     foreach ((array) ($r[0]['auftraege'] ?? []) as $auf) {
                         connect_rueck_auftrag_starten($p, (string) ($auf['id'] ?? ''), (string) ($auf['anfrage'] ?? ''));

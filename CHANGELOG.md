@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.9.1-beta.15 – Windows Client update fix
+## 0.9.1-beta.15 – Seamless network changes, Windows Client update fix
+- **Connect: switching networks happens in the background.** A server now notices on its own when its network changes (home Wi-Fi → phone hotspot, new IP) – like the apps already did – and immediately forgets all remembered routes, reopens the back channel over the new connection and tells its partners its new addresses. A partner that moved is found again within a few seconds instead of up to a minute.
+- Connect: when a server left the home network, its partner kept trying the old home address for up to 5 minutes and reported "not reachable" even though the back channel was open – a failed route is now dropped at once.
+- Connect: a route not used for a minute is checked quickly (1.5 s) before it's used; home-network addresses get 1.5 s to answer instead of 4 s – so the first click after moving costs about two seconds instead of up to a minute.
+- Connect back channel: a new wait from a partner takes over from one still hanging on a dead connection, so requests no longer disappear into it; dead connections are noticed via TCP keep-alive after about 20 s; after errors it retries after 2 s, then gradually less often.
+- Connect listening: if a piece of the track breaks off during a network change, it's fetched again over the new route – playback continues instead of stopping mid-song.
 - **Windows Client: updating from within the app works again.** The installer inherited the program folder as its working folder and so kept that very folder in use – it waited at 0 % and then reported that Amberwave was still running. It now runs from the Temp folder, shows "Waiting for Amberwave to close …" and ends leftover Amberwave processes (engine, plug-in host) if needed. The fix sits in the new installer, so updating to this version from within the app already works.
 
 ## 0.9.1-beta.14 – Connect hardened after an independent review
