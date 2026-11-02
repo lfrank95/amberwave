@@ -97,6 +97,7 @@ static int seite = S_WILLKOMMEN, portabel = 0, aktualisieren = 0, laeuft = 0, er
 static int mit_startmenue = 1, mit_desktop = 1, prozent = 0, animation = 1;
 static DWORD inst_beginn = 0, anim_beginn = 0;
 static wchar_t ziel[MAX_PATH * 2], fehler[512], vorhanden_version[64], aktuelle_datei[260];
+static volatile int wartet_auf_ende = 0;   // Update: wartet, bis das alte Programm seinen Ordner freigibt
 static CRITICAL_SECTION datei_sperre;
 static uint64_t xz_beginn, xz_laenge, roh_groesse;
 static HANDLE quelle;
@@ -322,11 +323,16 @@ static DWORD WINAPI installieren(LPVOID) {
 #endif
     // beim stillen Update hat sich das Programm gerade erst beendet – bis zu 30 s warten, bis seine Dateien frei sind
     // Danach hängt noch etwas (z. B. die Engine)? Dann diese Prozesse beenden und noch einmal kurz warten.
-    for (int warten = aktualisieren ? 30 : 0; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
+    wartet_auf_ende = 1; PostMessageW(fenster, WM_STAND, 0, 0);
+    for (int warten = aktualisieren ? 20 : 0; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
     if (aktualisieren && !ordner_frei(ziel)) {
       prozesse_im_ordner_beenden(ziel);
-      for (int warten = 20; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
+      for (int warten = 20; !ordner_frei(ziel) && warten > 0; warten--) {
+        Sleep(500);
+        if (warten % 4 == 0) prozesse_im_ordner_beenden(ziel);   // ein Kindprozess kann nachgestartet sein
+      }
     }
+    wartet_auf_ende = 0; PostMessageW(fenster, WM_STAND, 0, 0);
     if (!ordner_frei(ziel)) { wcscpy(fehler, laeuft_text); goto ende; }
     DWORD tick = GetTickCount();
     _snwprintf(auspack, MAX_PATH * 2, L"%ls.neu-%lu", ziel, tick);
@@ -942,6 +948,7 @@ static void seite_installieren(float t) {
   wchar_t d[300], rest[80] = L"";
   EnterCriticalSection(&datei_sperre);
   if (prozent >= 100) wcscpy(d, portabel ? TX(L"Fast fertig …", L"Almost done …") : TX(L"Verknüpfungen werden angelegt …", L"Creating shortcuts …"));
+  else if (wartet_auf_ende) wcscpy(d, TX(L"Warte, bis Amberwave beendet ist …", L"Waiting for Amberwave to close …"));
   else if (aktuelle_datei[0]) _snwprintf(d, 300, TX(L"Entpacke %ls", L"Unpacking %ls"), aktuelle_datei);
   else wcscpy(d, TX(L"Vorbereiten …", L"Preparing …"));
   LeaveCriticalSection(&datei_sperre);
@@ -1414,6 +1421,13 @@ static LRESULT CALLBACK fensterproc(HWND h, UINT m, WPARAM w, LPARAM l) {
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int) {
   inst = hi;
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);   // keine „Kein Datenträger“-Meldungen beim Prüfen von Pfaden
+  {
+    // Arbeitsordner auf den Temp-Ordner: vom Programm gestartet erbt der Installer sonst dessen Ordner als Arbeitsordner –
+    // und ein Prozess, der in einem Ordner „steht“, hält ihn offen. Dann ließe sich der Programmordner nie ersetzen
+    // (das Update blieb bei 0 % stehen bzw. meldete „Amberwave läuft noch“).
+    wchar_t tmp[MAX_PATH + 1];
+    if (GetTempPathW(MAX_PATH + 1, tmp)) SetCurrentDirectoryW(tmp);
+  }
   portabel = cmd && (wcsstr(cmd, L"/portabel") || wcsstr(cmd, L"/portable"));
   aktualisieren = !portabel && cmd && (wcsstr(cmd, L"/aktualisieren") || wcsstr(cmd, L"/update"));
   InitializeCriticalSection(&datei_sperre);

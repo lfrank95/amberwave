@@ -748,8 +748,11 @@ async function updateInstallieren() {
   try {
     // Der Installer läuft als eigenständiger Prozess außerhalb von Amberwave (über „start“ entkoppelt, aus dem Temp-Ordner):
     // er wartet, bis dieser Client samt Engine beendet ist, ersetzt dann den Programmordner und startet die neue Version.
-    spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `start "" "${ziel}" /aktualisieren`],
-      { detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true }).unref();
+    // Arbeitsordner ausdrücklich der Temp-Ordner (cwd und start /d): sonst erbt der Installer den Programmordner als
+    // Arbeitsordner, hält ihn damit offen und kann ihn nie ersetzen
+    const tmp = app.getPath('temp');
+    spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `start "" /d "${tmp}" "${ziel}" /aktualisieren`],
+      { cwd: tmp, detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true }).unref();
   } catch (e) {
     updateStand({ stand: 'fehler', fehler: e.message || String(e) });
     return false;
@@ -946,5 +949,10 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   engineSenden({ c: 'beenden' });
   const e = engine;
-  if (e) setTimeout(() => { try { e.kill(); } catch (x) { /* schon weg */ } }, 1500);
+  // Unter Windows überleben Kindprozesse den Client – endet er vor dem Zeitgeber, liefe die Engine weiter und hielte den
+  // Programmordner fest (Update!). Deshalb beim Update sofort, sonst nach 1,5 s.
+  if (e) {
+    if (updateLaeuft?.stand === 'startet') { try { e.kill(); } catch (x) { /* schon weg */ } }
+    else setTimeout(() => { try { e.kill(); } catch (x) { /* schon weg */ } }, 1500);
+  }
 });
