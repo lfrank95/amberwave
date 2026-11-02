@@ -1316,7 +1316,9 @@ function connect_lan_vom_absender(array $peer): void
     }
     @touch($merker);
     $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || str_starts_with($ip, '127.')) {
+    // Docker-interne Adressen (172.17–31.x) wie bei den gelernten Heimnetz-Adressen auslassen: das ist das Netz des
+    // Containers (oder sein Gateway), nicht das Heimnetz – von anderen Geräten aus nicht erreichbar
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || str_starts_with($ip, '127.') || preg_match('/^172\.(1[7-9]|2\d|3[01])\./', $ip)) {
         return;
     }
     $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
