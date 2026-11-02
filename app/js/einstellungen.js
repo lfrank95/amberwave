@@ -644,7 +644,34 @@ function ausgabeZeichnen(app, inhalt, signal) {
       ${zeile('aufschlag', `<label for="en-aufschlag">${t('Pause nach dem Umschalten')}</label>`, t('Wie beim CD-Wechsel: lieber kurz Stille als ein abgeschnittener Anfang. Manche Interfaces geben ihren Ausgang nach einem Ratenwechsel erst spät frei. Gemerkt für dieses Gerät.') + ' <span class="aus-zeitleiste" data-zeitleiste></span>', `<select id="en-aufschlag" class="einst-feld" data-n-aufschlag>${AUFSCHLAG_STUFEN.map(([w, tx]) => `<option value="${w}">${tx}</option>`).join('')}</select>`)}
       ${zeile('asio', t('ASIO-Treiber'), t('Puffergröße und Taktquelle stellt das Treiberfenster des Herstellers ein.'), `<button type="button" class="btn btn-zweit btn-klein" data-n-asio>${t('Treiber-Einstellungen …')}</button>`, 'data-asio-zeile hidden')}
     `)}
+    ${nativ.update?.suchen ? karte(t('Windows Client'), zeile('client-update', `Amberwave Windows Client ${h(nativ.version || '')}`, '<span data-client-upd-text></span>',
+      `<div class="os-knoepfe" style="margin:0"><button type="button" class="btn btn-zweit btn-klein" data-client-suchen>${icon('suche', 16)}<span>${t('Nach Updates suchen')}</span></button>
+       <button type="button" class="btn btn-klein" data-client-los hidden>${icon('download', 16)}<span>${t('Jetzt aktualisieren')}</span></button></div>`)) : ''}
     <p class="einst-fuss aus-fuss">${t('Bitgenau (exklusiv oder ASIO) heißt: Lautstärke 100 %, Lautstärke-Angleich aus und keine Effekte – sonst rechnet die Engine (64 Bit, mit Dither).')} Amberwave Windows Client ${h(nativ.version || '')}.</p>`;
+  // Windows Client: von Hand nach Updates suchen; installiert wird vom eigenständigen Installer (Client beendet sich vorher)
+  const cuText = inhalt.querySelector('[data-client-upd-text]');
+  const cuLos = inhalt.querySelector('[data-client-los]');
+  const cuZeigen = (u) => {
+    if (!cuText) return;
+    cuText.textContent = u?.version ? (u.stand === 'laedt' ? t('Wird geladen … {p} %', { p: u.prozent || 0 }) : u.stand === 'startet' ? t('Wird installiert – Amberwave startet gleich in der neuen Version.')
+      : u.stand === 'fehler' ? (u.fehler || t('Das hat nicht geklappt.')) : t('Neue Version {version} verfügbar.', { version: u.version })) : t('Wird beim Start und alle 12 Stunden geprüft.');
+    if (cuLos) cuLos.hidden = !(u?.version && u.installierbar && !['laedt', 'startet'].includes(u.stand));
+  };
+  if (cuText) {
+    nativ.update.info().then(cuZeigen).catch(() => cuZeigen(null));
+    const ab = nativ.update.auf?.(cuZeigen);
+    signal?.addEventListener('abort', () => ab?.());
+    inhalt.querySelector('[data-client-suchen]').addEventListener('click', async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true;
+      const r = await nativ.update.suchen().catch(() => null);
+      b.disabled = false;
+      if (!r?.ok) toast(t('GitHub ist gerade nicht erreichbar – später noch einmal versuchen.'), 'fehler');
+      else if (!r.update) { toast(t('Auf dem neuesten Stand ({version}).', { version: r.version })); cuText.textContent = t('Auf dem neuesten Stand.'); }
+      else cuZeigen(r.update);
+    });
+    cuLos.addEventListener('click', async () => { cuLos.disabled = true; await nativ.update.installieren().catch(() => false); cuLos.disabled = false; });
+  }
   const $ = (s) => inhalt.querySelector(s);
   const aktuell = () => geraete.find((g) => g.id === wahl.geraet) || (wahl.geraet === '' ? { id: '', name: t('Windows-Standardgerät') } : null);
 

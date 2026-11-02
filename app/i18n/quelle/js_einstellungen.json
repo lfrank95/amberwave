@@ -911,5 +911,10 @@
  "für Musik und Daten": "for music and data",
  "nächtliche Sicherungen von Datenbank und Einstellungen": "nightly backups of database and settings",
  "{belegt} von {gesamt} belegt": "{belegt} of {gesamt} used",
- "Amberwave, Datenbank, Cover, Sicherungen und Musik auf dem Gerät": "Amberwave, database, covers, backups and music on the device"
+ "Amberwave, Datenbank, Cover, Sicherungen und Musik auf dem Gerät": "Amberwave, database, covers, backups and music on the device",
+ "Auf dem neuesten Stand.": "Up to date.",
+ "Nach Updates suchen": "Check for updates",
+ "Neue Version {version} verfügbar.": "New version {version} available.",
+ "Windows Client": "Windows Client",
+ "Wird beim Start und alle 12 Stunden geprüft.": "Checked at start and every 12 hours."
 }

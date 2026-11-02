@@ -674,6 +674,7 @@ function connect_rueckkanal_laufen(): void
 /** Über welche Adresse erreichen wir den Partner gerade? (bekannter Weg oder neu gesucht) */
 function connect_rueck_basis(array $p): ?string
 {
+    $p = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $p['id']]) ?: $p;   // frisches Adressbuch
     if ($p['weg'] !== '' && $p['weg'] !== 'rueckkanal' && $p['weg_am'] && time() - strtotime((string) $p['weg_am']) < 600) {
         return $p['weg'];
     }

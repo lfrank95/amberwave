@@ -525,6 +525,7 @@ const clientEinst = () => {
 ipcMain.handle('client-einst', (e) => (erlaubt(e.senderFrame?.url || '') ? clientEinst() : null));
 ipcMain.handle('update-info', (e) => (erlaubt(e.senderFrame?.url || '') ? updateInfo() : null));
 ipcMain.handle('update-installieren', (e) => (erlaubt(e.senderFrame?.url || '') ? updateInstallieren() : false));
+ipcMain.handle('update-suchen', (e) => (erlaubt(e.senderFrame?.url || '') ? aufNeueVersionPruefen(true) : null));
 ipcMain.handle('client-einst-setzen', (e, w) => {
   if (!erlaubt(e.senderFrame?.url || '') || !w || typeof w !== 'object') return null;
   if (typeof w.tray === 'boolean') { einst.tray = w.tray; einstSpeichern(); }
@@ -633,11 +634,14 @@ function versionVergleich(a, b) {
 }
 
 let neueVersion = null;   // { version, url }
-async function aufNeueVersionPruefen() {
-  if (einst.update_hinweis === false) return;
+let zuletztGesucht = 0;
+/** Bei GitHub nach einer neueren Version schauen. vonHand: auch wenn der Hinweis abgeschaltet ist; Ergebnis für die Anzeige */
+async function aufNeueVersionPruefen(vonHand = false) {
+  if (einst.update_hinweis === false && !vonHand) return null;
   try {
     const r = await fetch(`${RELEASES_URL}?per_page=20`, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': `AmberwaveClient/${VERSION}` }, signal: AbortSignal.timeout(15000) });
-    if (!r.ok) return;
+    if (!r.ok) return { ok: false, version: VERSION };
+    zuletztGesucht = Date.now();
     const liste = await r.json();
     const vorab = VERSION.includes('-');
     let best = null;
@@ -653,9 +657,33 @@ async function aufNeueVersionPruefen() {
       log.schreiben('INFO', `Neue Version verfügbar: ${best.version}`);
       trayAktualisieren();
       senden('update', updateInfo());   // Hinweis im Fenster (neuere Web-App)
-      try { tray?.displayBalloon({ title: t('Neue Version {version}', { version: best.version }), content: t('Rechtsklick aufs Amberwave-Symbol → jetzt aktualisieren.'), iconType: 'info' }); } catch (e) { /* nur Windows */ }
+      if (!vonHand) try { tray?.displayBalloon({ title: t('Neue Version {version}', { version: best.version }), content: t('Rechtsklick aufs Amberwave-Symbol → jetzt aktualisieren.'), iconType: 'info' }); } catch (e) { /* nur Windows */ }
     }
-  } catch (e) { /* offline – später nochmal */ }
+    return { ok: true, version: VERSION, gesucht: zuletztGesucht, update: updateInfo() };
+  } catch (e) {
+    return { ok: false, version: VERSION };   // offline – später nochmal
+  }
+}
+
+/** Infobereich: „Nach Updates suchen“ – Ergebnis als kleines Fenster, bei neuer Version gleich mit „Jetzt aktualisieren“ */
+async function updateSuchenVonHand() {
+  const r = await aufNeueVersionPruefen(true);
+  if (!r?.ok) {
+    await dialog.showMessageBox(fenster || undefined, { type: 'warning', title: 'Amberwave', message: t('GitHub ist gerade nicht erreichbar.'), detail: t('Bitte später noch einmal versuchen.'), buttons: [t('OK')] }).catch(() => {});
+    return;
+  }
+  if (!r.update) {
+    await dialog.showMessageBox(fenster || undefined, { type: 'info', title: 'Amberwave', message: t('Amberwave ist auf dem neuesten Stand.'), detail: t('Installiert: {version}', { version: VERSION }), buttons: [t('OK')] }).catch(() => {});
+    return;
+  }
+  const a = await dialog.showMessageBox(fenster || undefined, {
+    type: 'info', title: 'Amberwave', message: t('Neue Version {version}', { version: r.update.version }),
+    detail: t('Installiert: {version}. Amberwave lädt die neue Version, schließt sich, installiert sie und startet von selbst wieder – deine Einstellungen bleiben.', { version: VERSION }),
+    buttons: r.update.installierbar ? [t('Jetzt aktualisieren'), t('Später')] : [t('Herunterladen'), t('Später')], defaultId: 0, cancelId: 1,
+  }).catch(() => ({ response: 1 }));
+  if (a.response === 0) {
+    if (r.update.installierbar) updateInstallieren(); else shell.openExternal(neueVersion.url);
+  }
 }
 
 /* ---------- Update in der App: laden, still installieren, in der neuen Version weiter ---------- */
@@ -702,7 +730,10 @@ async function updateInstallieren() {
   updateStand({ stand: 'startet', prozent: 100 });
   log.schreiben('INFO', `Update auf ${v}: Installer startet, Client beendet sich`);
   try {
-    spawn(ziel, ['/aktualisieren'], { detached: true, stdio: 'ignore' }).unref();
+    // Der Installer läuft als eigenständiger Prozess außerhalb von Amberwave (über „start“ entkoppelt, aus dem Temp-Ordner):
+    // er wartet, bis dieser Client samt Engine beendet ist, ersetzt dann den Programmordner und startet die neue Version.
+    spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `start "" "${ziel}" /aktualisieren`],
+      { detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true }).unref();
   } catch (e) {
     updateStand({ stand: 'fehler', fehler: e.message || String(e) });
     return false;
@@ -836,6 +867,7 @@ function trayAktualisieren() {
         label, type: 'radio', checked: i18n.einstellung() === wert, click: () => spracheSetzen(wert),
       })),
     },
+    { label: t('Nach Updates suchen …'), click: () => updateSuchenVonHand() },
     ...(neueVersion ? [{ label: neueVersion.installer ? t('Neue Version {version} – jetzt aktualisieren', { version: neueVersion.version }) : t('Neue Version {version} – herunterladen', { version: neueVersion.version }),
       click: () => (neueVersion.installer ? updateInstallieren() : shell.openExternal(neueVersion.url)) }] : []),
     { label: t('Über Amberwave …'), click: () => ueberZeigen() },

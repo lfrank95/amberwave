@@ -31,6 +31,7 @@
 #include <propkey.h>
 #include <propvarutil.h>
 #include <dwmapi.h>
+#include <tlhelp32.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -171,6 +172,27 @@ static void ordner_loeschen(const wchar_t *pfad) {
 }
 
 /** 1, wenn der Ordner (falls vorhanden) gerade nicht benutzt wird – Probe: einmal umbenennen und zurück */
+/* Beim stillen Update: Amberwave-Prozesse, die noch aus dem Programmordner laufen (Engine, VST-Host, ein hängender
+   Client), beenden – der Installer selbst läuft aus dem Temp-Ordner und ist davon nie betroffen. */
+static void prozesse_im_ordner_beenden(const wchar_t *ordner) {
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return;
+  size_t n = wcslen(ordner);
+  PROCESSENTRY32W pe; pe.dwSize = sizeof pe;
+  if (Process32FirstW(snap, &pe)) do {
+    if (pe.th32ProcessID == GetCurrentProcessId()) continue;
+    HANDLE p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pe.th32ProcessID);
+    if (!p) continue;
+    wchar_t bild[MAX_PATH * 2]; DWORD l = MAX_PATH * 2;
+    if (QueryFullProcessImageNameW(p, 0, bild, &l) && _wcsnicmp(bild, ordner, n) == 0 && bild[n] == L'\\') {
+      TerminateProcess(p, 0);
+      WaitForSingleObject(p, 3000);
+    }
+    CloseHandle(p);
+  } while (Process32NextW(snap, &pe));
+  CloseHandle(snap);
+}
+
 static int ordner_frei(const wchar_t *pfad) {
   if (GetFileAttributesW(pfad) == INVALID_FILE_ATTRIBUTES) return 1;
   wchar_t probe[MAX_PATH * 2];
@@ -286,7 +308,12 @@ static DWORD WINAPI installieren(LPVOID) {
     const wchar_t *laeuft_text = TX(L"Amberwave läuft noch (oder eine Datei im Ordner ist geöffnet). Bitte Amberwave schließen – auch im Infobereich neben der Uhr – und dann noch einmal „Installieren“ wählen.", L"Amberwave is still running (or a file in the folder is open). Please quit Amberwave – also in the notification area next to the clock – and then choose “Install” again.");
 #endif
     // beim stillen Update hat sich das Programm gerade erst beendet – bis zu 30 s warten, bis seine Dateien frei sind
-    for (int warten = aktualisieren ? 60 : 0; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
+    // Danach hängt noch etwas (z. B. die Engine)? Dann diese Prozesse beenden und noch einmal kurz warten.
+    for (int warten = aktualisieren ? 30 : 0; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
+    if (aktualisieren && !ordner_frei(ziel)) {
+      prozesse_im_ordner_beenden(ziel);
+      for (int warten = 20; !ordner_frei(ziel) && warten > 0; warten--) Sleep(500);
+    }
     if (!ordner_frei(ziel)) { wcscpy(fehler, laeuft_text); goto ende; }
     DWORD tick = GetTickCount();
     _snwprintf(auspack, MAX_PATH * 2, L"%ls.neu-%lu", ziel, tick);

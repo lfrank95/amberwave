@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- Connect: **the home network always wins** – when two servers with a back channel are on the same network, they talk directly again instead of going through the back channel (checked at most once a minute, quickly).
+- **Windows Client: "Check for updates"** in the tray menu and under Settings › Windows output, with "Update now" right there. The installer runs as its own process outside Amberwave: it waits until the client (and its engine) has closed, ends anything still running from the program folder if needed, replaces it and starts the new version.
+
 ## 0.9.1-beta.11 – Connect: back channel, network map, artist images
 - Connect: a **network map** at the top of the Connect tab shows how your servers reach each other right now – home network, direct access, tunnel/open address or back channel – and which servers are reachable from outside and which only connect outwards (CGNAT).
 - **Connect back channel:** a server that can't be reached from outside – behind CGNAT like Starlink, without a tunnel – now keeps a connection open to a paired server that can (e.g. your Unraid with its Cloudflare tunnel). Through it the other server reaches it anyway: browse, listen and copy work in both directions, with nothing to set up. Settings show when a server uses it; the connection shows as "Back channel". Idle it costs a few kilobits per second.

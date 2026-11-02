@@ -142,5 +142,12 @@
  "Neue Version {version} – jetzt aktualisieren": "New version {version} – update now",
  "Unerwartete Download-Adresse.": "Unexpected download address.",
  "Download fehlgeschlagen (HTTP {status}).": "Download failed (HTTP {status}).",
- "Die geladene Datei ist unvollständig.": "The downloaded file is incomplete."
+ "Die geladene Datei ist unvollständig.": "The downloaded file is incomplete.",
+ "Installiert: {version}": "Installed: {version}",
+ "Nach Updates suchen …": "Check for updates …",
+ "GitHub ist gerade nicht erreichbar.": "GitHub can't be reached right now.",
+ "Jetzt aktualisieren": "Update now",
+ "Amberwave ist auf dem neuesten Stand.": "Amberwave is up to date.",
+ "Bitte später noch einmal versuchen.": "Please try again later.",
+ "Installiert: {version}. Amberwave lädt die neue Version, schließt sich, installiert sie und startet von selbst wieder – deine Einstellungen bleiben.": "Installed: {version}. Amberwave downloads the new version, closes, installs it and starts again by itself – your settings stay."
 }

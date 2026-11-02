@@ -56,6 +56,7 @@ if (info && info.erlaubt) {
     update: {
       info: () => ipcRenderer.invoke('update-info'),
       installieren: () => ipcRenderer.invoke('update-installieren'),
+      suchen: () => ipcRenderer.invoke('update-suchen'),
       auf: (f) => { const h = (_e, d) => f(d); ipcRenderer.on('update', h); return () => ipcRenderer.removeListener('update', h); },
     },
   });

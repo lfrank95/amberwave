@@ -545,6 +545,9 @@ function connect_kandidaten(array $peer): array
  */
 function connect_weg_suchen(array $peer, bool $heimnetz_suchen = true): array
 {
+    if (connect_rueck_aktiv($peer) && ($lan = connect_lan_weg($peer, true)) !== null) {
+        return $lan;
+    }
     if (connect_rueck_aktiv($peer)) {
         $t0 = microtime(true);
         [$kopf] = connect_rufen($peer, 'hallo', [], 20);
@@ -579,7 +582,7 @@ function connect_weg_suchen(array $peer, bool $heimnetz_suchen = true): array
 }
 
 /** „hallo“ an mehrere Adressen gleichzeitig; [art, basis, ms, kopf] der schnellsten gültigen Antwort oder null */
-function connect_parallel_hallo(array $peer, array $kand): ?array
+function connect_parallel_hallo(array $peer, array $kand, bool $kurz = false): ?array
 {
     if (!$kand) {
         return null;
@@ -587,8 +590,8 @@ function connect_parallel_hallo(array $peer, array $kand): ?array
     $mh = curl_multi_init();
     $griffe = [];
     foreach ($kand as $i => [$art, $basis]) {
-        $ch = connect_curl($basis, connect_anfrage_bauen($peer, 'hallo', []), 8);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        $ch = connect_curl($basis, connect_anfrage_bauen($peer, 'hallo', []), $kurz ? 3 : 8);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, $kurz ? 900 : 3000);
         curl_multi_add_handle($mh, $ch);
         $griffe[$i] = $ch;
     }
@@ -680,7 +683,10 @@ function connect_heimnetz_absuchen(array $peer): array
  */
 function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): array
 {
-    if (connect_rueck_aktiv($peer)) {
+    // Rückkanal nur, wenn es keinen Weg im Heimnetz gibt – das Heimnetz hat immer Vorrang
+    if (connect_rueck_aktiv($peer) && ($lan = connect_lan_weg($peer)) !== null) {
+        $peer = $lan;
+    } elseif (connect_rueck_aktiv($peer)) {
         $r = connect_antwort_oeffnen($peer, connect_rueck_rufen($peer, connect_anfrage_bauen($peer, $m, $a), $zeit));
         if (!$r) {
             throw new ApiFehler(t('„{name}“ antwortet nicht richtig.', ['name' => $peer['name']]), 503);
@@ -691,7 +697,7 @@ function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): a
         }
         return [$kopf, $binaer];
     }
-    $alt = $peer['weg'] !== '' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300;
+    $alt = $peer['weg'] !== '' && $peer['weg'] !== 'rueckkanal' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300;
     if (!$alt) {
         $peer = connect_weg_suchen($peer);
     }
@@ -710,6 +716,9 @@ function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): a
         }
         if ($versuch === 0) {
             $peer = connect_weg_suchen($peer);   // Weg weg (neue IP, Netzwechsel …): neu suchen und noch einmal
+            if ($peer['weg'] === 'rueckkanal') {
+                return connect_rufen($peer, $m, $a, $zeit);   // nur noch über den Rückkanal erreichbar
+            }
         }
     }
     throw new ApiFehler(t('„{name}“ antwortet nicht richtig.', ['name' => $peer['name']]), 503);
@@ -969,12 +978,42 @@ function connect_rueck_aktiv(array $peer): bool
     return $m !== false && time() - $m < 75;
 }
 
+/**
+ * Gibt es zu einer Gegenstelle mit Rückkanal einen direkten Weg im Heimnetz? Ein frisch gefundener gilt 5 Minuten;
+ * sonst werden ihre Heimnetz-Adressen kurz angefragt (höchstens alle 60 s). Gibt die Zeile mit diesem Weg zurück oder null.
+ */
+function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
+{
+    if ($peer['weg_art'] === 'heimnetz' && $peer['weg'] !== '' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300) {
+        return $peer;
+    }
+    $merker = connect_rueck_ordner((int) $peer['id']) . '/lan_geprueft';
+    $m = @filemtime($merker);
+    if (!$erzwingen && $m !== false && time() - $m < 60) {
+        return null;
+    }
+    @touch($merker);
+    $kand = array_values(array_filter(connect_kandidaten($peer), static fn($k) => $k[0] === 'heimnetz'));
+    $treffer = $kand ? connect_parallel_hallo($peer, $kand, true) : null;   // im Heimnetz antwortet er sofort – kurz warten
+    if (!$treffer) {
+        return null;
+    }
+    [, $basis, $ms] = $treffer;
+    db_tun("UPDATE connect_server SET weg = :w, weg_art = 'heimnetz', weg_ms = :ms, weg_am = NOW(), zuletzt_am = NOW() WHERE id = :id",
+        ['w' => $basis, 'ms' => $ms, 'id' => $peer['id']]);
+    $neu = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $peer['id']]);
+    $neu['_hallo'] = $treffer[3];
+    return $neu;
+}
+
 /** „warten“ der Gegenstelle: bis zu 25 s auf Anfragen an sie warten, dann zurückgeben, was anliegt */
 function connect_rueck_warten(array $peer): array
 {
     $d = connect_rueck_ordner((int) $peer['id']);
     @touch($d . '/lebt');
-    db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_am = NOW() WHERE id = :id", ['id' => $peer['id']]);
+    // Weg „Rückkanal“ vermerken – außer es gibt gerade einen frischen Weg im Heimnetz (der hat Vorrang)
+    db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_am = NOW() WHERE id = :id
+        AND NOT (weg_art = 'heimnetz' AND weg_am > NOW() - INTERVAL 300 SECOND)", ['id' => $peer['id']]);
     db_schliessen();
     @set_time_limit(60);
     $ende = microtime(true) + 25;
