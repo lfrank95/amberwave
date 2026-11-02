@@ -822,6 +822,7 @@ function connect_rueckkanal_laufen(): void
     $griffe = [];  // id => curl
     $zs = [];      // id => Zufallswert der offenen Anfrage
     $fehlerFolge = [];   // id => Fehlschläge in Folge
+    $heimProbe = time();
     $weiter = false;
     try {
         while (true) {
@@ -834,6 +835,18 @@ function connect_rueckkanal_laufen(): void
                 }
                 $griffe = $zs = $pause = [];
                 $liste_am = 0;
+            }
+            // Auch ohne erkannten Netzwechsel (Server in Docker mit eigenem Netz sieht ihn nicht): einmal pro Minute
+            // nachsehen, ob ein Partner, den wir über das Internet erreichen, inzwischen im Heimnetz zu haben ist
+            if (time() - $heimProbe >= 60) {
+                $heimProbe = time();
+                foreach (array_keys($partner) as $id) {
+                    if (connect_heim_probe($id) && isset($griffe[$id])) {
+                        curl_multi_remove_handle($mh, $griffe[$id]);   // offene „warten“ läuft noch über den alten Weg
+                        curl_close($griffe[$id]);
+                        unset($griffe[$id], $zs[$id], $pause[$id]);
+                    }
+                }
             }
             $auslaufen = time() > $ende - 50;   // kurz vor Schluss keine neuen „warten“ mehr – offene zu Ende lesen
             if (!$auslaufen && time() - $liste_am > 120) {
@@ -921,6 +934,24 @@ function connect_rueckkanal_laufen(): void
     if ($weiter) {
         connect_rueckkanal_anstossen();   // nahtlos weiter mit frischem Prozess
     }
+}
+
+/** Partner gerade nicht über das Heimnetz verbunden, antwortet aber dort? Dann Weg umstellen (true) */
+function connect_heim_probe(int $id): bool
+{
+    $p = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $id]);
+    if (!$p || $p['weg_art'] === 'heimnetz') {
+        return false;
+    }
+    $kand = array_values(array_filter(connect_kandidaten($p), static fn($k) => $k[0] === 'heimnetz'));
+    $treffer = $kand ? connect_parallel_hallo($p, $kand, true) : null;
+    if (!$treffer) {
+        return false;
+    }
+    connect_lan_gefunden($id, $treffer[1]);
+    db_tun("UPDATE connect_server SET weg = :w, weg_art = 'heimnetz', weg_ms = :ms, weg_am = NOW(), zuletzt_am = NOW() WHERE id = :id",
+        ['w' => $treffer[1], 'ms' => $treffer[2], 'id' => $id]);
+    return true;
 }
 
 /** Letzter Stand je Partner (für die Einstellungen): wann zuletzt eine „warten“ gut durchlief, letzter Fehler */

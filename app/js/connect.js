@@ -59,10 +59,37 @@ export function connectTitel(sid, server, tk, album = null) {
   };
 }
 
-function wegChip(s) {
+function wegChipInnen(s) {
   if (!s.erreichbar) return `<span class="einst-chip warn">${h(t('nicht erreichbar'))}</span>`;
   const art = WEG()[s.weg?.art] || s.weg?.art || '';
   return `<span class="einst-chip gut">${h(art)}${s.weg?.ms != null ? ` · ${zahl(s.weg.ms)} ms` : ''}</span>`;
+}
+function wegChip(s) {
+  return `<span data-weg-s="${s.id}">${wegChipInnen(s)}</span>`;
+}
+
+/**
+ * Verbindungsanzeigen live halten: alle 8 s (nur sichtbar) die Serverliste holen und Weg-Chips sowie die Netzkarte
+ * auffrischen – ein Wechsel aufs Heimnetz oder auf den Rückkanal erscheint so ohne Neuladen und ohne „Verbindung prüfen“.
+ */
+function wegeLiveHalten(wurzel, signal) {
+  let zuletzt = '';
+  const runde = async () => {
+    if (!wurzel.isConnected || signal?.aborted) { clearInterval(uhr); return; }
+    if (document.hidden) return;
+    let r;
+    try { r = await serverListe(true); } catch (e) { return; }
+    const stand = JSON.stringify(r.server.map((s) => [s.id, s.erreichbar, s.weg?.art]));
+    for (const s of r.server) wurzel.querySelectorAll(`[data-weg-s="${s.id}"]`).forEach((el) => { el.innerHTML = wegChipInnen(s); });
+    if (zuletzt && stand !== zuletzt) {
+      const nk = wurzel.querySelector('.nk');
+      if (nk) nk.outerHTML = netzkarte(r);
+    }
+    zuletzt = stand;
+  };
+  const uhr = setInterval(runde, 8000);
+  signal?.addEventListener('abort', () => clearInterval(uhr));
+  runde();
 }
 
 /** Album-Kachel eines anderen Servers – mit Hinweis, wenn wir das Album selbst schon haben */
@@ -324,6 +351,7 @@ export const connectAnsichten = {
         : leer(t('Noch kein Server gekoppelt'), admin ? t('Koppel einen zweiten Amberwave – etwa im Wohnwagen oder bei der Familie. Dann stöberst du hier in seiner Musik, hörst rein und holst dir Alben herüber.') : t('Ein Admin kann unter Einstellungen › Amberwave Connect einen weiteren Amberwave-Server koppeln.'),
           admin ? `<a class="btn" href="/einstellungen/connect" data-link>${t('Server koppeln')}</a>` : '')}
       ${admin ? abschnitt(t('Übertragungen'), '<div data-auftraege><div class="lade"></div></div>') : ''}`;
+    wegeLiveHalten(ziel, signal);
     const box = ziel.querySelector('[data-auftraege]');
     if (box) await auftraegeZeichnen(app, box, signal);
     document.title = 'Amberwave Connect';
@@ -539,6 +567,7 @@ export async function connectEinstellungenZeichnen(app, inhalt, signal) {
         </section>
       </div>`)}`;
 
+  wegeLiveHalten(inhalt, ctrl.signal);
   const neu = () => { connectCacheLeeren(); app.zaehlerAktualisieren?.(); connectEinstellungenZeichnen(app, inhalt, signal); };
 
   // Eigener Name: Speichern erscheint, sobald etwas geändert ist

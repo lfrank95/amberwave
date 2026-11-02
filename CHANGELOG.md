@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- **Connect: coming home switches to the home network on its own.** When a request from a partner arrives directly from the home network while it's still listed as "back channel" or "tunnel", the server knocks on the sender's address right away (under a second) instead of waiting for the next check or a click on "Check connection". The other way round, a partner that suddenly calls in over the internet is re-checked at the next request.
+- Connect: the back-channel loop also looks once a minute whether a partner it reaches over the internet is now on the home network – this works even where a server can't notice its own network change (Docker with its own network).
+- Connect tab and Connect settings: the connection chips and the network map update by themselves every few seconds, so a switch shows without reloading.
+
 ## 0.9.1-beta.16 – Better MusicBrainz search, browse by artist
 - **MusicBrainz matching: browse by artist.** Next to "Search album" there is now "Browse by artist": pick the artist and see all their releases like on musicbrainz.org – albums, EPs, singles, live, compilations – with covers and year; click one to see all its editions and compare as usual. When an album search finds nothing, a button takes you straight to the artist's releases.
 - MusicBrainz search no longer shows unrelated albums: results must share the title with what you searched (titles made only of symbols like "÷" are compared literally), the title now weighs as much as track count and artist in the ranking, and the album an edition is linked to is only added to the first automatic search – clearly marked as "currently linked album" – instead of to every search you type yourself.

@@ -308,6 +308,16 @@ function connect_verarbeiten(string $roh, bool $heimnetz = false, ?array $gesehe
         $upd['n'] = mb_substr($a['name'], 0, 120);
     }
     db_tun($sql . ' WHERE id = :id', $upd);
+    if (is_array($a['ad'] ?? null)) {
+        $peer['adressen'] = $upd['ad'];
+    }
+    if ($heimnetz && $peer['weg_art'] !== 'heimnetz') {
+        connect_lan_vom_absender($peer);   // gerade nach Hause gekommen?
+        $peer = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $peer['id']]) ?: $peer;
+    } elseif (!$heimnetz && isset($gesehen['oeffentlich']) && $peer['weg_art'] === 'heimnetz' && $peer['weg_am']) {
+        // Kommt über das Internet, obwohl wir ihn im Heimnetz wähnen: vermutlich weggefahren – beim nächsten Mal neu prüfen
+        db_tun("UPDATE connect_server SET weg_am = NULL WHERE id = :id AND weg_art = 'heimnetz'", ['id' => $peer['id']]);
+    }
     try {
         [$kopf, $binaer] = connect_methode($peer, (string) ($a['m'] ?? ''), is_array($a['a'] ?? null) ? $a['a'] : []);
         $kopf = ['ok' => true] + $kopf;
@@ -1256,7 +1266,7 @@ function connect_rueck_aktiv(array $peer): bool
  * Gibt es zu einer Gegenstelle mit Rückkanal einen direkten Weg im Heimnetz? Ein frisch gefundener gilt 5 Minuten;
  * sonst werden ihre Heimnetz-Adressen kurz angefragt (höchstens alle 60 s). Gibt die Zeile mit diesem Weg zurück oder null.
  */
-function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
+function connect_lan_weg(array $peer, bool $erzwingen = false, array $extra = []): ?array
 {
     if (!$erzwingen && $peer['weg_art'] === 'heimnetz' && $peer['weg'] !== '' && $peer['weg_am'] && time() - strtotime((string) $peer['weg_am']) < 300) {
         return $peer;
@@ -1267,7 +1277,8 @@ function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
         return null;
     }
     @touch($merker);
-    $kand = array_values(array_filter(connect_kandidaten($peer), static fn($k) => $k[0] === 'heimnetz'));
+    $kand = array_merge($extra, array_values(array_filter(connect_kandidaten($peer), static fn($k) => $k[0] === 'heimnetz')));
+    $kand = array_values(array_intersect_key($kand, array_unique(array_column($kand, 1))));
     $treffer = $kand ? connect_parallel_hallo($peer, $kand, true) : null;   // im Heimnetz antwortet er sofort – kurz warten
     if (!$treffer) {
         $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
@@ -1289,6 +1300,37 @@ function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
     $neu = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $peer['id']]);
     $neu['_hallo'] = $treffer[3];
     return $neu;
+}
+
+/**
+ * Eine Anfrage kam direkt aus dem Heimnetz, die Gegenstelle steht bei uns aber nicht auf „Heimnetz“: sie ist gerade nach Hause
+ * gekommen (oder hat eine neue IP). Gleich unter ihrer Absender-Adresse anklopfen (900 ms, höchstens alle 10 s), statt auf die
+ * minütliche Prüfung oder einen Klick auf „Verbindung prüfen“ zu warten.
+ */
+function connect_lan_vom_absender(array $peer): void
+{
+    $merker = connect_rueck_ordner((int) $peer['id']) . '/lan_absender';
+    $m = @filemtime($merker);
+    if ($m !== false && time() - $m < 10) {
+        return;
+    }
+    @touch($merker);
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || str_starts_with($ip, '127.')) {
+        return;
+    }
+    $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
+    $ports = [];
+    foreach (array_merge(connect_lan_gefunden((int) $peer['id']), (array) ($ad['lan'] ?? [])) as $u) {
+        $ports[] = (int) (parse_url((string) $u, PHP_URL_PORT) ?: 80);
+    }
+    $ports = array_slice(array_values(array_unique(array_merge($ports, [9950, 8095, 80]))), 0, 4);
+    $extra = array_map(static fn($p) => ['heimnetz', 'http://' . $ip . ($p === 80 ? '' : ':' . $p)], $ports);
+    try {
+        connect_lan_weg($peer, true, $extra);
+    } catch (Throwable $e) {
+        error_log('Connect: Heimnetz-Probe: ' . log_sauber($e->getMessage()));
+    }
 }
 
 /** „warten“ der Gegenstelle: bis zu 25 s auf Anfragen an sie warten, dann zurückgeben, was anliegt */
