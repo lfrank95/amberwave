@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.9.1-beta.15 – Windows Client update fix
-- **Windows Client: updating from within the app works again.** The installer inherited the program folder as its working folder and so kept that very folder in use – it waited at 0 % and then reported that Amberwave was still running. It now runs from the Temp folder, shows "Waiting for Amberwave to close …" and ends leftover Amberwave processes (engine, plug-in host) if needed. The fix sits in the new installer, so updating from beta.14 onwards works from within the app; to get from beta.13 or beta.14 to this version, quit Amberwave in the notification area and run the installer from the release page once.
+- **Windows Client: updating from within the app works again.** The installer inherited the program folder as its working folder and so kept that very folder in use – it waited at 0 % and then reported that Amberwave was still running. It now runs from the Temp folder, shows "Waiting for Amberwave to close …" and ends leftover Amberwave processes (engine, plug-in host) if needed. The fix sits in the new installer, so updating to this version from within the app already works.
 
 ## 0.9.1-beta.14 – Connect hardened after an independent review
 - **Server ID bound to the address** (apps and servers need this version): the signature a server gives when an app asks "is it really you?" now also covers the address the app used – a captured proof can't be replayed under another address. Older apps won't accept servers on this version and vice versa, so update the Windows Client and the Android app together with the server.
