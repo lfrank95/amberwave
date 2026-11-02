@@ -1217,9 +1217,13 @@ function connect_rueck_warten(array $peer): array
             @unlink($f);
         }
     }
-    // Weg „Rückkanal“ vermerken – außer es gibt gerade einen frischen Weg im Heimnetz (der hat Vorrang)
-    db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_am = NOW() WHERE id = :id
-        AND NOT (weg_art = 'heimnetz' AND weg_am > NOW() - INTERVAL 300 SECOND)", ['id' => $peer['id']]);
+    // Weg „Rückkanal“ vermerken – außer die Gegenstelle ist im Heimnetz zu haben (das hat Vorrang). Das prüfen wir hier
+    // selbst (höchstens einmal pro Minute, 900 ms): sonst bliebe bei einem Server, der nie von sich aus anruft, dauerhaft
+    // „Rückkanal“ stehen, obwohl beide im selben Netz sind – der andere hält den Kanal ja trotzdem offen.
+    if (connect_lan_weg($peer) === null) {
+        db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_am = NOW() WHERE id = :id
+            AND NOT (weg_art = 'heimnetz' AND weg_am > NOW() - INTERVAL 300 SECOND)", ['id' => $peer['id']]);
+    }
     db_schliessen();
     @set_time_limit(60);
     $ende = microtime(true) + 25;
