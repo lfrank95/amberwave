@@ -67,7 +67,7 @@ function wegChip(s) {
 
 /** Album-Kachel eines anderen Servers – mit Hinweis, wenn wir das Album selbst schon haben */
 function kachel(a, opt = {}) {
-  const html = albumKachel(a._da ? { ...a, hinweis: t('Hast du schon') } : a, opt);
+  const html = albumKachel({ ...a, favorit: false, ...(a._da ? { hinweis: t('Hast du schon') } : {}) }, { ...opt, herz: false });
   return a._da ? html.replace('<div class="kachel"', '<div class="kachel cn-da"') : html;
 }
 
@@ -141,7 +141,8 @@ function titelMenue(app, anker, sid, tk) {
 }
 
 /** „Auf diesen Server laden“: Qualität wählen (Standard zuerst), dann Auftrag anlegen */
-function holenMenue(app, anker, sid, ziel) {
+async function holenMenue(app, anker, sid, ziel) {
+  if (!serverCache) await serverListe().catch(() => null);
   const dir = serverCache?.daten?.server?.find((x) => x.id === sid)?.dir_erlaubt || {};
   const std = app.ich.admin?.connect_qualitaet || 'opus256';
   const qs = QUALITAETEN().filter(([q]) => dir.original !== false || !['original', 'flac1644'].includes(q));
@@ -251,7 +252,7 @@ function netzkarte(r) {
   const knoten = ({ x, y }, name, unter, klasse) => {
     const w = 184, hoehe = 58;
     return `<g class="nk-knoten ${klasse}"><rect x="${x - w / 2}" y="${y - hoehe / 2}" width="${w}" height="${hoehe}" rx="14"/>
-      <text x="${x}" y="${y - 4}" class="nk-name">${h(name.length > 22 ? `${name.slice(0, 21)}…` : name)}</text>
+      <text x="${x}" y="${y - 4}" class="nk-name"${name.length > 18 ? ` textLength="${w - 20}" lengthAdjust="spacingAndGlyphs"` : ''}>${h(name.length > 26 ? `${name.slice(0, 25)}…` : name)}</text>
       <text x="${x}" y="${y + 16}" class="nk-unter">${h(unter)}</text></g>`;
   };
   const linie = (a, b, klasse, pfeil = false) => `<path class="nk-linie ${klasse}" d="M${a.x},${a.y} L${b.x},${b.y}"${pfeil ? ' marker-end="url(#nk-pfeil)"' : ''}/>`;
@@ -281,14 +282,15 @@ function netzkarte(r) {
     // Server, die von außen nicht erreichbar sind, öffnen die Verbindung selbst (Pfeil ins Internet)
     linien += !s.von_aussen && a ? linie(oben, { x: netz.x + (p.x - netz.x) * 0.12, y: netz.y + 22 }, k, true)
       : linie({ x: netz.x + (p.x - netz.x) * 0.12, y: netz.y + 18 }, oben, k);
-    texte += beschriftung((netz.x + p.x) / 2 + (p.x < netz.x ? -8 : 8), (netz.y + p.y) / 2 + 6, text, `${k} ${p.x < netz.x ? 'nk-rechtsbuendig' : 'nk-links'}`);
+    // Beschriftungen versetzt (abwechselnd höher/tiefer), damit sie sich bei vielen Partnern nicht überlagern
+    texte += beschriftung((netz.x + p.x) / 2 + (p.x < netz.x ? -8 : 8), (netz.y + p.y) / 2 + 6 + (i % 2 ? 16 : -10), text, `${k} ${p.x < netz.x ? 'nk-rechtsbuendig' : 'nk-links'}`);
   });
   const knotenHtml = knoten(eigen, r.ausweis.name, offenText(r.ausweis), 'nk-eigen')
     + (ueberNetz ? `<g class="nk-netz"><rect x="${netz.x - 70}" y="${netz.y - 18}" width="140" height="36" rx="18"/><text x="${netz.x}" y="${netz.y + 5}">${h(t('Internet'))}</text></g>` : '')
     + peers.map((s, i) => knoten(pos[i], s.name, offenText(s), s.erreichbar ? '' : 'nk-weg')).join('');
   const legende = [['nk-heimnetz', t('Heimnetz')], ['nk-direkt', t('Direktzugang')], ['nk-tunnel', t('Tunnel / offene Adresse')], ['nk-rueck', t('Rückkanal – hält eine Verbindung von innen offen (CGNAT)')], ['nk-aus', t('gerade nicht erreichbar')]];
   return `<section class="nk" aria-label="${h(t('Wie die Server verbunden sind'))}">
-    <div class="nk-bild"><svg viewBox="0 0 ${B} ${H}" style="max-width:${B}px;min-width:${peers.length > 2 ? 560 : 0}px" role="img" aria-label="${h(t('Netzkarte der gekoppelten Server'))}">
+    <div class="nk-bild"><svg viewBox="0 0 ${B} ${H}" style="max-width:${B}px;min-width:${peers.length > 2 ? Math.min(B, 180 * peers.length) : 0}px" role="img" aria-label="${h(t('Netzkarte der gekoppelten Server'))}">
       <defs><marker id="nk-pfeil" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="nk-pfeilspitze"/></marker></defs>
       ${linien}${knotenHtml}${texte}</svg></div>
     <div class="nk-legende">${legende.map(([k, n]) => `<span><i class="${k}"></i>${h(n)}</span>`).join('')}</div>
@@ -477,9 +479,14 @@ const zeile = (k, name, hinweis, regler = '', attr = '') => `<div class="einst-z
  * Server-Einstellungen und kommen aus der gemeinsamen Beschreibung in einstellungen.js.
  * Gekoppelt heißt immer: beide Seiten dürfen stöbern, reinhören und Musik holen.
  */
+let einstAbbruch = null;   // Timer und Poller des letzten Zeichnens – beim Neuzeichnen gestoppt
 export async function connectEinstellungenZeichnen(app, inhalt, signal) {
+  einstAbbruch?.abort();
+  const ctrl = new AbortController();
+  einstAbbruch = ctrl;
+  signal?.addEventListener('abort', () => ctrl.abort());
   const r = await serverListe(true);
-  if (signal?.aborted) return;
+  if (signal?.aborted || ctrl.signal.aborted) return;
   const ad = r.adressen || {};
   const adressen = [...(ad.lan || []).map((u) => [t('Heimnetz'), u]), ...(ad.direkt ? [[t('Direktzugang'), ad.direkt]] : []), ...(ad.oeffentlich ? [[t('Von außen'), ad.oeffentlich]] : []), ...(ad.tunnel ? [[t('Tunnel'), ad.tunnel]] : [])];
   const serverZeile = (s) => `<div class="cn-peer" data-s="${s.id}">
@@ -559,7 +566,7 @@ export async function connectEinstellungenZeichnen(app, inhalt, signal) {
   // Code anzeigen (läuft er schon, gleich wieder anzeigen)
   const codeBox = inhalt.querySelector('[data-code-box]');
   let uhr = null;
-  signal?.addEventListener('abort', () => clearInterval(uhr));
+  ctrl.signal.addEventListener('abort', () => clearInterval(uhr));
   const codeZeigen = (c) => {
     clearInterval(uhr);
     if (!c) {
@@ -580,9 +587,10 @@ export async function connectEinstellungenZeichnen(app, inhalt, signal) {
       el.textContent = t('noch {m}:{s}', { m: Math.floor(rest / 60), s: String(rest % 60).padStart(2, '0') });
       if (!rest) { codeZeigen(null); return; }
       // Alle 3 s schauen, ob der andere Server gekoppelt hat
-      if (++n % 3 === 0) {
+      if (++n % 3 === 0 && !ctrl.signal.aborted) {
         const x = await serverListe(true).catch(() => null);
-        if (x && x.server.length > vorher) { toast(t('Gekoppelt mit {name}', { name: x.server[x.server.length - 1].name })); neu(); }
+        if (ctrl.signal.aborted) return;
+        if (x && x.server.length > vorher) { clearInterval(uhr); toast(t('Gekoppelt mit {name}', { name: x.server[x.server.length - 1].name })); neu(); }
       }
     };
     takt();
@@ -619,7 +627,7 @@ export async function connectEinstellungenZeichnen(app, inhalt, signal) {
     box.innerHTML = l.length ? `<div class="cn-funde">${l.map((f) => `<button type="button" class="cn-fund" ${f.gekoppelt ? 'disabled' : ''} data-uebernehmen="${h(f.adresse)}">
         <b>${h(f.name || f.adresse)}</b><small>${h(f.adresse.replace(/^https?:\/\//, ''))} · ${h(f.kennung)}</small>
         ${f.gekoppelt ? `<span class="einst-chip gut">${t('schon gekoppelt')}</span>` : `<span class="cn-fund-los">${t('Übernehmen')}</span>`}</button>`).join('')}</div>`
-      : `<p class="cn-hinweis">${x.netze?.length ? t('Im Netz {netz} hat kein anderer Amberwave geantwortet.', { netz: x.netze.map((n) => `${n}.x`).join(', ') }) : t('Dieser Server kennt sein Heimnetz noch nicht. Öffne Amberwave einmal über seine Adresse im Heimnetz und versuch es dann nochmal.')}</p>`;
+      : `<p class="cn-hinweis">${x.netze?.length ? t('Im Netz {netz} hat kein anderer Amberwave geantwortet.', { netz: h(x.netze.map((n) => `${n}.x`).join(', ')) }) : t('Dieser Server kennt sein Heimnetz noch nicht. Öffne Amberwave einmal über seine Adresse im Heimnetz und versuch es dann nochmal.')}</p>`;
     box.querySelectorAll('[data-uebernehmen]:not([disabled])').forEach((u) => u.addEventListener('click', () => {
       form.adresse.value = u.dataset.uebernehmen.replace(/^https?:\/\//, '');
       form.code.focus();

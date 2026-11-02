@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/connect.php';
 require_once __DIR__ . '/schreibschutz.php';
 
+const CONNECT_DATEI_MAX = 4 * 1024 * 1024 * 1024;   // größer wird keine einzelne Datei geholt (4 GB)
+const CONNECT_FREI_MIN = 2 * 1024 * 1024 * 1024;    // so viel Platz bleibt auf dem Musikordner immer frei (2 GB)
 const CONNECT_ENDUNG = ['opus256' => 'opus', 'opus160' => 'opus', 'opus128' => 'opus', 'aac256' => 'm4a', 'aac160' => 'm4a', 'flac1644' => 'flac'];
 
 // ---------- Tempo ----------
@@ -12,6 +14,12 @@ const CONNECT_ENDUNG = ['opus256' => 'opus', 'opus160' => 'opus', 'opus128' => '
 /** Grenze in Mbit/s für eine Richtung (0 = keine), unter Berücksichtigung von „nachts frei“ und „im Heimnetz frei“ */
 function connect_grenze(string $richtung, bool $heimnetz): float
 {
+    // Langläufer (Arbeiter, Rückkanal) sollen Änderungen an der Grenze mitbekommen: Einstellungs-Cache alle 30 s leeren
+    static $frisch = 0;
+    if (PHP_SAPI === 'cli' && time() - $frisch > 30) {
+        $frisch = time();
+        einstellung_db_wert('__reset__');
+    }
     if ($heimnetz && einstellung('connect_heim_frei') === '1') {
         return 0.0;
     }
@@ -38,6 +46,9 @@ function connect_tempo_warten(string $richtung, int $bytes, bool $heimnetz): voi
     flock($fp, LOCK_EX);
     $naechste = (float) stream_get_contents($fp);
     $jetzt = microtime(true);
+    if ($naechste > $jetzt + 120) {
+        $naechste = $jetzt;   // Uhr ist zurückgesprungen (NTP, Standby): Zeitplan nicht in der Zukunft kleben lassen
+    }
     $start = max($jetzt, $naechste < $jetzt - 2 ? $jetzt : $naechste);
     ftruncate($fp, 0);
     rewind($fp);
@@ -247,6 +258,8 @@ function connect_schon_da(array $t): bool
 }
 
 /** Arbeiter: alle offenen Aufträge abarbeiten (höchstens ~50 Minuten, dann übernimmt der nächste Lauf) */
+final class ConnectZeitUm extends RuntimeException {}
+
 function connect_arbeiten(): void
 {
     $fp = fopen(connect_ordner() . '/arbeiter.sperre', 'c');
@@ -254,30 +267,40 @@ function connect_arbeiten(): void
         return;
     }
     $ende = time() + 3000;
+    $zurueck = [];   // Aufträge, die in diesem Lauf schon gescheitert sind – die anderen kommen dran
     try {
         while (time() < $ende) {
-            $a = db_zeile("SELECT * FROM connect_auftraege WHERE status IN ('laeuft', 'wartet') ORDER BY status = 'laeuft' DESC, id LIMIT 1");
+            $sql = "SELECT * FROM connect_auftraege WHERE status IN ('laeuft', 'wartet')";
+            if ($zurueck) {
+                $sql .= ' AND id NOT IN (' . implode(',', array_map('intval', $zurueck)) . ')';
+            }
+            $a = db_zeile($sql . " ORDER BY status = 'laeuft' DESC, id LIMIT 1");
             if (!$a) {
                 break;
             }
             try {
                 connect_auftrag_ausfuehren($a, $ende);
+            } catch (ConnectZeitUm $e) {
+                break;   // kein Fehler: der nächste Lauf macht weiter
             } catch (Throwable $e) {
                 $fehler = mb_substr($e->getMessage(), 0, 500);
                 $neu = (int) db_wert('SELECT COUNT(*) FROM connect_dateien WHERE auftrag_id = :a AND status = \'fertig\'', ['a' => $a['id']]);
                 // Netz weg o. Ä.: Auftrag bleibt offen und geht später weiter – erst nach wiederholtem Scheitern als Fehler
-                $versuche = (int) (json_decode((string) @file_get_contents(connect_ordner() . '/versuche.json'), true)[$a['id']] ?? 0) + 1;
+                $alle = json_decode((string) @file_get_contents(connect_ordner() . '/versuche.json'), true) ?: [];
+                $bytesJetzt = (int) db_wert('SELECT bytes FROM connect_auftraege WHERE id = :id', ['id' => $a['id']]);
+                // Fortschritt seit dem letzten Fehler? Dann zählt der Zähler von vorn (Abbrüche über Tage sind kein Scheitern)
+                $versuche = ($alle['b' . $a['id']] ?? -1) === $bytesJetzt ? (int) ($alle[$a['id']] ?? 0) + 1 : 1;
                 // Dauerhafte Hindernisse (Schreibschutz, Rechte) gleich als Fehler – Wiederholen bringt da nichts
                 if (!musik_schreiben_erlaubt() || ($e instanceof ApiFehler && in_array($e->getCode(), [400, 403, 404], true))) {
                     $versuche = 30;
                 }
-                $alle = json_decode((string) @file_get_contents(connect_ordner() . '/versuche.json'), true) ?: [];
                 $alle[$a['id']] = $versuche;
-                @file_put_contents(connect_ordner() . '/versuche.json', json_encode($alle));
+                $alle['b' . $a['id']] = $bytesJetzt;
+                @file_put_contents(connect_ordner() . '/versuche.json', json_encode($alle), LOCK_EX);
                 db_tun('UPDATE connect_auftraege SET status = :s, fehler = :f, fertig = :n WHERE id = :id',
                     ['s' => $versuche >= 30 ? 'fehler' : 'laeuft', 'f' => $fehler, 'n' => $neu, 'id' => $a['id']]);
                 if ($versuche < 30) {
-                    break;   // später weiter (der Zeitplan stößt jede Minute an)
+                    $zurueck[] = (int) $a['id'];   // später weiter (der Zeitplan stößt jede Minute an) – erst die anderen
                 }
             }
         }
@@ -304,6 +327,12 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
                 continue;
             }
             $endung = $a['qualitaet'] === 'original' ? strtolower((string) $t['format']) : CONNECT_ENDUNG[$a['qualitaet']];
+            if (!preg_match('/^[a-z0-9]{1,5}$/', $endung)) {
+                $endung = 'bin';   // nur eine schlichte Endung – nie Pfadteile vom anderen Server
+            }
+            if ((int) $t['groesse'] > CONNECT_DATEI_MAX) {
+                continue;   // unplausibel groß – wird übersprungen
+            }
             $ziel = connect_zielpfad($peer, $t, $endung === 'aac' ? 'm4a' : $endung);
             db_einfuegen('INSERT INTO connect_dateien (auftrag_id, track_ref, ziel, groesse) VALUES (:a, :t, :z, :g)',
                 ['a' => $a['id'], 't' => (int) $t['track'], 'z' => $ziel, 'g' => $a['qualitaet'] === 'original' ? (int) $t['groesse'] : 0]);
@@ -314,7 +343,7 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
         db_tun('UPDATE connect_auftraege SET dateien = :n, gesamt = :g, titel = :t WHERE id = :id', ['n' => $n, 'g' => $gesamt, 't' => $titel, 'id' => $a['id']]);
         if ($n === 0) {
             db_tun("UPDATE connect_auftraege SET status = 'fertig', fehler = :f, fertig_am = NOW() WHERE id = :id",
-                ['f' => t('Alles schon vorhanden.'), 'id' => $a['id']]);
+                ['f' => count((array) ($kopf['titel'] ?? [])) ? t('Alles schon vorhanden.') : t('Dort liegen keine Dateien dazu.'), 'id' => $a['id']]);
             return;
         }
         // Cover für den Album-Ordner
@@ -323,7 +352,7 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
                 [, $bild] = connect_rufen($peer, 'bild', ['art' => 'cover', 'schluessel' => $erster['cover'], 'g' => 1200]);
                 $z1 = db_wert('SELECT ziel FROM connect_dateien WHERE auftrag_id = :a ORDER BY id LIMIT 1', ['a' => $a['id']]);
                 $abs = konfig()['pfade']['musik'] . '/' . dirname((string) $z1);
-                if ($bild !== '' && af_ordner_anlegen($abs) && !is_file($abs . '/cover.jpg')) {
+                if (connect_bild_plausibel($bild) && af_ordner_anlegen($abs) && !is_file($abs . '/cover.jpg')) {
                     file_put_contents($abs . '/cover.jpg', $bild);
                 }
             } catch (Throwable $e) {
@@ -338,6 +367,12 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
             throw new ApiFehler(t('Der Musikordner ist nicht beschreibbar – Musik kann hier nicht abgelegt werden.'));
         }
         $teil = $abs . '.amberwave-teil';
+        if (is_file($abs)) {
+            // liegt schon da (von Hand abgelegt oder frühere Übertragung): nicht noch einmal holen
+            db_tun("UPDATE connect_dateien SET status = 'fertig', bytes = groesse WHERE id = :id", ['id' => $d['id']]);
+            db_tun('UPDATE connect_auftraege SET fertig = fertig + 1 WHERE id = :id', ['id' => $a['id']]);
+            continue;
+        }
         $ab = is_file($teil) ? (int) filesize($teil) : 0;
         $groesse = (int) $d['groesse'];
         while ($groesse === 0 || $ab < $groesse) {
@@ -346,12 +381,23 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
                 return;   // abgebrochen oder pausiert
             }
             if (time() > $ende) {
-                throw new RuntimeException(t('Zeit für diesen Lauf um – geht gleich weiter.'));
+                throw new ConnectZeitUm();
             }
             $heim = $peer['weg_art'] === 'heimnetz';
             $stueck = connect_stueck_groesse($heim);
             [$kopf, $bytes] = connect_rufen($peer, 'datei', ['track' => (int) $d['track_ref'], 'qualitaet' => $a['qualitaet'], 'ab' => $ab, 'laenge' => $stueck], 300);
             $peer = connect_server((int) $a['server_id']);
+            if ((int) $kopf['groesse'] > CONNECT_DATEI_MAX) {
+                throw new ApiFehler(t('Die Datei ist zu groß.'), 400);
+            }
+            if ($groesse !== 0 && $ab > 0 && (int) $kopf['groesse'] !== $groesse) {
+                // Die Quelle hat sich unterwegs geändert (neu getaggt, neu umgewandelt): von vorn, sonst klebt Altes an Neuem
+                @unlink($teil);
+                $ab = 0;
+                $groesse = (int) $kopf['groesse'];
+                db_tun('UPDATE connect_dateien SET groesse = :g, bytes = 0 WHERE id = :id', ['g' => $groesse, 'id' => $d['id']]);
+                continue;
+            }
             if ($groesse === 0 || (int) $kopf['groesse'] !== $groesse) {
                 $groesse = (int) $kopf['groesse'];
                 db_tun('UPDATE connect_dateien SET groesse = :g WHERE id = :id', ['g' => $groesse, 'id' => $d['id']]);
@@ -363,7 +409,20 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
                 throw new RuntimeException(t('Leere Antwort beim Holen.'));
             }
             connect_tempo_warten('runter', strlen($bytes), $heim);
-            file_put_contents($teil, $bytes, FILE_APPEND);
+            $frei = @disk_free_space(dirname($abs));
+            if ($frei !== false && $frei < CONNECT_FREI_MIN) {
+                throw new ApiFehler(t('Zu wenig Platz im Musikordner – unter {mb} MB frei.', ['mb' => (int) (CONNECT_FREI_MIN / 1048576)]), 507);
+            }
+            $geschrieben = @file_put_contents($teil, $bytes, FILE_APPEND | LOCK_EX);
+            if ($geschrieben !== strlen($bytes)) {
+                // Schreibfehler (Platte voll, Rechte): auf den sicher geschriebenen Stand zurück, nicht weiterzählen
+                $h = @fopen($teil, 'r+');
+                if ($h) {
+                    ftruncate($h, $ab);
+                    fclose($h);
+                }
+                throw new RuntimeException(t('Die Datei ließ sich nicht schreiben – ist der Musikordner voll?'));
+            }
             $ab += strlen($bytes);
             db_tun('UPDATE connect_dateien SET bytes = :b, status = \'laeuft\' WHERE id = :id', ['b' => $ab, 'id' => $d['id']]);
             db_tun('UPDATE connect_auftraege SET bytes = (SELECT COALESCE(SUM(bytes), 0) FROM connect_dateien WHERE auftrag_id = :a),
@@ -372,6 +431,12 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
             if ($groesse === 0) {
                 break;
             }
+        }
+        clearstatcache(true, $teil);
+        if ($groesse > 0 && is_file($teil) && filesize($teil) !== $groesse) {
+            @unlink($teil);
+            db_tun('UPDATE connect_dateien SET bytes = 0 WHERE id = :id', ['id' => $d['id']]);
+            throw new RuntimeException(t('Die Datei kam unvollständig an – wird neu geholt.'));
         }
         if (is_file($abs)) {
             @unlink($teil);   // gibt es schon (z. B. von Hand abgelegt) – nicht überschreiben
@@ -450,6 +515,29 @@ function connect_stream_senden(int $serverId, int $track): void
 }
 
 /** GET /connect/server/{id}/bild/{art}/{schluessel}?g=… – Bilder der Gegenstelle, hier zwischengespeichert */
+/**
+ * Was vom anderen Server kommt, ist Fremddaten: IDs und Zahlen werden zu Zahlen, Bild-Adressen dürfen nur auf unseren
+ * eigenen Bild-Proxy zeigen (keine Fremd-URLs, die Nutzer beim Stöbern verraten oder Mixed Content auslösen).
+ */
+function connect_antwort_saeubern(array &$d, int $serverId): void
+{
+    static $zahlen = ['id', 'edition_id', 'aufnahme_id', 'album_id', 'jahr', 'nr', 'disc', 'discs', 'laenge_ms', 'tracks', 'anzahl', 'gesamt', 'seite', 'pro_seite', 'alben', 'user_id', 'eintrag_id'];
+    static $bilder = ['cover', 'cover_gross', 'bild'];
+    $praefix = '/api/v1/connect/server/' . $serverId . '/bild/';
+    foreach ($d as $k => &$v) {
+        if (is_array($v)) {
+            connect_antwort_saeubern($v, $serverId);
+        } elseif (is_string($k) && in_array($k, $zahlen, true) && !is_int($v) && $v !== null && !is_bool($v)) {
+            $v = is_numeric($v) ? (int) $v : 0;
+        } elseif (is_string($k) && in_array($k, $bilder, true) && is_string($v) && $v !== '' && !str_starts_with($v, $praefix)) {
+            $v = null;
+        } elseif (is_string($k) && $k === 'farbe' && is_string($v) && !preg_match('/^#[0-9a-f]{6}$/', $v)) {
+            $v = null;
+        }
+    }
+    unset($v);
+}
+
 function connect_bild_senden(int $serverId, string $art, string $schluessel): void
 {
     $g = max(32, min(1200, (int) ($_GET['g'] ?? 300)));
@@ -458,8 +546,18 @@ function connect_bild_senden(int $serverId, string $art, string $schluessel): vo
     }
     $datei = connect_ordner('bilder/' . $serverId) . "/{$art}-{$schluessel}-{$g}.jpg";
     if (!is_file($datei) || filemtime($datei) < time() - 7 * 86400) {
-        [, $bytes] = connect_rufen(connect_server($serverId), 'bild', ['art' => $art, 'schluessel' => $schluessel, 'g' => $g], 30);
-        file_put_contents($datei, $bytes, LOCK_EX);
+        try {
+            [, $bytes] = connect_rufen(connect_server($serverId), 'bild', ['art' => $art, 'schluessel' => $schluessel, 'g' => $g], 30);
+            if (!connect_bild_plausibel($bytes)) {
+                throw new ApiFehler(t('Bild nicht gefunden.'), 404);
+            }
+            file_put_contents($datei, $bytes, LOCK_EX);
+        } catch (Throwable $e) {
+            if (!is_file($datei)) {
+                throw $e;
+            }
+            @touch($datei);   // Gegenstelle gerade nicht da: das ältere Bild bleibt
+        }
     }
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();
@@ -560,10 +658,11 @@ function connect_lesen(int $serverId, string $methode, array $args): array
     }
     $peer = connect_server($serverId);
     [$kopf] = connect_rufen($peer, $methode, $args);
-    unset($kopf['ok']);
+    unset($kopf['ok'], $kopf['z'], $kopf['von'], $kopf['_gesehen']);
     $json = json_encode($kopf, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $json = preg_replace('#"/api/v1/bild/(cover|kuenstler)/([A-Za-z0-9_.-]+)(\?[^"]*)?"#', '"/api/v1/connect/server/' . $serverId . '/bild/$1/$2$3"', $json);
     $daten = json_decode((string) $json, true) ?: [];
+    connect_antwort_saeubern($daten, $serverId);
     try {
         connect_markieren($methode, $daten);
     } catch (Throwable $e) {
@@ -606,9 +705,12 @@ function connect_rueckkanal_laufen(): void
     $pause = [];   // id => nicht vor (nach Fehlern)
     $mh = curl_multi_init();
     $griffe = [];  // id => curl
+    $zs = [];      // id => Zufallswert der offenen Anfrage
+    $weiter = false;
     try {
-        while (time() < $ende) {
-            if (time() - $liste_am > 120) {
+        while (true) {
+            $auslaufen = time() > $ende - 50;   // kurz vor Schluss keine neuen „warten“ mehr – offene zu Ende lesen
+            if (!$auslaufen && time() - $liste_am > 120) {
                 $partner = [];
                 foreach (connect_rueck_partner() as $p) {
                     $partner[(int) $p['id']] = $p;
@@ -618,22 +720,29 @@ function connect_rueckkanal_laufen(): void
                     break;   // (nicht mehr) nötig
                 }
             }
-            // für jeden Partner ohne offene Anfrage eine neue „warten“ stellen
-            foreach ($partner as $id => $p) {
-                if (isset($griffe[$id]) || ($pause[$id] ?? 0) > time()) {
-                    continue;
+            if (!$auslaufen) {
+                // für jeden Partner ohne offene Anfrage eine neue „warten“ stellen
+                foreach ($partner as $id => $p) {
+                    if (isset($griffe[$id]) || ($pause[$id] ?? 0) > time()) {
+                        continue;
+                    }
+                    $basis = connect_rueck_basis($p);
+                    if ($basis === null) {
+                        $pause[$id] = time() + 30;
+                        continue;
+                    }
+                    $ch = connect_curl($basis, connect_anfrage_bauen($p, 'warten', [], $z), 45);
+                    curl_setopt($ch, CURLOPT_PRIVATE, (string) $id);
+                    curl_multi_add_handle($mh, $ch);
+                    $griffe[$id] = $ch;
+                    $zs[$id] = $z;
                 }
-                $basis = connect_rueck_basis($p);
-                if ($basis === null) {
-                    $pause[$id] = time() + 30;
-                    continue;
-                }
-                $ch = connect_curl($basis, connect_anfrage_bauen($p, 'warten', []), 45);
-                curl_setopt($ch, CURLOPT_PRIVATE, (string) $id);
-                curl_multi_add_handle($mh, $ch);
-                $griffe[$id] = $ch;
             }
             if (!$griffe) {
+                if ($auslaufen) {
+                    $weiter = (bool) $partner;
+                    break;
+                }
                 sleep(2);
                 continue;
             }
@@ -648,15 +757,23 @@ function connect_rueckkanal_laufen(): void
                 curl_multi_remove_handle($mh, $ch);
                 curl_close($ch);
                 unset($griffe[$id]);
-                $p = $partner[$id] ?? db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $id]);
-                $r = $p && $info['result'] === CURLE_OK && $code === 200 ? connect_antwort_oeffnen($p, $roh) : null;
-                if (!$r || empty($r[0]['ok'])) {
-                    $pause[$id] = time() + 10;   // Partner gerade weg: kurz warten, dann neu (und Weg neu suchen)
-                    db_tun("UPDATE connect_server SET weg_am = NULL WHERE id = :id", ['id' => $id]);
-                    continue;
-                }
-                foreach ((array) ($r[0]['auftraege'] ?? []) as $auf) {
-                    connect_rueck_ausfuehren($p, (string) ($auf['id'] ?? ''), (string) base64_decode((string) ($auf['anfrage'] ?? ''), true));
+                try {
+                    $p = $partner[$id] ?? db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => $id]);
+                    $r = $p && $info['result'] === CURLE_OK && $code === 200 ? connect_antwort_oeffnen($p, $roh, $zs[$id] ?? null) : null;
+                    if (!$r || empty($r[0]['ok'])) {
+                        $pause[$id] = time() + 10;   // Partner gerade weg: kurz warten, dann neu (und Weg neu suchen)
+                        connect_rueck_status($id, 'fehler', $info['result'] !== CURLE_OK ? curl_strerror($info['result']) : 'HTTP ' . $code);
+                        db_tun("UPDATE connect_server SET weg_am = NULL WHERE id = :id", ['id' => $id]);
+                        continue;
+                    }
+                    connect_rueck_status($id, 'ok', '');
+                    // Aufträge in eigenen Prozessen ausführen – die Schleife bleibt frei und stellt sofort die nächste „warten“
+                    foreach ((array) ($r[0]['auftraege'] ?? []) as $auf) {
+                        connect_rueck_auftrag_starten($p, (string) ($auf['id'] ?? ''), (string) ($auf['anfrage'] ?? ''));
+                    }
+                } catch (Throwable $e) {
+                    error_log('Connect Rückkanal ' . $id . ': ' . log_sauber($e->getMessage()));
+                    $pause[$id] = time() + 10;
                 }
             }
         }
@@ -668,6 +785,45 @@ function connect_rueckkanal_laufen(): void
         curl_multi_close($mh);
         flock($fp, LOCK_UN);
         fclose($fp);
+    }
+    if ($weiter) {
+        connect_rueckkanal_anstossen();   // nahtlos weiter mit frischem Prozess
+    }
+}
+
+/** Letzter Stand je Partner (für die Einstellungen): wann zuletzt eine „warten“ gut durchlief, letzter Fehler */
+function connect_rueck_status(int $peerId, string $stand, string $fehler): void
+{
+    $d = connect_rueck_ordner($peerId);
+    $alt = json_decode((string) @file_get_contents($d . '/status.json'), true) ?: [];
+    $neu = $stand === 'ok' ? ['ok_am' => time(), 'fehler' => '', 'fehler_am' => $alt['fehler_am'] ?? null]
+        : ['ok_am' => $alt['ok_am'] ?? null, 'fehler' => mb_substr($fehler, 0, 200), 'fehler_am' => time()];
+    @file_put_contents($d . '/status.json', json_encode($neu), LOCK_EX);
+}
+
+/** Eine hereingereichte Anfrage als eigenen Prozess starten (Datei als Übergabe) */
+function connect_rueck_auftrag_starten(array $p, string $id, string $anfrageB64): void
+{
+    if (!preg_match('/^\d+-[0-9a-f]{32}$/', $id) || $anfrageB64 === '') {
+        return;
+    }
+    $d = connect_rueck_ordner((int) $p['id']);
+    $datei = $d . '/' . $id . '.auftrag';
+    file_put_contents($datei, json_encode(['peer' => (int) $p['id'], 'id' => $id, 'anfrage' => $anfrageB64]), LOCK_EX);
+    aw_hintergrund(aw_arg(aw_php()) . ' ' . aw_arg(__DIR__ . '/../scripts/connect_rueckkanal.php') . ' ' . aw_arg($datei), konfig()['pfade']['cache'] . '/tmp/connect_rueckkanal.log', true);
+}
+
+/** Vom Kindprozess: Auftragsdatei lesen, ausführen, Antwort hochladen */
+function connect_rueck_auftrag_datei(string $datei): void
+{
+    $j = json_decode((string) @file_get_contents($datei), true);
+    @unlink($datei);
+    if (!is_array($j)) {
+        return;
+    }
+    $p = db_zeile('SELECT * FROM connect_server WHERE id = :id', ['id' => (int) ($j['peer'] ?? 0)]);
+    if ($p) {
+        connect_rueck_ausfuehren($p, (string) ($j['id'] ?? ''), (string) base64_decode((string) ($j['anfrage'] ?? ''), true));
     }
 }
 
@@ -682,6 +838,7 @@ function connect_rueck_basis(array $p): ?string
         $p = connect_weg_suchen($p, false);
         return $p['weg'] !== '' && $p['weg'] !== 'rueckkanal' ? $p['weg'] : null;
     } catch (Throwable $e) {
+        connect_rueck_status((int) $p['id'], 'fehler', $e->getMessage());
         return null;
     }
 }
@@ -729,7 +886,7 @@ function connect_beiwerk_holen(array $peer, array $a): void
     }
     $ordner = connect_ordner() . '/beiwerk';
     @mkdir($ordner, 0700, true);
-    $liste = json_decode((string) @file_get_contents(connect_beiwerk_datei()), true) ?: [];
+    $liste = [];
     foreach ((array) ($b['kuenstler'] ?? []) as $k) {
         if (!is_array($k) || trim((string) ($k['name'] ?? '')) === '') {
             continue;
@@ -738,7 +895,7 @@ function connect_beiwerk_holen(array $peer, array $a): void
         if (preg_match('/^[A-Za-z0-9_.-]{1,80}$/', (string) ($k['bild'] ?? ''))) {
             try {
                 [, $roh] = connect_rufen($peer, 'bild', ['art' => 'kuenstler', 'schluessel' => $k['bild'], 'g' => 1200], 60);
-                if (strlen($roh) > 100) {
+                if (connect_bild_plausibel($roh)) {
                     $bild = sha1($roh) . '.jpg';
                     file_put_contents($ordner . '/' . $bild, $roh);
                 }
@@ -755,7 +912,9 @@ function connect_beiwerk_holen(array $peer, array $a): void
                 'beschreibung' => (string) $al['beschreibung'], 'quelle' => (string) ($al['beschreibung_quelle'] ?? ''), 'maschinell' => !empty($al['beschreibung_maschinell']), 'seit' => time()];
         }
     }
-    file_put_contents(connect_beiwerk_datei(), json_encode($liste, JSON_UNESCAPED_UNICODE), LOCK_EX);
+    if ($liste) {
+        connect_json_aendern(connect_beiwerk_datei(), static fn(array $alt) => array_slice(array_merge($alt, $liste), -500));
+    }
 }
 
 /**
@@ -764,10 +923,13 @@ function connect_beiwerk_holen(array $peer, array $a): void
  */
 function connect_beiwerk_anwenden(): void
 {
-    $liste = json_decode((string) @file_get_contents(connect_beiwerk_datei()), true);
-    if (!is_array($liste) || !$liste) {
+    // Unter Sperre herausnehmen; was nicht angewendet werden kann, kommt am Ende wieder dazu
+    $liste = is_file(connect_beiwerk_datei()) ? connect_json_entnehmen(connect_beiwerk_datei()) : [];
+    if (!$liste) {
+        @unlink(connect_beiwerk_datei());
         return;
     }
+    $liste = array_values($liste);
     require_once __DIR__ . '/bilder.php';
     require_once __DIR__ . '/hilfen.php';
     $ordner = connect_ordner() . '/beiwerk';
@@ -815,9 +977,31 @@ function connect_beiwerk_anwenden(): void
         }
     }
     if ($rest) {
-        file_put_contents(connect_beiwerk_datei(), json_encode($rest, JSON_UNESCAPED_UNICODE), LOCK_EX);
-    } else {
-        @unlink(connect_beiwerk_datei());
+        connect_json_aendern(connect_beiwerk_datei(), static fn(array $alt) => array_merge($rest, $alt));
     }
+}
+
+/** Angefangene Teil-Dateien eines Auftrags aus dem Musikordner entfernen (Abbrechen/Entfernen) */
+function connect_teile_entfernen(int $auftragId): void
+{
+    $wurzel = rtrim((string) konfig()['pfade']['musik'], '/');
+    foreach (db_alle("SELECT ziel FROM connect_dateien WHERE auftrag_id = :a AND status <> 'fertig'", ['a' => $auftragId]) as $d) {
+        $teil = $wurzel . '/' . $d['ziel'] . '.amberwave-teil';
+        if (str_contains((string) $d['ziel'], '..')) {
+            continue;
+        }
+        @unlink($teil);
+    }
+}
+
+/** Ist das wirklich ein Bild in vertretbarer Größe? (gegen Müll im Cache und Dekompressionsbomben in GD) */
+function connect_bild_plausibel(string $bytes, int $maxBytes = 8 * 1024 * 1024, int $maxPixel = 30000000): bool
+{
+    if ($bytes === '' || strlen($bytes) > $maxBytes) {
+        return false;
+    }
+    $i = @getimagesizefromstring($bytes);
+    return is_array($i) && in_array($i[2] ?? 0, [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], true)
+        && (int) $i[0] * (int) $i[1] <= $maxPixel;
 }
 

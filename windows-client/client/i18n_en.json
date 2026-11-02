@@ -149,5 +149,8 @@
  "Jetzt aktualisieren": "Update now",
  "Amberwave ist auf dem neuesten Stand.": "Amberwave is up to date.",
  "Bitte später noch einmal versuchen.": "Please try again later.",
- "Installiert: {version}. Amberwave lädt die neue Version, schließt sich, installiert sie und startet von selbst wieder – deine Einstellungen bleiben.": "Installed: {version}. Amberwave downloads the new version, closes, installs it and starts again by itself – your settings stay."
+ "Installiert: {version}. Amberwave lädt die neue Version, schließt sich, installiert sie und startet von selbst wieder – deine Einstellungen bleiben.": "Installed: {version}. Amberwave downloads the new version, closes, installs it and starts again by itself – your settings stay.",
+ "Für diese Version gibt es keine Prüfsumme – bitte von der Release-Seite installieren.": "There is no checksum for this version – please install from the release page.",
+ "Die Prüfsumme der geladenen Datei stimmt nicht.": "The downloaded file's checksum doesn't match.",
+ "Amberwave lädt die neue Version, schließt sich, installiert sie und startet von selbst wieder – deine Einstellungen bleiben.": "Amberwave downloads the new version, closes, installs it and starts again by itself – your settings stay."
 }

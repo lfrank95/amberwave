@@ -25,7 +25,11 @@ for alb in "Erstes Album" "Zweites Album"; do
             "/m/Testband/$alb/0$n - Lied $n.flac"
     done
 done
-[ "$(find "$W/a/musik" -name '*.flac' | wc -l)" = "4" ] && ok "4 Testdateien" || fehler "Testdateien fehlen"
+# Dazu ein großer Titel (Rauschen, ~12 MB): wird in mehreren Stücken geholt und nach einem Abbruch fortgesetzt
+docker run --rm --entrypoint ffmpeg -v "$W/a/musik:/m" "$IMG" -v error -f lavfi -i "anoisesrc=color=pink:seed=7:duration=70:sample_rate=48000" -ac 2 -sample_fmt s32 -c:a flac \
+    -metadata artist=Testband -metadata album_artist=Testband -metadata album="Erstes Album" -metadata title="Rauschen" -metadata track=3 -metadata date=2024 \
+    "/m/Testband/Erstes Album/03 - Rauschen.flac"
+[ "$(find "$W/a/musik" -name '*.flac' | wc -l)" = "5" ] && ok "5 Testdateien, davon eine mit $(du -m "$W/a/musik/Testband/Erstes Album/03 - Rauschen.flac" | cut -f1) MB" || fehler "Testdateien fehlen"
 
 docker network create "$NETZ" >/dev/null
 starten() {   # name port app_url extra…
@@ -94,20 +98,49 @@ TID="$(api 19952 "$TB" GET "/connect/server/$SID/lesen/album?id=$AID1" | j "d['t
 CODE_HTTP="$(curl -s -o "$W/hoeren.ogg" -w '%{http_code}' -H "Authorization: Bearer $TB" -H 'Range: bytes=0-' "http://127.0.0.1:19952/api/v1/connect/server/$SID/stream/$TID?q=opus128")"
 [ "$CODE_HTTP" = "206" ] && head -c 4 "$W/hoeren.ogg" | grep -q OggS && ok "Reinhören (Opus, $(stat -c %s "$W/hoeren.ogg") Bytes)" || fehler "Reinhören: HTTP $CODE_HTTP"
 
-echo "== Holen: Original und Opus"
+echo "== Holen: Original (mit Abbruch mittendrin) und Opus"
+api 19952 "$TB" PUT /admin/einstellungen '{"einstellungen":{"connect_runter_mbit":"6","connect_heim_frei":"0"}}' >/dev/null   # gedrosselt, damit der Abbruch den großen Titel trifft
 api 19952 "$TB" POST "/connect/server/$SID/holen" '{"art":"album","id":'"$AID1"',"qualitaet":"original","titel":"Erstes Album"}' >/dev/null
-api 19952 "$TB" POST "/connect/server/$SID/holen" '{"art":"album","id":'"$AID2"',"qualitaet":"opus256","titel":"Zweites Album"}' >/dev/null
-for i in $(seq 1 90); do
+for i in $(seq 1 40); do
+    TEIL="$(sudo find "$W/b/musik" -name '*.amberwave-teil' -size +1M 2>/dev/null | head -n1)"
+    [ -n "$TEIL" ] && break; sleep 1
+done
+if [ -n "$TEIL" ]; then
+    docker exec aw-b sh -c 'pkill -9 -f scripts/connect.php' >/dev/null 2>&1
+    sleep 1
+    ok "Arbeiter mitten im großen Titel abgeschossen ($(sudo stat -c %s "$TEIL") Bytes lagen schon da)"
+else
+    fehler "kein Teilstück aufgetaucht – Drosselung oder Stückelung greift nicht"
+fi
+api 19952 "$TB" PUT /admin/einstellungen '{"einstellungen":{"connect_runter_mbit":"0"}}' >/dev/null
+api 19952 "$TB" POST "/connect/server/$SID/holen" '{"art":"album","id":'"$AID2"',"qualitaet":"opus256","titel":"Zweites Album"}' >/dev/null   # stößt den Arbeiter wieder an
+for i in $(seq 1 120); do
     OFFEN="$(api 19952 "$TB" GET /connect/auftraege | j "sum(1 for a in d['auftraege'] if a['status'] in ('wartet','laeuft'))")"
     [ "$OFFEN" = "0" ] && break; sleep 2
 done
 api 19952 "$TB" GET /connect/auftraege | j "'\n'.join(a['titel']+': '+a['status']+' '+a['fehler'] for a in d['auftraege'])"
 [ "$(api 19952 "$TB" GET /connect/auftraege | j "sorted(a['status'] for a in d['auftraege'])")" = "['fertig', 'fertig']" ] && ok "beide Aufträge fertig" || fehler "Aufträge nicht fertig"
-for n in 1 2; do
-    Q="$W/a/musik/Testband/Erstes Album/0$n - Lied $n.flac"
+for n in 1 2 3; do
+    Q="$(ls "$W/a/musik/Testband/Erstes Album/0$n - "*.flac)"
     Z="$(sudo find "$W/b/musik/Connect" -path '*Erstes Album*' -name "0$n *.flac" | head -n1)"
     [ -n "$Z" ] && [ "$(md5sum < "$Q")" = "$(sudo md5sum < "$Z")" ] && ok "Original bitgenau: $(basename "$Z")" || fehler "Original $n fehlt oder weicht ab ($Z)"
 done
+[ -z "$(sudo find "$W/b/musik" -name '*.amberwave-teil')" ] && ok "keine Teilstücke übrig" || fehler "Teilstücke liegen noch herum"
+# Replay: dieselbe versiegelte Anfrage ein zweites Mal → 404 (und ein Fremder ohne Schlüssel ebenso)
+docker exec -i aw-b sh -c 'cat > /tmp/anfrage.php' <<'PHP'
+<?php
+require '/var/www/html/includes/connect.php';
+$p = db_zeile('SELECT * FROM connect_server LIMIT 1');
+file_put_contents('/tmp/anfrage.bin', connect_anfrage_bauen($p, 'hallo', []));
+PHP
+docker exec -u www-data aw-b php /tmp/anfrage.php
+docker cp aw-b:/tmp/anfrage.bin "$W/anfrage.bin" 2>/dev/null
+C1="$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/octet-stream' --data-binary @"$W/anfrage.bin" http://127.0.0.1:19951/api/v1/connect)"
+C2="$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/octet-stream' --data-binary @"$W/anfrage.bin" http://127.0.0.1:19951/api/v1/connect)"
+C3="$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/octet-stream' --data-binary @"$W/anfrage.bin" http://127.0.0.1:19952/api/v1/connect)"
+[ "$C1" = "200" ] && [ "$C2" = "404" ] && ok "Replay abgelehnt (erst 200, dann 404)" || fehler "Replay: $C1 dann $C2"
+[ "$C3" = "404" ] && ok "gespiegelte Anfrage beim Absender abgelehnt" || fehler "Spiegelung: HTTP $C3"
+
 [ "$(sudo find "$W/b/musik/Connect" -path '*Zweites Album*' -name '*.opus' | wc -l)" = "2" ] && ok "Opus-Album: 2 Dateien" || fehler "Opus-Dateien fehlen"
 sudo test -s "$(sudo find "$W/b/musik/Connect" -path '*Erstes Album*' -name cover.jpg | head -n1)" 2>/dev/null && ok "Cover dabei" || echo "hinweis: kein Cover (Testdateien haben keins)"
 for i in $(seq 1 30); do [ "$(api 19952 "$TB" GET '/alben?sort=titel' | j "d['gesamt']")" = "2" ] && break; sleep 2; done

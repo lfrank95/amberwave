@@ -155,7 +155,7 @@ export function aktionenRegistrieren(app) {
           player.umschalten();
           return;
         }
-        player.abspielen(l, i, { art: el.dataset.liste.startsWith('a') ? 'album' : 'liste' });
+        player.abspielen(l, i, { art: /^c?a/.test(el.dataset.liste) ? 'album' : 'liste' });
         break;
       }
       case 'liste-play':

@@ -360,5 +360,12 @@
  "Unerwartete Antwort beim Holen.": "Unexpected response while fetching.",
  "Leere Antwort beim Holen.": "Empty response while fetching.",
  "Der Name darf 1 bis 60 Zeichen haben.": "The name must have 1 to 60 characters.",
- "Der Name ist in der .env festgelegt (CLIENT_SERVERNAME) – dort ändern.": "The name is set in the .env (CLIENT_SERVERNAME) – change it there."
+ "Der Name ist in der .env festgelegt (CLIENT_SERVERNAME) – dort ändern.": "The name is set in the .env (CLIENT_SERVERNAME) – change it there.",
+ "Die Datei ist zu groß.": "The file is too large.",
+ "Die Datei kam unvollständig an – wird neu geholt.": "The file arrived incomplete – fetching it again.",
+ "Die Datei ließ sich nicht schreiben – ist der Musikordner voll?": "The file couldn't be written – is the music folder full?",
+ "Dort liegen keine Dateien dazu.": "There are no files for it there.",
+ "Zu wenig Platz im Musikordner – unter {mb} MB frei.": "Not enough space in the music folder – less than {mb} MB free.",
+ "„{name}“ hat über den Rückkanal nicht rechtzeitig geantwortet.": "“{name}” didn't answer in time over the back channel.",
+ "Unbekannter Pfad.": "Unknown path."
 }

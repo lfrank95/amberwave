@@ -75,9 +75,10 @@ object Netz {
     /** Passt der Ausweis zum gemerkten (mit Unterschrift belegt)? Ohne gemerkten wird er nach Beleg übernommen. */
     fun ausweisPasst(server: String, j: org.json.JSONObject, merken: Boolean = true, zeit: Int = 3000): Boolean {
         val s = j.optString("schluessel")
-        if (s.isEmpty()) return true   // ältere Server ohne Ausweis
         val bekannt = Einstellungen.ausweis
-        if (bekannt.isNotEmpty() && bekannt != s) return false
+        // Ist ein Ausweis gemerkt, muss er kommen und passen – ein Gerät, das einfach keinen nennt, ist nicht unser Server
+        if (bekannt.isNotEmpty() && (s.isEmpty() || bekannt != s)) return false
+        if (s.isEmpty()) return true   // noch nichts gemerkt und älterer Server ohne Ausweis
         if (!ausweisBelegt(server, s, zeit)) return false
         if (bekannt.isEmpty() && merken) Einstellungen.ausweis = s
         return true

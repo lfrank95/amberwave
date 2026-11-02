@@ -524,7 +524,14 @@ const clientEinst = () => {
 };
 ipcMain.handle('client-einst', (e) => (erlaubt(e.senderFrame?.url || '') ? clientEinst() : null));
 ipcMain.handle('update-info', (e) => (erlaubt(e.senderFrame?.url || '') ? updateInfo() : null));
-ipcMain.handle('update-installieren', (e) => (erlaubt(e.senderFrame?.url || '') ? updateInstallieren() : false));
+ipcMain.handle('update-installieren', async (e) => {
+  if (!erlaubt(e.senderFrame?.url || '')) return false;
+  // Aus der Web-Oberfläche (also vom Server) angestoßen: der Nutzer bestätigt am Client selbst, bevor sich dieser beendet
+  const a = await dialog.showMessageBox(fenster || undefined, { type: 'question', title: 'Amberwave', message: t('Neue Version {version}', { version: neueVersion?.version || '' }),
+    detail: t('Amberwave lädt die neue Version, schließt sich, installiert sie und startet von selbst wieder – deine Einstellungen bleiben.'),
+    buttons: [t('Jetzt aktualisieren'), t('Später')], defaultId: 0, cancelId: 1 }).catch(() => ({ response: 1 }));
+  return a.response === 0 ? updateInstallieren() : false;
+});
 ipcMain.handle('update-suchen', (e) => (erlaubt(e.senderFrame?.url || '') ? aufNeueVersionPruefen(true) : null));
 ipcMain.handle('client-einst-setzen', (e, w) => {
   if (!erlaubt(e.senderFrame?.url || '') || !w || typeof w !== 'object') return null;
@@ -650,7 +657,10 @@ async function aufNeueVersionPruefen(vonHand = false) {
       const v = String(x.tag_name || '').replace(/^v/i, '');
       // Direkt der Installer aus dem Release (sonst die Release-Seite)
       const exe = (Array.isArray(x.assets) ? x.assets : []).find((d) => /^Amberwave-Windows-Client-.*\.exe$/i.test(String(d?.name || '')));
-      if (/^\d+\.\d+\.\d+/.test(v) && (!best || versionVergleich(v, best.version) > 0)) best = { version: v, url: exe?.browser_download_url || x.html_url || RELEASES_SEITE, installer: exe?.browser_download_url || '', notizen: x.html_url || RELEASES_SEITE };
+      // Nur Releases mit Client-Installer zählen; die Versionsnummer streng prüfen (sie landet im Dateinamen)
+      if (!exe || !/^\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?$/.test(v)) continue;
+      const pruefsumme = /^sha256:[0-9a-f]{64}$/i.test(String(exe.digest || '')) ? String(exe.digest).slice(7).toLowerCase() : '';
+      if (!best || versionVergleich(v, best.version) > 0) best = { version: v, url: exe.browser_download_url, installer: exe.browser_download_url, pruefsumme, groesse: Number(exe.size) || 0, notizen: x.html_url || RELEASES_SEITE };
     }
     if (best && versionVergleich(best.version, VERSION) > 0 && best.version !== neueVersion?.version) {
       neueVersion = best;
@@ -704,14 +714,16 @@ async function updateInstallieren() {
   updateStand({ stand: 'laedt', prozent: 0, fehler: '' });
   try {
     const u = new URL(neueVersion.installer);
-    if (u.protocol !== 'https:' || u.hostname !== 'github.com') throw new Error(t('Unerwartete Download-Adresse.'));
+    if (u.protocol !== 'https:' || u.hostname !== 'github.com' || !u.pathname.startsWith('/lfrank95/amberwave/releases/download/')) throw new Error(t('Unerwartete Download-Adresse.'));
     const r = await fetch(u, { headers: { 'User-Agent': `AmberwaveClient/${VERSION}` }, signal: AbortSignal.timeout(10 * 60 * 1000) });
     if (!r.ok || !r.body) throw new Error(t('Download fehlgeschlagen (HTTP {status}).', { status: r.status }));
-    const gesamt = Number(r.headers.get('content-length')) || 0;
+    const gesamt = Number(r.headers.get('content-length')) || neueVersion.groesse || 0;
     const datei = fs.createWriteStream(ziel);
+    const hash = require('crypto').createHash('sha256');
     let geladen = 0, zuletzt = 0;
     for await (const stueck of r.body) {
       geladen += stueck.length;
+      hash.update(stueck);
       if (!datei.write(stueck)) await new Promise((ok) => datei.once('drain', ok));
       const p = gesamt ? Math.floor((geladen / gesamt) * 100) : 0;
       if (p !== zuletzt) { zuletzt = p; updateStand({ prozent: p }); }
@@ -720,6 +732,10 @@ async function updateInstallieren() {
     const kopf = Buffer.alloc(2);
     const fd = fs.openSync(ziel, 'r'); fs.readSync(fd, kopf, 0, 2, 0); fs.closeSync(fd);
     if (kopf.toString('latin1') !== 'MZ' || (gesamt && geladen !== gesamt)) throw new Error(t('Die geladene Datei ist unvollständig.'));
+    // Prüfsumme aus dem GitHub-Release muss stimmen – sonst wird nichts installiert
+    const ist = hash.digest('hex');
+    if (!neueVersion.pruefsumme) throw new Error(t('Für diese Version gibt es keine Prüfsumme – bitte von der Release-Seite installieren.'));
+    if (ist !== neueVersion.pruefsumme) throw new Error(t('Die Prüfsumme der geladenen Datei stimmt nicht.'));
   } catch (e) {
     log.schreiben('WARN', `Update-Download fehlgeschlagen: ${e.message}`);
     updateStand({ stand: 'fehler', fehler: e.message || String(e) });

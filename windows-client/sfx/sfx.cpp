@@ -174,10 +174,23 @@ static void ordner_loeschen(const wchar_t *pfad) {
 /** 1, wenn der Ordner (falls vorhanden) gerade nicht benutzt wird – Probe: einmal umbenennen und zurück */
 /* Beim stillen Update: Amberwave-Prozesse, die noch aus dem Programmordner laufen (Engine, VST-Host, ein hängender
    Client), beenden – der Installer selbst läuft aus dem Temp-Ordner und ist davon nie betroffen. */
-static void prozesse_im_ordner_beenden(const wchar_t *ordner) {
+static void prozesse_im_ordner_beenden(const wchar_t *ordner_roh) {
+  // Pfad in der Form, wie Windows ihn für Prozesse nennt (aufgelöst, ohne Backslash am Ende)
+  wchar_t ordner[MAX_PATH * 2];
+  DWORD l0 = GetFullPathNameW(ordner_roh, MAX_PATH * 2, ordner, NULL);
+  if (l0 == 0 || l0 >= MAX_PATH * 2) wcsncpy(ordner, ordner_roh, MAX_PATH * 2 - 1);
+  ordner[MAX_PATH * 2 - 1] = 0;
+  size_t n = wcslen(ordner);
+  while (n > 3 && ordner[n - 1] == L'\\') ordner[--n] = 0;
+  HANDLE h = CreateFileW(ordner, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+  if (h != INVALID_HANDLE_VALUE) {
+    wchar_t echt[MAX_PATH * 2];
+    DWORD l = GetFinalPathNameByHandleW(h, echt, MAX_PATH * 2, FILE_NAME_NORMALIZED);
+    CloseHandle(h);
+    if (l > 4 && l < MAX_PATH * 2 && wcsncmp(echt, L"\\\\?\\", 4) == 0) { wcscpy(ordner, echt + 4); n = wcslen(ordner); }
+  }
   HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (snap == INVALID_HANDLE_VALUE) return;
-  size_t n = wcslen(ordner);
   PROCESSENTRY32W pe; pe.dwSize = sizeof pe;
   if (Process32FirstW(snap, &pe)) do {
     if (pe.th32ProcessID == GetCurrentProcessId()) continue;

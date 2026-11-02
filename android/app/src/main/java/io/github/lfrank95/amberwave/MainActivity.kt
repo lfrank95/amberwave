@@ -132,7 +132,8 @@ class MainActivity : ComponentActivity() {
                 suchtGerade = false
                 if (neu == null) { startseite(alt); return@runOnUiThread }
                 val cm = CookieManager.getInstance()
-                cm.getCookie(alt)?.split(";")?.forEach { cm.setCookie(neu, it.trim()) }
+                // Anmeldung mitnehmen – als HttpOnly-Cookie, damit die Seite es nicht lesen kann
+                cm.getCookie(alt)?.split(";")?.forEach { cm.setCookie(neu, it.trim() + "; Path=/; HttpOnly") }
                 cm.flush()
                 Einstellungen.server = neu
                 serverLaden()

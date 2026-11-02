@@ -171,6 +171,11 @@ $routen = [
         $u = api_user(true);
         require_once __DIR__ . '/../includes/connect.php';
         $z = connect_server((int) $p['id']);
+        require_once __DIR__ . '/../includes/connect_uebertragung.php';
+        foreach (db_alle("SELECT id FROM connect_auftraege WHERE server_id = :s AND status <> 'fertig'", ['s' => $z['id']]) as $auf) {
+            connect_teile_entfernen((int) $auf['id']);
+        }
+        connect_aufraeumen_nach_trennen((int) $z['id']);
         db_tun('DELETE FROM connect_dateien WHERE auftrag_id IN (SELECT id FROM connect_auftraege WHERE server_id = :s)', ['s' => $z['id']]);
         db_tun('DELETE FROM connect_auftraege WHERE server_id = :s', ['s' => $z['id']]);
         db_tun('DELETE FROM connect_server WHERE id = :s', ['s' => $z['id']]);
@@ -236,6 +241,7 @@ $routen = [
             db_tun("UPDATE connect_auftraege SET status = 'wartet', fehler = '' WHERE id = :id AND status IN ('fehler', 'abgebrochen')", ['id' => $id]);
             connect_arbeiter_anstossen();
         } elseif ($p['aktion'] === 'entfernen') {
+            connect_teile_entfernen($id);
             db_tun("DELETE FROM connect_dateien WHERE auftrag_id = :id", ['id' => $id]);
             db_tun("DELETE FROM connect_auftraege WHERE id = :id AND status NOT IN ('laeuft')", ['id' => $id]);
         } else {

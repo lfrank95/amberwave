@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+- **Connect hardened after an independent code review** (both servers need this version):
+  - Requests now name their sender and every reply is bound to its request – a captured message can't be reflected back or swapped for an older reply.
+  - Pairing reveals name and addresses only after the code was proven; home-network addresses from a partner are accepted only if they are private.
+  - File transfers: the file extension from the partner is checked, files over 4 GB are skipped, 2 GB stay free on the music folder, write errors are detected (no more silent corruption), a source that changed mid-transfer is fetched again from the start, and a time-out of the worker no longer counts as a failure – large collections finish however long they take.
+  - Images from a partner are checked before they're decoded or cached; replies are size-limited; IDs and numbers from a partner are sanitised before they reach the page.
+  - Back channel: incoming requests run in their own processes, so a slow upload no longer stalls the channel; one open wait per partner; stale files are cleaned up; the status is shown per server.
+  - A failing transfer no longer blocks the others; "Remove" deletes partial files; disconnecting cleans up everything of that partner; the speed limit is picked up by running transfers within 30 s and no longer sticks after a clock jump.
+- Windows Client: the update download is verified against the SHA-256 checksum GitHub publishes for the release; an update started from the web page asks on the client first.
+- Android: a device answering at the old address without an ID is no longer taken for your server.
+- Connect tab: fewer overlapping labels on the network map, your own favourites icon no longer shows on partner albums, the pairing-code timer stops when the page is redrawn.
+
 ## 0.9.1-beta.13 – Better home-network detection
 - Connect: **servers on the same network find each other much more reliably.** Each server now tells its partner which address a request came from – so both learn their own home-network IP (even inside Docker) and their public IP without anyone opening them via the IP in a browser. Servers behind the same public IP search the home network for each other (also on ports 9950, 80 and 8095), and every home-network address that worked is remembered.
 

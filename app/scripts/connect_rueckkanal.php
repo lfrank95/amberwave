@@ -11,4 +11,8 @@ require_once __DIR__ . '/../includes/connect_uebertragung.php';
 set_time_limit(0);
 ini_set('memory_limit', '512M');
 migrationen_ausfuehren();
-connect_rueckkanal_laufen();
+if (!empty($argv[1]) && str_ends_with((string) $argv[1], '.auftrag')) {
+    connect_rueck_auftrag_datei((string) $argv[1]);   // eine einzelne hereingereichte Anfrage ausführen
+} else {
+    connect_rueckkanal_laufen();
+}

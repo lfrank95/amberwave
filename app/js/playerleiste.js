@@ -497,7 +497,7 @@ export class PlayerLeiste {
     const inhalt = this.app.inhalt;
     if (!inhalt) return;
     inhalt.querySelectorAll('.track.spielt').forEach((z) => {
-      if (!t || Number(z.dataset.trackId) !== t.id) {
+      if (!t || String(z.dataset.trackId) !== String(t.id)) {
         z.classList.remove('spielt', 'pausiert');
         const nr = z.querySelector('.track-nr > span');
         if (nr && nr.dataset.nr !== undefined) { nr.textContent = nr.dataset.nr; delete nr.dataset.nr; }

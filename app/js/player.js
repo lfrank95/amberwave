@@ -1414,9 +1414,12 @@ export class Player extends EventTarget {
     // Server: bis zu 5.000 Titel um den aktuellen herum (reicht für jede Warteschlange, die man durchhört)
     const senden = () => {
       const von = Math.max(0, this.index - 500);
-      const ids = this.liste.slice(von, von + 5000).map((t) => t.id);
-      if (ids.some((id) => typeof id !== 'number')) return;   // Warteschlange mit Titeln anderer Server bleibt nur auf dem Gerät
-      api.put('/warteschlange', { track_ids: ids, index: this.index - von, position: Math.round(this.zeit) }).catch(() => {});
+      // Titel anderer Server (Connect) bleiben nur auf dem Gerät – der Server bekommt die eigenen, der Index zeigt auf den nächsten eigenen
+      const fenster = this.liste.slice(von, von + 5000);
+      const ids = fenster.filter((t) => typeof t.id === 'number').map((t) => t.id);
+      const idx = Math.min(ids.length - 1, fenster.slice(0, this.index - von + 1).filter((t) => typeof t.id === 'number').length - 1);
+      if (!ids.length) return;
+      api.put('/warteschlange', { track_ids: ids, index: Math.max(0, idx), position: typeof this.track?.id === 'number' ? Math.round(this.zeit) : 0 }).catch(() => {});
     };
     if (sofort) senden(); else this._serverTimer = setTimeout(senden, 4000);
   }

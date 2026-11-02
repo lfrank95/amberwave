@@ -69,6 +69,7 @@ function connect_server_objekt(array $z): array
         'von_aussen' => !empty($ad['tunnel']) || (!empty($ad['oeffentlich']) && connect_adresse_oeffentlich((string) $ad['oeffentlich'])),
         'tunnel' => !empty($ad['tunnel']),
         'dir_erlaubt' => json_decode((string) ($z['dir_erlaubt'] ?? ''), true) ?: null,
+        'rueckkanal' => connect_rueck_stand((int) $z['id']),
     ];
 }
 
@@ -152,6 +153,43 @@ function connect_name_setzen(array $admin, string $name): string
     return $name;
 }
 
+/**
+ * JSON-Datei unter Sperre lesen, ändern, schreiben (lesen-ändern-schreiben ohne Sperre verliert sonst Einträge, wenn
+ * Webprozess und Hintergrundjob gleichzeitig daran sind). $aendern bekommt die Daten und gibt die neuen zurück
+ * (null = unverändert lassen). Gibt die Daten nach der Änderung zurück.
+ */
+function connect_json_aendern(string $datei, callable $aendern): array
+{
+    $fp = @fopen($datei, 'c+');
+    if (!$fp) {
+        $alt = json_decode((string) @file_get_contents($datei), true) ?: [];
+        return $aendern($alt) ?? $alt;
+    }
+    flock($fp, LOCK_EX);
+    $alt = json_decode((string) stream_get_contents($fp), true) ?: [];
+    $neu = $aendern($alt);
+    if ($neu !== null) {
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, json_encode($neu, JSON_UNESCAPED_UNICODE));
+        fflush($fp);
+    }
+    flock($fp, LOCK_UN);
+    fclose($fp);
+    return $neu ?? $alt;
+}
+
+/** JSON-Datei unter Sperre leeren und den bisherigen Inhalt zurückgeben (Übergabe an einen Verarbeiter) */
+function connect_json_entnehmen(string $datei): array
+{
+    $alt = [];
+    connect_json_aendern($datei, static function (array $a) use (&$alt) {
+        $alt = $a;
+        return [];
+    });
+    return $alt;
+}
+
 // ---------- Verschlüsselung ----------
 
 function connect_versiegeln(string $klartext, string $peer_pk): string
@@ -196,10 +234,11 @@ function connect_schon_gesehen(string $z): bool
     }
     $d = connect_ordner('gesehen/' . substr($z, 0, 2));
     $p = $d . '/' . $z;
-    if (is_file($p)) {
+    $h = @fopen($p, 'x');   // atomar: gibt es die Datei schon, war der Wert schon da
+    if ($h === false) {
         return true;
     }
-    @touch($p);
+    fclose($h);
     if (random_int(1, 200) === 1) {   // ab und zu aufräumen
         foreach (glob(connect_ordner('gesehen') . '/*/*') ?: [] as $f) {
             if (filemtime($f) < time() - 1200) {
@@ -223,7 +262,7 @@ function connect_empfangen(): void
     if ($r === null) {
         http_response_code(404);
         header('Content-Type: application/json');
-        echo '{"ok":false,"fehler":"Unbekannter Pfad."}';
+        echo json_encode(['ok' => false, 'fehler' => t('Unbekannter Pfad.')], JSON_UNESCAPED_UNICODE);
         exit;
     }
     [$aus, $mitDaten] = $r;
@@ -253,7 +292,8 @@ function connect_verarbeiten(string $roh, bool $heimnetz = false, ?array $gesehe
     $peer = db_zeile('SELECT * FROM connect_server WHERE schluessel = :s', ['s' => bin2hex($pk)]);
     $klar = $peer ? connect_oeffnen(substr($roh, 36), $pk) : null;
     $a = $klar !== null ? json_decode($klar, true) : null;
-    if (!$peer || !is_array($a) || abs(time() - (int) ($a['t'] ?? 0)) > CONNECT_ZEITFENSTER || connect_schon_gesehen((string) ($a['z'] ?? ''))) {
+    if (!$peer || !is_array($a) || !hash_equals(bin2hex($pk), (string) ($a['von'] ?? ''))
+        || abs(time() - (int) ($a['t'] ?? 0)) > CONNECT_ZEITFENSTER || connect_schon_gesehen((string) ($a['z'] ?? ''))) {
         return null;
     }
     // Gegenstelle lebt: Adressbuch und Stand auffrischen
@@ -280,17 +320,26 @@ function connect_verarbeiten(string $roh, bool $heimnetz = false, ?array $gesehe
     if ($gesehen) {
         $kopf['_gesehen'] = $gesehen;   // „du kamst von …“ – so lernt die Gegenstelle ihre eigene Heimnetz- bzw. öffentliche IP
     }
+    $kopf['z'] = (string) $a['z'];
+    $kopf['von'] = bin2hex(ausweis_oeffentlich());
     return [CONNECT_MAGIE . connect_versiegeln(connect_packen($kopf, $binaer), $pk), $binaer !== ''];
 }
 
 function connect_adressen_saeubern(array $ad): array
 {
     $url = static fn($u) => is_string($u) && preg_match('#^https?://[^\s/]+$#', rtrim($u, '/')) ? rtrim($u, '/') : null;
+    $host = static fn($u) => strtolower((string) parse_url((string) $u, PHP_URL_HOST));
+    // Heimnetz-Adressen: nur private IPv4 oder .local-Namen – nichts, was uns ins Internet oder zu anderen Geräten schicken könnte
+    $privat = static function ($u) use ($host): bool {
+        $h = $host($u);
+        return $h !== '' && (str_ends_with($h, '.local') || (filter_var($h, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($h, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false));
+    };
+    $offen = static fn($u) => $u !== null && connect_adresse_oeffentlich($u) ? $u : null;
     return array_filter([
-        'lan' => array_values(array_filter(array_map($url, array_slice((array) ($ad['lan'] ?? []), 0, 6)))),
+        'lan' => array_values(array_filter(array_map($url, array_slice((array) ($ad['lan'] ?? []), 0, 6)), $privat)),
         'direkt' => $url($ad['direkt'] ?? null),
         'oeffentlich' => $url($ad['oeffentlich'] ?? null),
-        'tunnel' => $url($ad['tunnel'] ?? null),
+        'tunnel' => $offen($url($ad['tunnel'] ?? null)),
         'netz' => is_string($ad['netz'] ?? null) && filter_var($ad['netz'], FILTER_VALIDATE_IP) ? $ad['netz'] : null,
     ]);
 }
@@ -329,8 +378,12 @@ function connect_methode(array $peer, string $m, array $a): array
     $abfrage = static function (array $erlaubt) use ($a): void {
         $_GET = array_intersect_key(array_map(static fn($v) => is_scalar($v) ? (string) $v : '', $a), array_flip($erlaubt));
     };
-    require_once __DIR__ . '/api_bibliothek.php';
-    require_once __DIR__ . '/api_nutzer.php';
+    // Die Bibliotheksfunktionen brauchen, was sonst die API lädt – hier auch im Hintergrundprozess (Rückkanal)
+    foreach (['api_bibliothek', 'api_nutzer', 'bilder', 'stream', 'lautheit', 'beliebt', 'genres', 'aktivitaet'] as $inc) {
+        if (is_file(__DIR__ . '/' . $inc . '.php')) {
+            require_once __DIR__ . '/' . $inc . '.php';
+        }
+    }
     switch ($m) {
         case 'warten':
             // Rückkanal: die Gegenstelle ist von außen nicht erreichbar und hält diese Anfrage offen –
@@ -412,16 +465,16 @@ function connect_bild_liefern(string $art, string $schluessel, int $g): array
 /** Playlists, die wir einer Gegenstelle ausdrücklich geschickt haben (24 Stunden abholbar) */
 function connect_freigaben(int $peerId, ?int $neu = null): array
 {
-    $datei = connect_ordner() . '/freigaben.json';
-    $alle = json_decode((string) @file_get_contents($datei), true) ?: [];
     $jetzt = time();
-    foreach ($alle as $k => $f) {
-        $alle[$k] = array_filter((array) $f, static fn($bis) => $bis > $jetzt);
-    }
-    if ($neu !== null) {
-        $alle[$peerId][(string) $neu] = $jetzt + 86400;
-        @file_put_contents($datei, json_encode($alle), LOCK_EX);
-    }
+    $alle = connect_json_aendern(connect_ordner() . '/freigaben.json', static function (array $alle) use ($peerId, $neu, $jetzt) {
+        foreach ($alle as $k => $f) {
+            $alle[$k] = array_filter((array) $f, static fn($bis) => $bis > $jetzt);
+        }
+        if ($neu !== null) {
+            $alle[$peerId][(string) $neu] = $jetzt + 86400;
+        }
+        return $alle;
+    });
     return array_map('intval', array_keys($alle[$peerId] ?? []));
 }
 
@@ -498,9 +551,15 @@ function connect_titel_liste(string $art, int $id, int $peerId = 0): array
 // ---------- Rufen (wir rufen andere Server) ----------
 
 /** Rohe Anfrage an eine Basisadresse; null = nicht erreichbar oder nicht der erwartete Server */
-function connect_anfrage_bauen(array $peer, string $m, array $a): string
+/**
+ * Versiegelte Anfrage an eine Gegenstelle. Der Klartext nennt den Absender („von“), damit niemand ein abgefangenes
+ * Chiffrat gespiegelt an den Absender zurückschicken kann (crypto_box ist in beide Richtungen gleich). $z bekommt den
+ * Zufallswert der Anfrage – die Antwort muss ihn zurückgeben, sonst gilt sie nicht (keine fremden/alten Antworten).
+ */
+function connect_anfrage_bauen(array $peer, string $m, array $a, ?string &$z = null): string
 {
-    $klar = json_encode(['m' => $m, 'a' => $a, 't' => time(), 'z' => bin2hex(random_bytes(16)), 'v' => app_version(),
+    $z = bin2hex(random_bytes(16));
+    $klar = json_encode(['m' => $m, 'a' => $a, 't' => time(), 'z' => $z, 'von' => bin2hex(ausweis_oeffentlich()), 'v' => app_version(),
         'name' => connect_eigener_name(), 'ad' => connect_eigene_adressen()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     return CONNECT_MAGIE . ausweis_oeffentlich() . connect_versiegeln($klar, hex2bin($peer['schluessel']));
 }
@@ -511,17 +570,22 @@ function connect_curl(string $basis, string $body, int $zeit = 60)
     curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_TIMEOUT => $zeit, CURLOPT_HTTPHEADER => ['Content-Type: application/octet-stream', 'User-Agent: Amberwave-Connect/' . app_version()],
         // Die Verbindung ist ohnehin Ende zu Ende verschlüsselt; im Heimnetz gibt es oft nur HTTP oder ein Zertifikat für einen anderen Namen
-        CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_FOLLOWLOCATION => false]);
+        CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_MAXFILESIZE_LARGE => CONNECT_STUECK + 1024 * 1024, CURLOPT_BUFFERSIZE => 256 * 1024]);
     return $ch;
 }
 
-function connect_antwort_oeffnen(array $peer, $roh): ?array
+function connect_antwort_oeffnen(array $peer, $roh, ?string $z = null): ?array
 {
     if (!is_string($roh) || strlen($roh) < 44 || substr($roh, 0, 4) !== CONNECT_MAGIE) {
         return null;
     }
     $klar = connect_oeffnen(substr($roh, 4), hex2bin($peer['schluessel']));
     $r = $klar === null ? null : connect_entpacken($klar);
+    // Die Antwort gehört zu genau dieser Anfrage und kommt von der Gegenstelle selbst (nicht gespiegelt)
+    if ($r && (($z !== null && !hash_equals($z, (string) ($r[0]['z'] ?? ''))) || !hash_equals($peer['schluessel'], (string) ($r[0]['von'] ?? '')))) {
+        return null;
+    }
     if ($r && is_array($r[0]['_gesehen'] ?? null)) {
         connect_gesehen_merken($r[0]['_gesehen']);
     }
@@ -570,8 +634,14 @@ function connect_weg_suchen(array $peer, bool $heimnetz_suchen = true): array
     $kand = connect_kandidaten($peer);
     $treffer = connect_parallel_hallo($peer, $kand);
     if (!$treffer && $heimnetz_suchen) {
-        $kand2 = connect_heimnetz_absuchen($peer);
-        $treffer = $kand2 ? connect_parallel_hallo($peer, $kand2) : null;
+        // Das Netz absuchen dauert Sekunden: höchstens einmal pro Minute je Gegenstelle, nicht bei jedem Klick
+        $marke = connect_rueck_ordner((int) $peer['id']) . '/scan_am';
+        $sm = @filemtime($marke);
+        if ($sm === false || time() - $sm > 60) {
+            @touch($marke);
+            $kand2 = connect_heimnetz_absuchen($peer);
+            $treffer = $kand2 ? connect_parallel_hallo($peer, $kand2) : null;
+        }
     }
     if (!$treffer) {
         db_tun("UPDATE connect_server SET weg = '', weg_art = '', weg_ms = NULL, weg_am = NOW() WHERE id = :id", ['id' => $peer['id']]);
@@ -602,11 +672,13 @@ function connect_parallel_hallo(array $peer, array $kand, bool $kurz = false): ?
     }
     $mh = curl_multi_init();
     $griffe = [];
+    $zs = [];
     foreach ($kand as $i => [$art, $basis]) {
-        $ch = connect_curl($basis, connect_anfrage_bauen($peer, 'hallo', []), $kurz ? 3 : 8);
+        $ch = connect_curl($basis, connect_anfrage_bauen($peer, 'hallo', [], $z), $kurz ? 3 : 8);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, $kurz ? 900 : 3000);
         curl_multi_add_handle($mh, $ch);
         $griffe[$i] = $ch;
+        $zs[$i] = $z;
     }
     $start = microtime(true);
     $best = null;
@@ -621,7 +693,7 @@ function connect_parallel_hallo(array $peer, array $kand, bool $kurz = false): ?
             if ($info['result'] !== CURLE_OK || curl_getinfo($ch, CURLINFO_RESPONSE_CODE) !== 200) {
                 continue;
             }
-            $r = connect_antwort_oeffnen($peer, curl_multi_getcontent($ch));
+            $r = connect_antwort_oeffnen($peer, curl_multi_getcontent($ch), $zs[$i]);
             if ($r && !empty($r[0]['ok'])) {
                 $ms = (int) round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
                 // Gleich schnell (±15 ms)? Dann der direktere Weg: Heimnetz vor Direktzugang vor Tunnel
@@ -653,12 +725,22 @@ function connect_heimnetz_absuchen(array $peer): array
     $ad = json_decode((string) ($peer['adressen'] ?? ''), true) ?: [];
     $basen = [];
     $ports = [];
+    // Nur Netze absuchen, in denen wir selbst stehen – das Heimnetz eines fernen Partners ist von hier aus nicht erreichbar
+    $eigeneNetze = [];
+    foreach (array_merge((array) (connect_eigene_ips()['lan'] ?? []), array_map(static fn($u) => (string) parse_url((string) $u, PHP_URL_HOST),
+        json_decode((string) @file_get_contents(connect_ordner() . '/eigene_lan.json'), true) ?: [])) as $ip) {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $eigeneNetze[implode('.', array_slice(explode('.', $ip), 0, 3))] = true;
+        }
+    }
     foreach ((array) ($ad['lan'] ?? []) as $u) {
         $t = parse_url($u);
         $ports[] = (int) ($t['port'] ?? 80);
         if (!empty($t['host']) && filter_var($t['host'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
             $netz = implode('.', array_slice(explode('.', $t['host']), 0, 3));
-            $basen[$netz . '|' . ($t['scheme'] ?? 'http') . '|' . ($t['port'] ?? '')] = [$netz, $t['scheme'] ?? 'http', $t['port'] ?? null];
+            if (isset($eigeneNetze[$netz])) {
+                $basen[$netz . '|' . ($t['scheme'] ?? 'http') . '|' . ($t['port'] ?? '')] = [$netz, $t['scheme'] ?? 'http', $t['port'] ?? null];
+            }
         }
     }
     // Hinter derselben öffentlichen IP wie wir? Dann steht er sehr wahrscheinlich in unserem Netz – dort suchen,
@@ -673,7 +755,7 @@ function connect_heimnetz_absuchen(array $peer): array
         }
     }
     $funde = [];
-    foreach (array_slice($basen, 0, 6) as [$netz, $schema, $port]) {
+    foreach (array_slice($basen, 0, 4) as [$netz, $schema, $port]) {
         $mh = curl_multi_init();
         $griffe = [];
         for ($i = 1; $i < 255; $i++) {
@@ -713,7 +795,11 @@ function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): a
     if (connect_rueck_aktiv($peer) && ($lan = connect_lan_weg($peer)) !== null) {
         $peer = $lan;
     } elseif (connect_rueck_aktiv($peer)) {
-        $r = connect_antwort_oeffnen($peer, connect_rueck_rufen($peer, connect_anfrage_bauen($peer, $m, $a), $zeit));
+        $roh = connect_rueck_rufen($peer, connect_anfrage_bauen($peer, $m, $a, $z), $zeit);
+        if ($roh === null) {
+            throw new ApiFehler(t('„{name}“ hat über den Rückkanal nicht rechtzeitig geantwortet.', ['name' => $peer['name']]), 504);
+        }
+        $r = connect_antwort_oeffnen($peer, $roh, $z);
         if (!$r) {
             throw new ApiFehler(t('„{name}“ antwortet nicht richtig.', ['name' => $peer['name']]), 503);
         }
@@ -728,12 +814,13 @@ function connect_rufen(array $peer, string $m, array $a = [], int $zeit = 60): a
         $peer = connect_weg_suchen($peer);
     }
     for ($versuch = 0; $versuch < 2; $versuch++) {
-        $ch = connect_curl($peer['weg'], connect_anfrage_bauen($peer, $m, $a), $zeit);
+        $ch = connect_curl($peer['weg'], connect_anfrage_bauen($peer, $m, $a, $z), $zeit);
         $roh = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         curl_close($ch);
-        $r = $code === 200 ? connect_antwort_oeffnen($peer, $roh) : null;
+        $r = $code === 200 ? connect_antwort_oeffnen($peer, $roh, $z) : null;
         if ($r) {
+            db_tun('UPDATE connect_server SET weg_am = NOW(), zuletzt_am = NOW() WHERE id = :id', ['id' => $peer['id']]);   // der Weg trägt – nicht alle 5 Minuten neu suchen
             [$kopf, $binaer] = $r;
             if (empty($kopf['ok'])) {
                 throw new ApiFehler((string) ($kopf['fehler'] ?? t('Der andere Server hat abgelehnt.')), (int) ($kopf['code'] ?? 400) ?: 400);
@@ -824,25 +911,27 @@ function connect_koppeln_empfangen(): array
             $K = sodium_crypto_scalarmult_ristretto255($ya, $Yb);
             $pkA = ausweis_oeffentlich();
             [$macA, $macB] = connect_cpace_schluessel($K, $Ya, $Yb, $pkA, $pkB);
-            $e['offen'][bin2hex($pkB)] = ['mac' => $macB, 'name' => mb_substr((string) api_wert('name', ''), 0, 120),
-                'adressen' => is_array(api_wert('adressen')) ? connect_adressen_saeubern(api_wert('adressen')) : []];
+            $e['offen'][bin2hex($pkB)] = ['mac' => $macB];
             ftruncate($fp, 0);
             rewind($fp);
             fwrite($fp, json_encode($e));
-            return ['y' => bin2hex($Ya), 'schluessel' => bin2hex($pkA), 'name' => connect_eigener_name(), 'adressen' => connect_eigene_adressen(), 'mac' => $macA];
+            // Name und Adressen gibt es erst, wenn die Gegenseite den Code bewiesen hat (Schritt „bestaetigen“)
+            return ['y' => bin2hex($Ya), 'schluessel' => bin2hex($pkA), 'mac' => $macA];
         }
         if ($schritt === 'bestaetigen') {
             $o = $e['offen'][bin2hex($pkB)] ?? null;
             if (!$o || !hash_equals((string) $o['mac'], (string) api_wert('mac', ''))) {
                 throw new ApiFehler(t('Der Code stimmt nicht.'), 403);
             }
-            $id = connect_server_speichern(bin2hex($pkB), (string) $o['name'], $o['adressen'], (int) $e['von']);
+            $name = mb_substr((string) api_wert('name', ''), 0, 120);
+            $adressen = is_array(api_wert('adressen')) ? connect_adressen_saeubern(api_wert('adressen')) : [];
+            $id = connect_server_speichern(bin2hex($pkB), $name, $adressen, (int) $e['von']);
             ftruncate($fp, 0);
             fclose($fp);
             $fp = null;
             connect_einladung_beenden();
-            log_sicherheitsereignis((int) $e['von'], 'connect_gekoppelt', $o['name'] . ' ' . ausweis_kennung($pkB));
-            return ['ok' => true, 'server' => $id];
+            log_sicherheitsereignis((int) $e['von'], 'connect_gekoppelt', $name . ' ' . ausweis_kennung($pkB));
+            return ['ok' => true, 'server' => $id, 'name' => connect_eigener_name(), 'adressen' => connect_eigene_adressen()];
         }
         throw new ApiFehler(t('Ungültige Anfrage.'), 400);
     } finally {
@@ -898,7 +987,7 @@ function connect_koppeln_mit(array $admin, string $adresse, string $code): array
         }
         return $j;
     };
-    $a = $post(['schritt' => 'start', 'y' => bin2hex($Yb), 'schluessel' => bin2hex($pkB), 'name' => connect_eigener_name(), 'adressen' => connect_eigene_adressen()]);
+    $a = $post(['schritt' => 'start', 'y' => bin2hex($Yb), 'schluessel' => bin2hex($pkB)]);
     $Ya = hex2bin((string) ($a['y'] ?? '')) ?: '';
     $pkA = hex2bin((string) ($a['schluessel'] ?? '')) ?: '';
     if (strlen($Ya) !== 32 || strlen($pkA) !== 32 || !sodium_crypto_core_ristretto255_is_valid_point($Ya)) {
@@ -909,8 +998,9 @@ function connect_koppeln_mit(array $admin, string $adresse, string $code): array
     if (!hash_equals($macA, (string) ($a['mac'] ?? ''))) {
         throw new ApiFehler(t('Der Code stimmt nicht.'));
     }
-    $post(['schritt' => 'bestaetigen', 'schluessel' => bin2hex($pkB), 'mac' => $macB]);
-    $ad = is_array($a['adressen'] ?? null) ? connect_adressen_saeubern($a['adressen']) : [];
+    $b = $post(['schritt' => 'bestaetigen', 'schluessel' => bin2hex($pkB), 'mac' => $macB, 'name' => connect_eigener_name(), 'adressen' => connect_eigene_adressen()]);
+    $a['name'] = $b['name'] ?? '';
+    $ad = is_array($b['adressen'] ?? null) ? connect_adressen_saeubern($b['adressen']) : [];
     // Die Adresse, über die es gerade geklappt hat, kommt sicher ins Adressbuch
     $h = (string) parse_url($adresse, PHP_URL_HOST);
     if (filter_var($h, FILTER_VALIDATE_IP) && filter_var($h, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false) {
@@ -1050,7 +1140,22 @@ function connect_lan_weg(array $peer, bool $erzwingen = false): ?array
 function connect_rueck_warten(array $peer): array
 {
     $d = connect_rueck_ordner((int) $peer['id']);
+    // Je Gegenstelle höchstens eine offene „warten“ – sonst könnte ein Partner alle Webserver-Prozesse belegen
+    $sp = @fopen($d . '/warten.sperre', 'c');
+    if (!$sp || !flock($sp, LOCK_EX | LOCK_NB)) {
+        if ($sp) {
+            fclose($sp);
+        }
+        usleep(300000);
+        return [];
+    }
     @touch($d . '/lebt');
+    // Liegengebliebenes (abgebrochene Webprozesse) wegräumen – älter als 10 Minuten
+    foreach (glob($d . '/*.{anfrage,geholt,antwort,tmp,teil,auftrag}', GLOB_BRACE) ?: [] as $f) {
+        if (@filemtime($f) < time() - 600) {
+            @unlink($f);
+        }
+    }
     // Weg „Rückkanal“ vermerken – außer es gibt gerade einen frischen Weg im Heimnetz (der hat Vorrang)
     db_tun("UPDATE connect_server SET weg = 'rueckkanal', weg_art = 'rueckkanal', weg_am = NOW() WHERE id = :id
         AND NOT (weg_art = 'heimnetz' AND weg_am > NOW() - INTERVAL 300 SECOND)", ['id' => $peer['id']]);
@@ -1079,7 +1184,9 @@ function connect_rueck_warten(array $peer): array
             }
         }
         usleep(100000);
-        @touch($d . '/lebt');
+        if ((int) (microtime(true) * 10) % 10 === 0) {
+            @touch($d . '/lebt');
+        }
     } while (microtime(true) < $ende && !connection_aborted());
     return [];
 }
@@ -1121,11 +1228,15 @@ function connect_rueck_antwort(string $id): void
     }
     $in = fopen('php://input', 'rb');
     $tmp = $d . '/' . $id . '.teil';
-    $out = fopen($tmp, 'wb');
+    $out = @fopen($tmp, 'wb');
+    if (!$in || !$out) {
+        throw new ApiFehler(t('Interner Fehler auf dem anderen Server.'), 500);
+    }
     $n = stream_copy_to_stream($in, $out, 20 * 1024 * 1024 + 1);
     fclose($out);
-    if ($n === false || $n > 20 * 1024 * 1024) {
-        @unlink($tmp);
+    $erwartet = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($n === false || $n > 20 * 1024 * 1024 || ($erwartet > 0 && $n !== $erwartet)) {
+        @unlink($tmp);   // unvollständig angekommen – lieber Zeitablauf als eine halbe Antwort
         throw new ApiFehler(t('Ungültige Anfrage.'), 413);
     }
     rename($tmp, $d . '/' . $id . '.antwort');
@@ -1249,13 +1360,43 @@ function connect_lan_aus_ips(array $urls, array $ips): array
 function connect_lan_gefunden(int $peerId, ?string $neu = null): array
 {
     $datei = connect_ordner() . '/lan_gefunden.json';
-    $alle = json_decode((string) @file_get_contents($datei), true) ?: [];
-    $l = (array) ($alle[$peerId] ?? []);
-    if ($neu !== null && ($l[0] ?? '') !== $neu) {
-        $l = array_slice(array_values(array_unique(array_merge([$neu], $l))), 0, 3);
-        $alle[$peerId] = $l;
-        @file_put_contents($datei, json_encode($alle), LOCK_EX);
+    if ($neu === null) {
+        return (array) ((json_decode((string) @file_get_contents($datei), true) ?: [])[$peerId] ?? []);
     }
-    return $l;
+    $alle = connect_json_aendern($datei, static function (array $alle) use ($peerId, $neu) {
+        $l = (array) ($alle[$peerId] ?? []);
+        if (($l[0] ?? '') === $neu) {
+            return null;
+        }
+        $alle[$peerId] = array_slice(array_values(array_unique(array_merge([$neu], $l))), 0, 3);
+        return $alle;
+    });
+    return (array) ($alle[$peerId] ?? []);
+}
+
+/** Stand des Rückkanals zu einer Gegenstelle (von beiden Seiten aus gesehen): hält sie einen offen? Halten wir einen? */
+function connect_rueck_stand(int $peerId): ?array
+{
+    $d = connect_ordner() . '/rueck/' . $peerId;
+    $lebt = @filemtime($d . '/lebt');
+    $st = json_decode((string) @file_get_contents($d . '/status.json'), true) ?: [];
+    if ($lebt === false && !$st) {
+        return null;
+    }
+    return ['haelt_zu_uns' => $lebt !== false && time() - $lebt < 75, 'zuletzt_ok' => isset($st['ok_am']) ? iso(date('Y-m-d H:i:s', (int) $st['ok_am'])) : null,
+        'fehler' => (string) ($st['fehler'] ?? ''), 'fehler_am' => isset($st['fehler_am']) ? iso(date('Y-m-d H:i:s', (int) $st['fehler_am'])) : null];
+}
+
+/** Beim Trennen: alles weg, was zu dieser Gegenstelle gehört (Rückkanal-Ordner, Bild-Cache, gemerkte Heimnetz-Wege) */
+function connect_aufraeumen_nach_trennen(int $peerId): void
+{
+    foreach ([connect_ordner() . '/rueck/' . $peerId, connect_ordner() . '/bilder/' . $peerId] as $o) {
+        foreach (glob($o . '/*') ?: [] as $f) {
+            @unlink($f);
+        }
+        @rmdir($o);
+    }
+    connect_json_aendern(connect_ordner() . '/lan_gefunden.json', static function (array $a) use ($peerId) { unset($a[$peerId]); return $a; });
+    connect_json_aendern(connect_ordner() . '/freigaben.json', static function (array $a) use ($peerId) { unset($a[$peerId]); return $a; });
 }
 
