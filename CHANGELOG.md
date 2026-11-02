@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.9.1-beta.15 – Seamless network changes, Windows Client update fix
+## 0.9.1-beta.15 – Seamless network changes, better MusicBrainz search, Windows Client update fix
+- **MusicBrainz matching: browse by artist.** Next to "Search album" there is now "Browse by artist": pick the artist and see all their releases like on musicbrainz.org – albums, EPs, singles, live, compilations – with covers and year; click one to see all its editions and compare as usual. When an album search finds nothing, a button takes you straight to the artist's releases.
+- MusicBrainz search no longer shows unrelated albums: results must share the title with what you searched (titles made only of symbols like "÷" are compared literally), the title now weighs as much as track count and artist in the ranking, and the album an edition is linked to is only added to the first automatic search – clearly marked as "currently linked album" – instead of to every search you type yourself.
+- "Unlink" also releases the album's link when no other edition depends on it, so a wrong match doesn't come back with every search.
+- MusicBrainz search: fewer needless requests (the fuzzy and artist-less fallbacks only run when no album with a matching title was found), "Simon and Garfunkel" also finds "Simon & Garfunkel", and more spellings of "Various Artists" are recognised.
 - **Connect: switching networks happens in the background.** A server now notices on its own when its network changes (home Wi-Fi → phone hotspot, new IP) – like the apps already did – and immediately forgets all remembered routes, reopens the back channel over the new connection and tells its partners its new addresses. A partner that moved is found again within a few seconds instead of up to a minute.
 - Connect: when a server left the home network, its partner kept trying the old home address for up to 5 minutes and reported "not reachable" even though the back channel was open – a failed route is now dropped at once.
 - Connect: a route not used for a minute is checked quickly (1.5 s) before it's used; home-network addresses get 1.5 s to answer instead of 4 s – so the first click after moving costs about two seconds instead of up to a minute.

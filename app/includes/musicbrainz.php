@@ -202,7 +202,10 @@ function mb_album_aehnlich(string $a, string $b): float
     $wb = array_unique(explode(' ', name_norm(mb_titel_zerlegen($b)[0])));
     $wa = array_filter($wa); $wb = array_filter($wb);
     if (!$wa || !$wb) {
-        return 0.0;
+        // Titel nur aus Zeichen (Ed Sheeran „÷“, „+“, „×“, „!!!“): wörtlich vergleichen
+        $ra = mb_strtolower(trim(mb_titel_zerlegen($a)[0]), 'UTF-8');
+        $rb = mb_strtolower(trim(mb_titel_zerlegen($b)[0]), 'UTF-8');
+        return $ra !== '' && $ra === $rb ? 1.0 : 0.0;
     }
     $gemeinsam = count(array_intersect($wa, $wb));
     return $gemeinsam / max(count($wa), count($wb));
@@ -364,12 +367,15 @@ function mb_editionen_suchen(string $titel, string $kuenstler, ?string $rg_mbid 
         $holen($titelQ . $kuenstlerQ);
         // 2. unscharf: Wörter statt Phrase (andere Satzzeichen, „&“ statt „and“, fehlende Wörter im Tag) – nur, wenn die genaue Suche wenig brachte
         $woerter = mb_lucene_woerter($kern);
-        if (count($gruppen) < 3 && $woerter !== '') {
-            $kw = $kuenstlerKern !== '' ? mb_lucene_woerter($kuenstlerKern) : '';
+        $passt = static fn(array $gr) => (bool) array_filter($gr, static fn($g) => mb_album_aehnlich($titel, $g['titel']) >= 0.5);
+        if (!$passt($gruppen) && $woerter !== '') {
+            // Bindewörter weglassen: im Tag „Simon and Garfunkel“, bei MusicBrainz „Simon & Garfunkel“
+            $kw = $kuenstlerKern !== '' ? mb_lucene_woerter((string) preg_replace('/(^|\s)(and|und|et|y|the|die|der|das|&|\+)(?=\s|$)/iu', ' ', $kuenstlerKern)) : '';
             $holen('(release:(' . $woerter . ') OR releasegroup:(' . $woerter . '))' . ($kw !== '' ? ' AND artist:(' . $kw . ')' : ''), 100);
         }
-        // 3. ohne Künstler (andere Schreibweise des Künstlers, „Various Artists“ falsch getaggt)
-        if (!$editionen && $kuenstlerQ !== '') {
+        // 3. ohne Künstler (andere Schreibweise des Künstlers, „Various Artists“ falsch getaggt) – nur, wenn bisher kein
+        // Album mit passendem Titel dabei ist; was dabei herauskommt, wird unten nach dem Titel gefiltert
+        if (!$passt($gruppen) && $kuenstlerQ !== '') {
             $holen($titelQ, 100);
         }
         // Treffer, die nur zufällig ein Wort teilen, nicht weiter verfolgen: MusicBrainz-Punkte durch eigene Titelähnlichkeit dämpfen
@@ -407,14 +413,26 @@ function mb_editionen_suchen(string $titel, string $kuenstler, ?string $rg_mbid 
             $offset += count($liste);
         } while ($liste && $offset < (int) ($d['release-count'] ?? 0) && $offset < 500);
         if (isset($gruppen[$gid])) {
-            $gruppen[$gid]['vollstaendig'] = true;
+            $gruppen[$gid]['vollstaendig'] = $offset >= (int) ($d['release-count'] ?? 0);
         }
     }
 
     foreach ($editionen as $e) {
         $gruppen[$e['rg']]['editionen'][] = $e;
     }
-    return ['gruppen' => array_values(array_filter($gruppen, static fn($g) => !empty($g['editionen']))), 'anzahl' => count($editionen)];
+    $gruppen = array_filter($gruppen, static fn($g) => !empty($g['editionen']));
+    if ($titel !== '') {
+        // Nur Alben, deren Titel (oder der Titel einer ihrer Editionen) zur Suche passt. MusicBrainz liefert sonst gern
+        // „irgendwas vom Künstler“ – etwa wenn vom Titel nach dem Entschärfen nichts übrig bleibt („÷“), oder über die
+        // unscharfe Suche mit allgemeinen Wörtern („Live“, „Best“). Ein vorgegebenes Album bleibt immer.
+        foreach ($gruppen as $gid => &$g) {
+            $g['titel_passung'] = max(mb_album_aehnlich($titel, $g['titel']), ...array_map(static fn($e) => mb_album_aehnlich($titel, $e['titel']), $g['editionen']));
+        }
+        unset($g);
+        $gruppen = array_filter($gruppen, static fn($g) => $g['titel_passung'] >= 0.34 || $g['mbid'] === strtolower((string) $rg_mbid));
+        $editionen = array_merge(...array_values(array_map(static fn($g) => $g['editionen'], $gruppen)) ?: [[]]);
+    }
+    return ['gruppen' => array_values($gruppen), 'anzahl' => count($editionen)];
 }
 
 /** Editionen bewerten: Wie gut passen sie zu unserer Edition (Trackanzahl, Jahr, Titel, Künstler)? */
@@ -428,6 +446,10 @@ function mb_kandidaten_bewerten(array $ergebnis, array $unsere): array
     $kuenstler_n = name_norm(mb_kuenstler_kern($unsere['kuenstler']));
     foreach ($ergebnis['gruppen'] as &$g) {
         $g_titel = name_norm($g['titel']) === $titel_n || name_norm(mb_titel_zerlegen($g['titel'])[0]) === $kern_n;
+        // Wie gut passt der Titel? Bisher entschieden Titelzahl und Künstler fast allein – dann standen andere Alben desselben
+        // Künstlers mit gleich vielen Titeln vor dem gesuchten
+        $titelPassung = $g['titel_passung'] ?? mb_album_aehnlich($unsere['titel'], $g['titel']);
+        $g['album_verknuepft'] = ($unsere['album_mbid'] ?? '') !== '' && $g['mbid'] === strtolower((string) $unsere['album_mbid']);
         $g_kuenstler = $kuenstler_n !== '' && name_norm($g['kuenstler']) === $kuenstler_n;
         $bester = 0;
         foreach ($g['editionen'] as &$e) {
@@ -471,6 +493,7 @@ function mb_kandidaten_bewerten(array $ergebnis, array $unsere): array
                 $e['verknuepft'] = true;
             }
             $p += (int) round($e['score'] / 10);
+            $p += (int) round(40 * $titelPassung) - ($titelPassung === 0.0 ? 30 : 0);
             $e['passung'] = $p;
             $bester = max($bester, $p);
         }

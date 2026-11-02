@@ -1059,14 +1059,97 @@ export const verwaltungsAnsichten = {
           </div>
         </div>
       </div>
+      <div class="rk-seg dl-modus" role="group" aria-label="${t('Suchart')}" data-mb-modus style="margin-bottom:12px">
+        <button type="button" data-modus="album" aria-pressed="true">${t('Album suchen')}</button>
+        <button type="button" data-modus="kuenstler" aria-pressed="false">${t('Nach Künstler stöbern')}</button>
+      </div>
       <form class="glass-panel filterleiste" data-suche style="padding:16px;align-items:flex-end">
         <div style="flex:2 1 240px"><label style="margin-top:0">Album</label><input type="text" name="titel" value="${h(ed.album_titel)}" required></div>
         <div style="flex:2 1 200px"><label style="margin-top:0">${t('Künstler ')} <small>${t('(leer = beliebig)')}</small></label><input type="text" name="kuenstler" value="${h(ed.kuenstler_text === 'Various Artists' ? '' : ed.kuenstler_text)}"></div>
         <button type="submit" class="btn" style="flex:none">${icon('suche', 18)}<span>${t('Bei MusicBrainz suchen')}</span></button>
       </form>
+      <form class="glass-panel filterleiste" data-k-suche style="padding:16px;align-items:flex-end" hidden>
+        <div style="flex:2 1 280px"><label style="margin-top:0">${t('Künstler')}</label><input type="text" name="kuenstler" value="${h(ed.kuenstler_text === 'Various Artists' ? '' : ed.kuenstler_text)}" required minlength="2"></div>
+        <button type="submit" class="btn" style="flex:none">${icon('suche', 18)}<span>${t('Veröffentlichungen zeigen')}</span></button>
+      </form>
       <div data-ergebnis style="margin-top:22px"></div>`;
     const box = ziel.querySelector('[data-ergebnis]');
     let ergebnis = null;
+    // Künstler-Modus: Künstler wählen → Diskografie (wie auf musicbrainz.org) → Album wählen → seine Editionen
+    let mbK = null;      // { begriff, kuenstler: [] }
+    let disko = null;    // { kuenstler, releases, gesamt }
+    let ausDisko = false;
+    const ARTEN = [['album', t('Alben')], ['ep', 'EPs'], ['single', 'Singles'], ['live', 'Live'], ['compilation', 'Compilations'], ['sonstiges', t('Sonstiges')]];
+    let artFilter = new Set(['album', 'ep']);
+    const laden = (text) => `<div class="glass-panel" style="text-align:center"><div class="lade" style="padding:20px 0"></div><p class="hinweis" style="margin:0">${h(text)}</p></div>`;
+    const kuenstlerZeichnen = () => {
+      ausDisko = false;
+      if (disko) {
+        const k = disko.kuenstler;
+        const zaehl = Object.fromEntries(ARTEN.map(([a]) => [a, disko.releases.filter((r) => r.art === a).length]));
+        const liste = disko.releases.filter((r) => artFilter.has(r.art));
+        box.innerHTML = `<div class="dl-disko">
+          <div class="dl-treffer-kopf"><span class="dl-disko-name">${mbK?.kuenstler?.length > 1 ? `<button type="button" class="pille" data-k-zurueck>${t('‹ Künstler')}</button>` : ''}<b>${h(k.name)}</b>${k.unterscheidung ? `<small>${h(k.unterscheidung)}</small>` : ''}<small>${[land(k.land), k.beginn?.slice(0, 4)].filter(Boolean).map(h).join(' · ')}</small></span>
+            <a href="https://musicbrainz.org/artist/${h(k.mbid)}" target="_blank" rel="noopener" style="font-size:.85rem">${t('bei MusicBrainz ↗')}</a></div>
+          <div class="dl-arten">${ARTEN.filter(([a]) => zaehl[a]).map(([a, n]) => `<button type="button" class="dl-art" data-art="${a}" aria-pressed="${artFilter.has(a)}">${n} <small>${zaehl[a]}</small></button>`).join('')}</div>
+          <div class="dl-releases">${liste.map((r) => `<button type="button" class="dl-release${r.hier ? ' hier' : ''}" data-rg="${h(r.mbid)}" title="${h(t('Editionen von „{titel}“ zeigen', { titel: r.titel }))}">
+              <span class="dl-cover"><img src="/api/v1/admin/mb-cover/${h(r.mbid)}?art=rg&g=250" alt="" loading="lazy" data-k-cover>${icon('album', 26)}${r.mbid === ed.album_mbid ? `<i class="dl-hier">${t('aktuell verknüpft')}</i>` : r.hier ? `<i class="dl-hier">${t('In der Bibliothek')}</i>` : ''}</span>
+              <b>${h(r.titel)}</b><small>${[r.datum?.slice(0, 4), r.typ].filter(Boolean).map(h).join(' · ')}${r.zusatz ? ` · ${h(r.zusatz)}` : ''}</small>
+            </button>`).join('') || `<p class="hinweis" style="margin:0">${t('Nichts in dieser Auswahl.')}</p>`}</div>
+          ${disko.gesamt > disko.releases.length ? `<p class="hinweis" style="margin:0">${t('Gezeigt werden {n} von {gesamt} Veröffentlichungen.', { n: zahl(disko.releases.length), gesamt: zahl(disko.gesamt) })}</p>` : ''}
+        </div>`;
+        box.querySelectorAll('[data-k-cover]').forEach((i) => i.addEventListener('error', () => i.remove()));
+        return;
+      }
+      if (!mbK) { box.innerHTML = ''; return; }
+      box.innerHTML = `<div class="dl-treffer">${mbK.kuenstler.map((a) => `<button type="button" class="dl-kuenstler" data-k="${h(a.mbid)}">
+          <span class="dl-k-name"><b>${h(a.name)}</b>${a.unterscheidung ? `<small>${h(a.unterscheidung)}</small>` : ''}</span>
+          <span class="dl-wert">${[KUENSTLER_TYP[a.typ] || '', land(a.land), a.beginn ? a.beginn.slice(0, 4) + (a.ende ? '–' + a.ende.slice(0, 4) : '') : ''].filter(Boolean).map(h).join(' · ')}</span>
+          ${a.alben_hier ? `<span class="dl-q lossless" title="${t('Schon in der Bibliothek')}"><b>${t('{n} hier', { n: a.alben_hier })}</b></span>` : '<span></span>'}
+        </button>`).join('') || `<p class="hinweis" style="margin:0;padding:14px 16px">${h(t('Kein Künstler „{name}“ bei MusicBrainz.', { name: mbK.begriff }))}</p>`}</div>`;
+    };
+    const diskoLaden = async (mbid) => {
+      box.innerHTML = laden(t('Lade die Veröffentlichungen bei MusicBrainz …'));
+      const r = await versuche(() => api.get('/admin/downloads/kuenstler/' + mbid, { signal }));
+      if (!r) { kuenstlerZeichnen(); return; }
+      disko = r;
+      const da = new Set(r.releases.map((x) => x.art));
+      artFilter = new Set(['album', 'ep'].filter((a) => da.has(a)));
+      if (!artFilter.size) artFilter = new Set(da);
+      kuenstlerZeichnen();
+    };
+    const kuenstlerSuchen = async (begriff) => {
+      disko = null;
+      box.innerHTML = laden(t('Suche den Künstler bei MusicBrainz …'));
+      const r = await versuche(() => api.get('/admin/downloads/kuenstler?q=' + encodeURIComponent(begriff), { signal }));
+      mbK = { begriff, kuenstler: r?.kuenstler || [] };
+      const k = mbK.kuenstler;
+      // Eindeutiger Treffer (genau der Name, deutlich vor dem Rest): gleich die Veröffentlichungen zeigen
+      if (k.length && k[0].score === 100 && k[0].name.toLowerCase() === begriff.toLowerCase() && (k.length === 1 || k[1].score < 90 || k[1].name.toLowerCase() !== begriff.toLowerCase())) { diskoLaden(k[0].mbid); return; }
+      kuenstlerZeichnen();
+    };
+    const gruppeLaden = async (rg) => {
+      box.innerHTML = laden(t('Lade alle Editionen dieses Albums …'));
+      try {
+        ergebnis = await api.get(`/admin/editionen/${id}/mb-gruppe/${rg}`, { signal });
+        ausDisko = true;
+        zeichnen();
+      } catch (e) {
+        if (e.name !== 'AbortError') box.innerHTML = `<div class="fehler">${h(e.message)}</div>`;
+      }
+    };
+    const modusSetzen = (m) => {
+      ziel.querySelectorAll('[data-mb-modus] [data-modus]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.modus === m)));
+      ziel.querySelector('[data-suche]').hidden = m !== 'album';
+      ziel.querySelector('[data-k-suche]').hidden = m !== 'kuenstler';
+      if (m === 'kuenstler') {
+        if (disko || mbK) kuenstlerZeichnen();
+        else { const v = ziel.querySelector('[data-k-suche] input').value.trim(); if (v.length >= 2) kuenstlerSuchen(v); else box.innerHTML = ''; }
+      } else if (ergebnis && !ausDisko) zeichnen();
+      else box.innerHTML = '';
+    };
+    ziel.querySelector('[data-mb-modus]').addEventListener('click', (e) => { const b = e.target.closest('[data-modus]'); if (b) modusSetzen(b.dataset.modus); });
+    ziel.querySelector('[data-k-suche]').addEventListener('submit', (e) => { e.preventDefault(); kuenstlerSuchen(String(new FormData(e.target).get('kuenstler')).trim()); });
     const filter = { passend: false, land: '', format: '' };
     const zeichnen = () => {
       if (!ergebnis) return;
@@ -1079,6 +1162,7 @@ export const verwaltungsAnsichten = {
           <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:8px">
             <h3 style="font-size:1.15rem">${h(g.titel)}</h3><span class="hinweis">${h(g.kuenstler)}</span>
             <span class="marke">${h([TYP_NAMEN[g.typ] || g.typ, ...(g.zusatz || []).map((z) => ZUSATZ_NAMEN[z] || z)].join(' · '))}</span>${g.erstjahr ? `<span class="marke">${g.erstjahr}</span>` : ''}
+            ${g.album_verknuepft ? `<span class="marke marke-akzent">${t('aktuell verknüpftes Album')}</span>` : ''}
             <span class="hinweis" style="font-size:.85rem">${tn(g.editionen.length, '{n} Edition', '{n} Editionen')}${g.vollstaendig ? '' : t(' (aus der Suche)')}</span>
             <a href="https://musicbrainz.org/release-group/${h(g.mbid)}" target="_blank" rel="noopener" style="font-size:.85rem;margin-left:auto">${t('bei MusicBrainz ↗')}</a>
           </div>
@@ -1092,7 +1176,7 @@ export const verwaltungsAnsichten = {
             <td><button type="button" class="btn btn-zweit btn-klein" data-vergleich="${h(e.mbid)}">${t('Vergleichen')}</button></td></tr>`).join('')}
           </tbody></table></div></div>`;
       }).join('');
-      box.innerHTML = `<div class="filterleiste">
+      box.innerHTML = `${ausDisko && disko ? `<button type="button" class="pille dl-zurueck" data-zur-disko style="margin-bottom:12px">${h(t('‹ Zurück zu den Veröffentlichungen von {name}', { name: disko.kuenstler.name }))}</button>` : ''}<div class="filterleiste">
           <span class="hinweis">${tn(ergebnis.gruppen.length, '{a} Editionen in {n} Album gefunden', '{a} Editionen in {n} Alben gefunden', { a: ergebnis.anzahl })}</span><span class="abstand"></span>
           <label class="checkbox-zeile" style="margin:0"><input type="checkbox" data-fp ${filter.passend ? 'checked' : ''}> ${t('Nur passende Titelanzahl ({n})', { n: ed.dateien })}</label>
           <select data-fl><option value="">${t('Alle Länder')}</option>${[...laender].sort((a, b) => land(a).localeCompare(land(b), locale)).map((l) => `<option value="${h(l)}" ${filter.land === l ? 'selected' : ''}>${h(land(l))}</option>`).join('')}</select>
@@ -1104,12 +1188,14 @@ export const verwaltungsAnsichten = {
       box.querySelector('[data-fl]').addEventListener('change', (e) => { filter.land = e.target.value; zeichnen(); });
       box.querySelector('[data-ff]').addEventListener('change', (e) => { filter.format = e.target.value; zeichnen(); });
     };
-    const suchen = async (titel, kuenstler) => {
+    const suchen = async (titel, kuenstler, mitRg = false) => {
+      ausDisko = false;
       box.innerHTML = `<div class="glass-panel" style="text-align:center"><div class="lade" style="padding:20px 0"></div><p class="hinweis" style="margin:0">${t('Suche alle Editionen bei MusicBrainz … Das dauert ein paar Sekunden, weil MusicBrainz nur eine Anfrage pro Sekunde erlaubt.')}</p></div>`;
       try {
-        ergebnis = await api.get(`/admin/editionen/${id}/mb-suche?titel=${encodeURIComponent(titel)}&kuenstler=${encodeURIComponent(kuenstler)}`, { signal });
+        ergebnis = await api.get(`/admin/editionen/${id}/mb-suche?titel=${encodeURIComponent(titel)}&kuenstler=${encodeURIComponent(kuenstler)}${mitRg ? '&mit_rg=1' : ''}`, { signal });
         if (!ergebnis.gruppen.length) {
-          box.innerHTML = leer(t('Nichts gefunden'), t('MusicBrainz kennt kein passendes Album. Versuche einen anderen Titel oder lass den Künstler leer.'));
+          box.innerHTML = leer(t('Nichts gefunden'), t('MusicBrainz kennt kein Album mit diesem Titel. Versuche einen anderen Titel, lass den Künstler leer – oder sieh dir alle Veröffentlichungen des Künstlers an.'))
+            + (kuenstler.length >= 2 ? `<div style="text-align:center;margin-top:12px"><button type="button" class="btn btn-zweit" data-alle-von="${h(kuenstler)}">${h(t('Alle Veröffentlichungen von {name}', { name: kuenstler }))}</button></div>` : '');
           return;
         }
         zeichnen();
@@ -1125,6 +1211,16 @@ export const verwaltungsAnsichten = {
       suchen(String(f.get('titel')).trim(), String(f.get('kuenstler')).trim());
     });
     box.addEventListener('click', (e) => {
+      const alle = e.target.closest('[data-alle-von]');
+      if (alle) { ziel.querySelector('[data-k-suche] input').value = alle.dataset.alleVon; mbK = null; disko = null; modusSetzen('kuenstler'); return; }
+      if (e.target.closest('[data-zur-disko]')) { kuenstlerZeichnen(); return; }
+      if (e.target.closest('[data-k-zurueck]')) { disko = null; kuenstlerZeichnen(); return; }
+      const kb = e.target.closest('[data-k]');
+      if (kb) { diskoLaden(kb.dataset.k); return; }
+      const art = e.target.closest('[data-art]');
+      if (art) { artFilter.has(art.dataset.art) ? artFilter.delete(art.dataset.art) : artFilter.add(art.dataset.art); kuenstlerZeichnen(); return; }
+      const rg = e.target.closest('[data-rg]');
+      if (rg) { gruppeLaden(rg.dataset.rg); return; }
       const z = e.target.closest('[data-vergleich], .abgleich-zeile');
       if (z) nachVergleich(vergleichZeigen(app, ed, z.dataset.vergleich || z.dataset.mbid));
     });
@@ -1133,7 +1229,7 @@ export const verwaltungsAnsichten = {
       if (!(await bestaetigen(t('Verknüpfung lösen?'), t('Die Edition wird wieder aus den Datei-Tags aufgebaut (Einlesen startet automatisch). Von Hand Gepflegtes bleibt erhalten.'), t('Lösen'), true))) return;
       if (await versuche(() => api.post(`/admin/editionen/${id}/mb-loesen`), t('Verknüpfung gelöst – Einlesen läuft')) && !app.vomAbgleichZurueck()) app.navigieren('/verwaltung/bibliothek');
     });
-    suchen(ed.album_titel, ed.kuenstler_text === 'Various Artists' ? '' : ed.kuenstler_text);
+    suchen(ed.album_titel, ed.kuenstler_text === 'Various Artists' ? '' : ed.kuenstler_text, true);
   },
 
   /** Alte Adresse: Server-Einstellungen sind jetzt unter /einstellungen */

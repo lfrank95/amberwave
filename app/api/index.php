@@ -1001,6 +1001,14 @@ $routen = [
         set_time_limit(180);
         return api_admin_mb_suche((int) $p['id']);
     }],
+    ['GET', '/admin/editionen/{id}/mb-gruppe/{rg}', function ($p) {
+        api_user(true);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        set_time_limit(120);
+        return api_admin_mb_gruppe((int) $p['id'], (string) $p['rg']);
+    }],
     ['GET', '/admin/editionen/{id}/mb-vergleich/{mbid}', function ($p) {
         api_user(true);
         if (session_status() === PHP_SESSION_ACTIVE) {

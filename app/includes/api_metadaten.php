@@ -413,17 +413,36 @@ function api_admin_mb_suche(int $editionId): array
     $info = api_admin_edition($editionId);
     $titel = trim((string) ($_GET['titel'] ?? $info['album_titel']));
     $kuenstler = trim((string) ($_GET['kuenstler'] ?? $info['kuenstler_text']));
-    if ($kuenstler === 'Various Artists' || $kuenstler === '[unbekannt]') {
+    if (preg_match('/^(various( artists)?|va|v\.a\.|diverse( interpreten)?|verschiedene( interpreten)?|\[unbekannt\]|unknown artist)$/iu', $kuenstler)) {
         $kuenstler = ''; // Sampler: nur nach dem Titel suchen
     }
     return mb_fehler_umwandeln(static function () use ($titel, $kuenstler, $info) {
-        $rg = (($_GET['ohne_rg'] ?? '') === '1') ? null : $info['album_mbid'];
+        // Das schon verknüpfte Album (Release Group) nur bei der ersten, automatischen Suche mitladen – sucht man selbst
+        // nach etwas anderem, hat es dort nichts verloren (war es einmal falsch verknüpft, stand es sonst bei jeder Suche da)
+        $rg = (($_GET['mit_rg'] ?? '') === '1') ? $info['album_mbid'] : null;
         $r = mb_editionen_suchen($titel, $kuenstler, $rg);
-        $r = mb_kandidaten_bewerten($r, [
-            'titel' => $titel, 'kuenstler' => $kuenstler, 'tracks' => $info['dateien'], 'jahr' => $info['jahr'], 'medien' => $info['medien'],
-            'barcode' => (string) $info['barcode'], 'mbid' => (string) ($info['mbid'] ?? ''),
-        ]);
+        $r = mb_kandidaten_bewerten($r, api_mb_unsere($info, $titel, $kuenstler));
         return $r + ['suche' => ['titel' => $titel, 'kuenstler' => $kuenstler]];
+    });
+}
+
+/** Unsere Edition als Vergleich für die Bewertung der MusicBrainz-Editionen */
+function api_mb_unsere(array $info, string $titel, string $kuenstler): array
+{
+    return ['titel' => $titel, 'kuenstler' => $kuenstler, 'tracks' => $info['dateien'], 'jahr' => $info['jahr'], 'medien' => $info['medien'],
+        'barcode' => (string) $info['barcode'], 'mbid' => (string) ($info['mbid'] ?? ''), 'album_mbid' => (string) ($info['album_mbid'] ?? '')];
+}
+
+/** GET /admin/editionen/{id}/mb-gruppe/{rg} – alle Editionen eines bei MusicBrainz gewählten Albums (aus der Diskografie) */
+function api_admin_mb_gruppe(int $editionId, string $rg): array
+{
+    $info = api_admin_edition($editionId);
+    if (!ist_uuid($rg)) {
+        throw new ApiFehler(t('Ungültige MusicBrainz-ID.'), 400);
+    }
+    return mb_fehler_umwandeln(static function () use ($info, $rg) {
+        $r = mb_editionen_suchen('', '', strtolower($rg));
+        return mb_kandidaten_bewerten($r, api_mb_unsere($info, (string) $info['album_titel'], (string) $info['kuenstler_text']));
     });
 }
 
@@ -518,6 +537,9 @@ function api_admin_mb_loesen(array $admin, int $editionId): array
 {
     $e = edition_laden($editionId);
     db_tun("UPDATE editionen SET quelle = 'tags', mbid = NULL, mb_abgleich_am = NULL WHERE id = :id", ['id' => $editionId]);
+    // Das Album (Release Group) gleich mit lösen, wenn keine andere Edition mehr daran hängt – sonst bliebe eine falsche
+    // Zuordnung am Album kleben und tauchte bei jeder neuen Suche wieder auf
+    db_tun("UPDATE alben a SET a.mbid = NULL WHERE a.id = :a AND NOT EXISTS (SELECT 1 FROM editionen e WHERE e.album_id = a.id AND e.mbid IS NOT NULL)", ['a' => $e['album_id']]);
     db_tun("DELETE FROM beziehungen WHERE zu_art = 'edition' AND zu_id = :e AND quelle = 'musicbrainz'", ['e' => $editionId]);
     // Dateien als geändert markieren, damit der Scan sie neu liest
     db_tun('UPDATE dateien SET mtime = 0 WHERE ordner_hash = :o', ['o' => $e['ordner_hash'] ?? '']);
