@@ -4,6 +4,8 @@
 import { api, versuche } from './api.js';
 import { t, tn, zahl } from './i18n.js';
 import { h, icon, dauer, dauerText, datumZeit, toast, dialog, bestaetigen, menue, groesse } from './ui.js';
+import { verbindungsGraph, graphDaten } from './verbindungen.js';
+import { TempoMesser, tempoText, connectKarte, durchsatzKurve, connectZeichen } from './uebertragung_ui.js';
 import { albumKachel, kuenstlerKachel, raster, abschnitt, leer, typZeile, albumTrackliste, einfacheTrackliste } from './bausteine.js';
 
 export const QUALITAETEN = () => [
@@ -81,10 +83,7 @@ function wegeLiveHalten(wurzel, signal) {
     try { r = await serverListe(true); } catch (e) { return; }
     const stand = JSON.stringify(r.server.map((s) => [s.id, s.erreichbar, s.weg?.art]));
     for (const s of r.server) wurzel.querySelectorAll(`[data-weg-s="${s.id}"]`).forEach((el) => { el.innerHTML = wegChipInnen(s); });
-    if (zuletzt && stand !== zuletzt) {
-      const nk = wurzel.querySelector('.nk');
-      if (nk) nk.outerHTML = netzkarte(r);
-    }
+    if (zuletzt && stand !== zuletzt) wurzel.dispatchEvent(new CustomEvent('cn-wege', { detail: r }));
     zuletzt = stand;
   };
   const uhr = setInterval(runde, 8000);
@@ -208,6 +207,13 @@ export function connectSendenEintraege(app, anker, art, id, titel, unter = '') {
 
 // ---------- Ansichten ----------
 
+/** Kleine Linien im Knopf „Verbindungen“: wie die Partner gerade erreicht werden */
+function cnPunkte(r) {
+  const k = { heimnetz: 'nk-heimnetz', direkt: 'nk-direkt', rueckkanal: 'nk-rueck' };
+  const arten = [...new Set(r.server.map((s) => (s.erreichbar ? k[s.weg?.art] || 'nk-tunnel' : 'nk-aus')))].slice(0, 3);
+  return `<i class="cs-punkte" aria-hidden="true">${arten.map((a) => `<b class="${a}"></b>`).join('')}</i>`;
+}
+
 function kopf(titel, unter = '', rechts = '') {
   return `<div class="seiten-kopf"><div><h1>${titel}</h1>${unter ? `<div class="unter">${unter}</div>` : ''}</div>${rechts}</div>`;
 }
@@ -217,37 +223,74 @@ function pfadZeile(s, extra = '') {
   return `<div class="cn-pfad"><a href="/connect" data-link>${icon('connect', 15)}<span>Amberwave Connect</span></a>${s ? `<span>›</span><a href="${pfad(s.id)}" data-link>${h(s.name)}</a>` : ''}${extra}</div>`;
 }
 
-function auftragZeile(a) {
-  const pz = a.gesamt ? Math.min(100, Math.round(a.bytes * 100 / a.gesamt)) : 0;
-  const status = { wartet: t('wartet'), laeuft: a.fehler ? t('wartet auf Verbindung') : t('läuft'), fertig: t('fertig'), fehler: t('Fehler'), abgebrochen: t('abgebrochen') }[a.status] || a.status;
-  const knoepfe = [
-    ['wartet', 'laeuft'].includes(a.status) ? `<button type="button" class="btn btn-zweit btn-klein" data-auftrag="${a.id}" data-was="abbrechen">${t('Abbrechen')}</button>` : '',
-    ['fehler', 'abgebrochen'].includes(a.status) ? `<button type="button" class="btn btn-zweit btn-klein" data-auftrag="${a.id}" data-was="wiederholen">${t('Nochmal')}</button>` : '',
-    a.status !== 'laeuft' ? `<button type="button" class="btn-ico" data-auftrag="${a.id}" data-was="entfernen" aria-label="${t('Aus der Liste entfernen')}" title="${t('Aus der Liste entfernen')}">${icon('zu', 16)}</button>` : '',
-  ].join('');
+/** Ein wartender Auftrag als Zeile der Warteschlange */
+function warteZeile(a, platz) {
   const art = { album: t('Album'), titel: t('Titel'), playlist: t('Playlist') }[a.art] || a.art;
-  return `<div class="cn-auftrag" data-status="${h(a.status)}">
-    <div class="cn-auftrag-text"><b>${h(a.titel || art)}</b>
-      <small>${h([art, t('von {server}', { server: a.server }), qualiName(a.qualitaet), a.dateien ? t('{f} von {n} Dateien', { f: a.fertig, n: a.dateien }) : '', a.gesamt ? `${groesse(a.bytes)} / ${groesse(a.gesamt)}` : ''].filter(Boolean).join(' · '))}</small>
-      ${a.status !== 'fertig' ? `<div class="flac-balken cn-balken"><i style="width:${Math.max(a.status === 'laeuft' ? 2 : 0, pz)}%"></i></div>` : ''}
-      ${a.fehler ? `<small class="cn-fehler">${h(a.fehler)}</small>` : ''}</div>
-    <span class="einst-chip ${a.status === 'fertig' ? 'gut' : a.status === 'fehler' ? 'warn' : ''}">${h(status)}${a.status === 'laeuft' && pz ? ` · ${pz} %` : ''}</span>
-    <div class="cn-auftrag-knoepfe">${knoepfe}</div>
-  </div>`;
+  return `<div class="ue-zeile">${a.cover ? `<img src="${h(a.cover)}" alt="" loading="lazy">` : `<span class="ue-cover-leer ue-zeile-ico">${connectZeichen(20)}</span>`}
+    <div class="ue-zeile-text"><b>${h(a.titel || art)}</b><small>${connectZeichen(13)}${h([t('von {server}', { server: a.server }), art, a.dateien ? tn(a.dateien, '1 Titel', '{n} Titel') : '', qualiName(a.qualitaet), a.gesamt ? groesse(a.gesamt) : ''].filter(Boolean).join(' · '))}</small></div>
+    <span class="einst-chip">${h(t('Platz {n}', { n: platz }))}</span>
+    <button type="button" class="ue-ico" data-auftrag="${a.id}" data-was="abbrechen" title="${h(t('Abbrechen'))}" aria-label="${h(t('Abbrechen'))}">${icon('zu', 16)}</button></div>`;
 }
 
-/** Übertragungen: Liste mit Fortschritt, frischt sich auf, solange etwas läuft */
+/** Ein fehlgeschlagener Auftrag */
+function fehlerZeile(a) {
+  return `<div class="ue-fehler"><span class="ue-fehler-ico">${icon('warnung', 18)}</span>
+    <div class="ue-zeile-text"><b>${h(a.titel || a.art)}${a.server ? ` – ${h(a.server)}` : ''}</b><small>${h(a.fehler || t('Abgebrochen'))}${a.dateien ? ` · ${h(t('{f} von {n} Titeln übertragen', { f: a.fertig, n: a.dateien }))}` : ''}</small></div>
+    <button type="button" class="btn btn-zweit btn-klein" data-auftrag="${a.id}" data-was="wiederholen">${t('Nochmal')}</button>
+    <button type="button" class="ue-ico" data-auftrag="${a.id}" data-was="entfernen" title="${h(t('Aus der Liste entfernen'))}" aria-label="${h(t('Aus der Liste entfernen'))}">${icon('zu', 16)}</button></div>`;
+}
+
+/** Fertige Übertragungen als Tabelle */
+function fertigTabelle(liste) {
+  const dauerVon = (a) => (a.gestartet && a.fertig_am ? Math.max(0, (new Date(a.fertig_am) - new Date(a.gestartet)) / 1000) : 0);
+  const zeile = (a) => {
+    const sek = dauerVon(a);
+    return `<tr><td>${a.cover ? `<img src="${h(a.cover)}" alt="" loading="lazy">` : ''}</td><td><b>${h(a.titel || a.art)}</b><small>${connectZeichen(13)}${h(t('von {server}', { server: a.server }))}</small></td>
+      <td>${h(qualiName(a.qualitaet))}</td><td>${a.gesamt ? groesse(a.gesamt) : ''}</td><td>${sek ? dauer(sek * 1000) : ''}</td><td>${sek && a.gesamt ? tempoText(a.gesamt / sek) : ''}</td>
+      <td>${a.fertig_am ? h(datumZeit(a.fertig_am)) : ''}</td>
+      <td><button type="button" class="ue-ico" data-auftrag="${a.id}" data-was="entfernen" title="${h(t('Aus der Liste entfernen'))}" aria-label="${h(t('Aus der Liste entfernen'))}">${icon('zu', 14)}</button></td></tr>`;
+  };
+  return `<div class="ue-tabelle"><table><thead><tr><th></th><th>${t('Album')}</th><th>${t('Qualität')}</th><th>${t('Größe')}</th><th>${t('Dauer')}</th><th>${t('Tempo')}</th><th>${t('Fertig')}</th><th></th></tr></thead><tbody>${liste.map(zeile).join('')}</tbody></table></div>`;
+}
+
+/** Übertragungen im Stil eines Download-Managers: Übersicht mit Durchsatz, Probleme, Läuft, Warteschlange, Fertig */
 async function auftraegeZeichnen(app, box, signal) {
   let timer = null;
+  const messer = new TempoMesser();
+  let wege = {};
   const zeichnen = async () => {
     clearTimeout(timer);
     let r;
     try { r = await api.get('/connect/auftraege', { signal }); } catch (e) { return; }
     if (!box.isConnected) return;
+    try { wege = Object.fromEntries((await serverListe()).server.map((s) => [s.id, s.erreichbar ? WEG()[s.weg?.art] || '' : t('nicht erreichbar')])); } catch (e) { /* ohne Wege */ }
     const l = r.auftraege || [];
-    box.innerHTML = l.length ? `<div class="cn-auftraege">${l.map(auftragZeile).join('')}</div>`
-      : `<p class="hinweis">${t('Noch nichts übertragen. Im Menü eines Albums, Titels oder einer Playlist auf einem gekoppelten Server: „Auf diesen Server laden“.')}</p>`;
-    const offen = l.filter((a) => ['wartet', 'laeuft'].includes(a.status)).length;
+    const laeuft = l.filter((a) => a.status === 'laeuft'), wartet = l.filter((a) => a.status === 'wartet');
+    const probleme = l.filter((a) => ['fehler', 'abgebrochen'].includes(a.status)), fertig = l.filter((a) => a.status === 'fertig');
+    const tempi = Object.fromEntries(laeuft.map((a) => [a.id, messer.messen(a.id, a.bytes)]));
+    messer.punkt(Object.values(tempi).reduce((x, y) => x + y, 0));
+    const summe = Object.values(tempi).reduce((x, y) => x + y, 0);
+    const heute = new Date().toDateString();
+    if (!l.length) {
+      box.innerHTML = `<p class="ue-leer">${t('Noch nichts übertragen. Im Menü eines Albums, Titels oder einer Playlist auf einem gekoppelten Server: „Auf diesen Server laden“.')}</p>`;
+    } else {
+      const auf = box.querySelector('.ue-dateien')?.open;
+      box.innerHTML = `<div class="ue">
+        <section class="ue-uebersicht">
+          <div class="ue-zahlen"><div><b>${laeuft.length}</b><span>${t('laufen')}</span></div><div><b>${wartet.length}</b><span>${t('warten')}</span></div>
+            <div class="${probleme.length ? 'ue-zahl-warn' : ''}"><b>${probleme.length}</b><span>${tn(probleme.length, 'Problem', 'Probleme')}</span></div>
+            <div><b>${fertig.filter((a) => a.fertig_am && new Date(a.fertig_am).toDateString() === heute).length}</b><span>${t('fertig heute')}</span></div></div>
+          <div class="ue-durchsatz"><div class="ue-d-kopf"><span><i class="ue-leg rein"></i>${t('rein')} <b>${tempoText(summe) || '–'}</b></span></div>
+            ${durchsatzKurve(messer.verlauf)}<div class="ue-achse"><span>${t('vor 10 min')}</span><span>${t('jetzt')}</span></div></div>
+        </section>
+        ${probleme.length ? `<section class="ue-teil"><h2>${t('Probleme')}</h2><div class="ue-liste">${probleme.map(fehlerZeile).join('')}</div></section>` : ''}
+        ${laeuft.length ? `<section class="ue-teil"><h2>${t('Läuft')}</h2><div class="ue-aktiv-liste">${laeuft.map((a) => connectKarte(a, tempi[a.id], wege[a.server_id] || '')).join('')}</div></section>` : ''}
+        ${wartet.length ? `<section class="ue-teil"><h2>${t('Warteschlange')} <small>${h(t('der Reihe nach'))}</small></h2><div class="ue-liste">${wartet.map((a, i) => warteZeile(a, i + 1)).join('')}</div></section>` : ''}
+        ${fertig.length ? `<section class="ue-teil"><h2>${t('Fertig')}</h2>${fertigTabelle(fertig)}</section>` : ''}
+      </div>`;
+      if (auf != null) box.querySelectorAll('.ue-dateien').forEach((d) => { d.open = auf; });
+    }
+    const offen = laeuft.length + wartet.length;
     app.connectZahl?.(offen, true);
     if (offen) timer = setTimeout(zeichnen, 2000);
   };
@@ -262,76 +305,38 @@ async function auftraegeZeichnen(app, box, signal) {
   await zeichnen();
 }
 
-/**
- * Netzkarte: dieser Server oben, die gekoppelten unten, dazwischen das Internet. Linien zeigen, wie sie sich gerade
- * erreichen – Heimnetz direkt, Direktzugang, über den Tunnel bzw. eine offene Adresse, oder über den Rückkanal eines
- * Servers, der von außen nicht erreichbar ist (z. B. CGNAT). Gezeichnet als SVG, skaliert mit der Breite.
- */
-function netzkarte(r) {
-  const peers = r.server;
-  if (!peers.length) return '';
-  const B = Math.max(440, peers.length * 210), H = 400;
-  const eigen = { x: B / 2, y: 62 }, netz = { x: B / 2, y: 196 };
-  const pos = peers.map((_, i) => ({ x: (B / peers.length) * (i + 0.5), y: 334 }));
-  const art = (s) => (s.erreichbar ? s.weg?.art || '' : '');
-  const ms = (s) => (s.weg?.ms != null ? ` · ${zahl(s.weg.ms)} ms` : '');
-  const offenText = (o) => (o.von_aussen ? (o.tunnel ? t('Tunnel – von außen erreichbar') : t('offen – von außen erreichbar')) : t('nur ausgehend (z. B. CGNAT)'));
-  const knoten = ({ x, y }, name, unter, klasse) => {
-    const w = 184, hoehe = 58;
-    // <title> = Tooltip mit vollem Namen (die Anzeige kürzt lange) und Lesetext für Hilfstechnik
-    return `<g class="nk-knoten ${klasse}" tabindex="0" role="img" aria-label="${h(`${name} – ${unter}`)}"><title>${h(`${name} – ${unter}`)}</title><rect x="${x - w / 2}" y="${y - hoehe / 2}" width="${w}" height="${hoehe}" rx="14"/>
-      <text x="${x}" y="${y - 4}" class="nk-name"${name.length > 18 ? ` textLength="${w - 20}" lengthAdjust="spacingAndGlyphs"` : ''}>${h(name.length > 26 ? `${name.slice(0, 25)}…` : name)}</text>
-      <text x="${x}" y="${y + 16}" class="nk-unter">${h(unter)}</text></g>`;
-  };
-  const linie = (a, b, klasse, pfeil = false) => `<path class="nk-linie ${klasse}" d="M${a.x},${a.y} L${b.x},${b.y}"${pfeil ? ' marker-end="url(#nk-pfeil)"' : ''}/>`;
-  const beschriftung = (x, y, text, klasse) => `<text x="${x}" y="${y}" class="nk-beschr ${klasse}">${h(text)}</text>`;
-  let linien = '', texte = '';
-  const ueberNetz = peers.some((s) => art(s) !== 'heimnetz' && art(s) !== 'direkt');
-  if (ueberNetz) {
-    // dieser Server ↔ Internet: offen (Tunnel) oder nur ausgehend (Rückkanal von hier aus)
-    const k = r.ausweis.von_aussen ? 'nk-tunnel' : 'nk-rueck';
-    linien += r.ausweis.von_aussen ? linie({ x: eigen.x, y: eigen.y + 29 }, { x: netz.x, y: netz.y - 18 }, k) : linie({ x: eigen.x, y: eigen.y + 29 }, { x: netz.x, y: netz.y - 22 }, k, true);
-    texte += beschriftung(eigen.x + 12, (eigen.y + netz.y) / 2 + 4, r.ausweis.von_aussen ? (r.ausweis.tunnel ? t('Tunnel') : t('offen')) : t('nur ausgehend'), `nk-links ${k}`);
-  }
-  peers.forEach((s, i) => {
-    const p = pos[i], a = art(s), oben = { x: p.x, y: p.y - 29 };
-    if (a === 'heimnetz' || a === 'direkt') {
-      const k = a === 'heimnetz' ? 'nk-heimnetz' : 'nk-direkt';
-      // am Internet vorbei: Bogen zur Seite
-      const seite = p.x <= eigen.x ? -1 : 1;
-      const c = { x: eigen.x + seite * Math.max(150, Math.abs(p.x - eigen.x)), y: (eigen.y + p.y) / 2 };
-      linien += `<path class="nk-linie ${k}" d="M${eigen.x + seite * 92},${eigen.y} Q${c.x},${c.y} ${oben.x},${oben.y}"/>`;
-      texte += beschriftung((eigen.x + seite * 92 + 2 * c.x + oben.x) / 4, (eigen.y + 2 * c.y + oben.y) / 4 - 6, `${WEG()[a]}${ms(s)}`, k);
-      return;
+/** Verbindungen: derselbe Graph wie im Dashboard, als Fenster (am Handy von unten) – frischt sich auf, solange es offen ist */
+async function verbindungenOeffnen(app) {
+  const d = document.createElement('dialog');
+  d.className = 'cs-fenster';
+  d.setAttribute('aria-label', t('Verbindungen'));
+  document.body.appendChild(d);
+  let geraete = null;
+  const zeichnen = async () => {
+    let r;
+    try { r = await serverListe(true); } catch (e) { return; }
+    if (istAdmin(app)) geraete = (await api.get('/admin/dashboard?teil=geraete').catch(() => null))?.geraete || geraete;
+    if (!d.open) return;
+    const ad = r.adressen || {};
+    const unterwegs = ad.tunnel || ad.oeffentlich || '';
+    const chips = [ad.lan?.[0] ? `<span class="einst-chip gut">${h(t('zuhause: {a}', { a: ad.lan[0].replace(/^https?:\/\//, '') }))}</span>` : '',
+      unterwegs ? `<span class="einst-chip gut">${h(t('unterwegs: {a}', { a: unterwegs.replace(/^https?:\/\//, '') }))}</span>` : '',
+      r.server.length ? `<span class="einst-chip">${h(tn(r.server.length, '1 Connect-Partner', '{n} Connect-Partner'))}</span>` : ''].join('');
+    const offen = d.querySelector('.cs-inhalt');
+    const html = `${chips ? `<div class="gz-kopf">${chips}</div>` : ''}${verbindungsGraph(graphDaten({ ausweis: r.ausweis, server: r.server, geraete, adresseUnterwegs: unterwegs }))}`;
+    if (offen) offen.innerHTML = html;
+    else {
+      d.innerHTML = `<div class="cs-fenster-kopf"><div><h2>${t('Verbindungen')}</h2><p>${h(t('Wer gerade mit {name} verbunden ist – Apps, Geräte und andere Amberwave-Server', { name: r.ausweis.name }))}</p></div>
+        <button type="button" class="cs-zu" data-zu aria-label="${h(t('Schließen'))}">${icon('zu', 20)}</button></div><div class="cs-inhalt">${html}</div>`;
+      d.querySelector('[data-zu]').addEventListener('click', () => d.close());
     }
-    let k = 'nk-aus', text = t('nicht erreichbar');
-    if (a === 'rueckkanal') { k = 'nk-rueck'; text = `${t('Rückkanal')}${ms(s)}`; }
-    else if (a) { k = 'nk-tunnel'; text = `${WEG()[a] || a}${ms(s)}`; }
-    // Server, die von außen nicht erreichbar sind, öffnen die Verbindung selbst (Pfeil ins Internet)
-    linien += !s.von_aussen && a ? linie(oben, { x: netz.x + (p.x - netz.x) * 0.12, y: netz.y + 22 }, k, true)
-      : linie({ x: netz.x + (p.x - netz.x) * 0.12, y: netz.y + 18 }, oben, k);
-    // Beschriftungen versetzt (abwechselnd höher/tiefer), damit sie sich bei vielen Partnern nicht überlagern
-    texte += beschriftung((netz.x + p.x) / 2 + (p.x < netz.x ? -8 : 8), (netz.y + p.y) / 2 + 6 + (i % 2 ? 16 : -10), text, `${k} ${p.x < netz.x ? 'nk-rechtsbuendig' : 'nk-links'}`);
-  });
-  const knotenHtml = knoten(eigen, r.ausweis.name, offenText(r.ausweis), 'nk-eigen')
-    + (ueberNetz ? `<g class="nk-netz"><rect x="${netz.x - 70}" y="${netz.y - 18}" width="140" height="36" rx="18"/><text x="${netz.x}" y="${netz.y + 5}">${h(t('Internet'))}</text></g>` : '')
-    + peers.map((s, i) => knoten(pos[i], s.name, offenText(s), s.erreichbar ? '' : 'nk-weg')).join('');
-  const legende = [['nk-heimnetz', t('Heimnetz')], ['nk-direkt', t('Direktzugang')], ['nk-tunnel', t('Tunnel / offene Adresse')], ['nk-rueck', t('Rückkanal – hält eine Verbindung von innen offen (CGNAT)')], ['nk-aus', t('gerade nicht erreichbar')]];
-  // Dieselbe Karte in Worten – für Vorleseprogramme (und wer das Bild nicht sieht): je Partner Weg, Laufzeit, Erreichbarkeit
-  const inWorten = peers.map((s) => {
-    const a = art(s);
-    const weg = !s.erreichbar ? t('gerade nicht erreichbar') : `${t('verbunden über {weg}', { weg: WEG()[a] || a || t('Internet') })}${ms(s)}`;
-    return `<li>${h(`${s.name}: ${weg}; ${offenText(s)}`)}</li>`;
-  }).join('');
-  const beschreibung = `${r.ausweis.name}: ${offenText(r.ausweis)}`;
-  return `<section class="nk" aria-label="${h(t('Wie die Server verbunden sind'))}">
-    <div class="nk-bild"><svg viewBox="0 0 ${B} ${H}" style="max-width:${B}px;min-width:${peers.length > 2 ? Math.min(B, 180 * peers.length) : 0}px" role="group" aria-label="${h(t('Netzkarte der gekoppelten Server'))}" aria-describedby="nk-worte">
-      <title>${h(t('Netzkarte der gekoppelten Server'))}</title><desc>${h(beschreibung)}</desc>
-      <defs><marker id="nk-pfeil" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="nk-pfeilspitze"/></marker></defs>
-      ${linien}${knotenHtml}${texte}</svg></div>
-    <div class="nk-legende">${legende.map(([k, n]) => `<span><i class="${k}" aria-hidden="true"></i>${h(n)}</span>`).join('')}</div>
-    <ul id="nk-worte" class="nur-sr">${inWorten}</ul>
-  </section>`;
+  };
+  d.innerHTML = '<div class="lade"></div>';
+  d.showModal();
+  d.addEventListener('click', (e) => { if (e.target === d) d.close(); });   // Klick auf den Schleier
+  d.addEventListener('close', () => { clearInterval(uhr); d.remove(); });
+  const uhr = setInterval(() => { if (!document.hidden) zeichnen(); }, 8000);
+  await zeichnen();
 }
 
 export const connectAnsichten = {
@@ -345,13 +350,15 @@ export const connectAnsichten = {
         <span class="cn-server-text"><b>${h(s.name)}</b><small>${h(s.kennung)}${s.version ? ` · ${h(s.version)}` : ''}</small><span class="cn-server-weg">${wegChip(s)}</span></span>
       </a>`;
     ziel.innerHTML = kopf('Amberwave Connect', t('Dein Server {name} · Ausweis {kennung}', { name: h(r.ausweis.name), kennung: `<code>${h(r.ausweis.kennung)}</code>` }),
-      admin ? `<a class="btn btn-zweit" href="/einstellungen/connect" data-link>${icon('einstellungen', 18)}<span>${t('Server koppeln')}</span></a>` : '') + `
-      ${netzkarte(r)}
+      `<div class="cs-knoepfe">${r.server.length || admin ? `<button type="button" class="btn btn-zweit cs-knopf" data-verbindungen>${icon('graph', 18)}<span>${t('Verbindungen')}</span>${cnPunkte(r)}</button>` : ''}
+        ${admin ? `<a class="btn btn-zweit" href="/einstellungen/connect" data-link>${icon('einstellungen', 18)}<span>${t('Server koppeln')}</span></a>` : ''}</div>`) + `
       ${r.server.length ? `<div class="cn-server-liste">${r.server.map(karte).join('')}</div>`
         : leer(t('Noch kein Server gekoppelt'), admin ? t('Koppel einen zweiten Amberwave – etwa im Wohnwagen oder bei der Familie. Dann stöberst du hier in seiner Musik, hörst rein und holst dir Alben herüber.') : t('Ein Admin kann unter Einstellungen › Amberwave Connect einen weiteren Amberwave-Server koppeln.'),
           admin ? `<a class="btn" href="/einstellungen/connect" data-link>${t('Server koppeln')}</a>` : '')}
       ${admin ? abschnitt(t('Übertragungen'), '<div data-auftraege><div class="lade"></div></div>') : ''}`;
     wegeLiveHalten(ziel, signal);
+    ziel.querySelector('[data-verbindungen]')?.addEventListener('click', () => verbindungenOeffnen(app));
+    ziel.addEventListener('cn-wege', (e) => { const p = ziel.querySelector('.cs-punkte'); if (p) p.outerHTML = cnPunkte(e.detail); });
     const box = ziel.querySelector('[data-auftraege]');
     if (box) await auftraegeZeichnen(app, box, signal);
     document.title = 'Amberwave Connect';

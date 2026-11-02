@@ -101,6 +101,8 @@ const pfade = {
   pause: '<path d="M8 5v14M16 5v14" stroke-width="3"/>',
   handy: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
   computer: '<rect x="3" y="4" width="18" height="12" rx="1.8"/><path d="M8 20h8M12 16v4"/>',
+  tacho: '<path d="M4.5 18a9 9 0 1 1 15 0"/><path d="M12 14l4-5"/><circle cx="12" cy="14" r="1.6" fill="currentColor"/>',
+  graph: '<circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4M12 11.5L6.5 17M12 11.5l5.5 5.5"/>',
   zurueck: '<path d="M19 5 9 12l10 7z" fill="currentColor" stroke="none"/><path d="M6 5v14" stroke-width="2.4"/>',
   weiter: '<path d="m5 5 10 7-10 7z" fill="currentColor" stroke="none"/><path d="M18 5v14" stroke-width="2.4"/>',
   zufall: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',

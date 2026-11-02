@@ -65,6 +65,7 @@ feinschliffBeobachten();
 const verwaltung = () => import('./verwaltung.js');
 const einstellungen = () => import('./einstellungen.js');
 const vw = (name) => (ctx) => verwaltung().then((m) => m.verwaltungsAnsichten[name](ctx));
+const dashboardAnsicht = (ctx) => import('./dashboard.js').then((m) => m.dashboardAnsicht(ctx));
 const einstellungenAnsicht = (ctx) => einstellungen().then((m) => m.einstellungenAnsicht(ctx));
 
 class App {
@@ -129,7 +130,7 @@ class App {
     if (this.ich.user.rolle === 'admin' && !this.offline) scanLeisteStarten();   // nach der Einrichtung: Hinweis, solange das erste Einlesen läuft
     if (this.ich.user.rolle === 'admin' && !this.offline) setTimeout(() => verwaltung().then((m) => m.flacWachtStarten()), 6000);   // erst, wenn der Start durch ist (lädt das Verwaltungs-Stück nach)   // läuft noch eine FLAC-Umwandlung? Ende dann melden
     // Zahl am Menüpunkt „Downloads“ aktuell halten (nur wenn eingeschaltet und die Seite sichtbar ist)
-    setInterval(() => { if (!document.hidden && this.ich?.admin?.download_reiter && location.pathname !== '/downloads') this.zaehlerAktualisieren(); }, 60000);
+    setInterval(() => { if (!document.hidden && this.ich?.user?.rolle === 'admin' && !['/downloads', '/dashboard'].includes(location.pathname)) this.zaehlerAktualisieren(); }, 60000);
     // Android-App: ohne Service Worker – die Oberfläche für den Start ohne Netz hält die App selbst
     if (android) this.huelleVorladen();
     else if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(() => this.huelleVorladen()).catch(() => {});
@@ -291,6 +292,7 @@ class App {
         </form>
         <span class="kopf-ort" data-kopf-ort aria-hidden="true"></span>
         <div class="kopf-rechts">
+          ${admin ? `<a href="/dashboard" data-link data-nav="/dashboard" class="kopf-zahnrad kopf-tacho" aria-label="${t('Dashboard')}" title="${t('Dashboard')}">${icon('tacho', 20)}<span class="kopf-hoeren" data-kopf-hoeren${this.ich.admin?.hoeren ? '' : ' hidden'}>${this.ich.admin?.hoeren || 0}</span></a>` : ''}
           <a href="/einstellungen" data-link data-nav="/einstellungen" class="kopf-zahnrad" aria-label="${t('Einstellungen')}" title="${t('Einstellungen')}">${icon('einstellungen', 20)}</a>
           <button type="button" class="nutzer-chip" data-nutzer-menue aria-haspopup="menu" aria-expanded="false" title="${t('Konto und Einstellungen')}">
             ${this.avatarHtml()}<span class="name" data-chip-name>${h(u.vorname || u.name)}</span><span class="chip-pfeil">${icon('runter', 14)}</span>
@@ -665,6 +667,7 @@ class App {
       [/^\/einstellungen$/, einstellungenAnsicht],
       [/^\/einstellungen\/([a-z]+)$/, einstellungenAnsicht],
       [/^\/mehr$/, ansichten.mehr],
+      [/^\/dashboard$/, dashboardAnsicht],
       [/^\/connect$/, connectAnsichten.uebersicht],
       [/^\/connect\/(\d+)$/, connectAnsichten.server],
       [/^\/connect\/(\d+)\/alben\/(\d+)$/, connectAnsichten.album],
@@ -683,7 +686,7 @@ class App {
     for (const [muster, fn] of r) {
       const m = pfad.match(muster);
       if (m && fn) {
-        if ((pfad.startsWith('/verwaltung') || pfad === '/downloads') && this.ich.user.rolle !== 'admin') return null;
+        if ((pfad.startsWith('/verwaltung') || pfad === '/downloads' || pfad === '/dashboard') && this.ich.user.rolle !== 'admin') return null;
         return { fn, param: m.slice(1), titel: () => this.inhalt.querySelector('h1')?.textContent?.trim() || '' };
       }
     }
@@ -698,6 +701,15 @@ class App {
       a.classList.toggle('an', !!an);
       if (an) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
+  }
+
+  /** Grüne Zahl am Dashboard-Knopf: wie viele gerade hören */
+  hoerZahl(n) {
+    const b = this.wurzel.querySelector('[data-kopf-hoeren]');
+    if (!b) return;
+    b.textContent = String(n);
+    b.hidden = !n;
+    b.title = n ? t('{n} hören gerade', { n }) : '';
   }
 
   /** Zähler „wartende Konten“ neu laden (nach Freischaltungen) */
@@ -718,6 +730,7 @@ class App {
         nav.querySelector('[data-nav="/verwaltung"]')?.insertAdjacentHTML('beforebegin', `<a href="/downloads" data-link data-nav="/downloads">${icon('download', 18)}<span class="l">${t('Downloads')}</span></a>`);
       } else if (!soll && da) da.remove();
       if (soll) this.downloadZahl(this.ich.admin.downloads_laufen || 0);
+      this.hoerZahl(this.ich.admin?.hoeren || 0);
     } catch (e) {}
   }
 

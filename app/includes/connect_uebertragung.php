@@ -223,10 +223,17 @@ function connect_arbeiter_laeuft(): bool
 
 function connect_auftrag_objekt(array $z): array
 {
-    return ['id' => (int) $z['id'], 'server_id' => (int) $z['server_id'], 'server' => (string) ($z['server_name'] ?? ''), 'art' => $z['art'], 'ref' => (int) $z['ref'],
+    $o = ['id' => (int) $z['id'], 'server_id' => (int) $z['server_id'], 'server' => (string) ($z['server_name'] ?? ''), 'art' => $z['art'], 'ref' => (int) $z['ref'],
         'titel' => $z['titel'], 'unter' => $z['unter'], 'qualitaet' => $z['qualitaet'], 'status' => $z['status'], 'fehler' => $z['fehler'],
         'bytes' => (int) $z['bytes'], 'gesamt' => (int) $z['gesamt'], 'dateien' => (int) $z['dateien'], 'fertig' => (int) $z['fertig'],
-        'erstellt' => iso($z['erstellt_am']), 'fertig_am' => iso($z['fertig_am'])];
+        'erstellt' => iso($z['erstellt_am']), 'gestartet' => iso($z['gestartet_am'] ?? null), 'fertig_am' => iso($z['fertig_am']),
+        'cover' => ($z['cover'] ?? '') !== '' ? '/api/v1/connect/server/' . (int) $z['server_id'] . '/bild/cover/' . $z['cover'] . '?g=300' : null];
+    // Laufende Aufträge: jede Datei mit Fortschritt (Name aus dem Zielpfad)
+    if (in_array($z['status'], ['laeuft', 'wartet'], true)) {
+        $o['titel_liste'] = array_map(static fn($d) => ['name' => preg_replace('/\.[a-z0-9]{1,5}$/i', '', basename((string) $d['ziel'])), 'groesse' => (int) $d['groesse'],
+            'bytes' => (int) $d['bytes'], 'status' => $d['status']], db_alle('SELECT ziel, groesse, bytes, status FROM connect_dateien WHERE auftrag_id = :a ORDER BY id LIMIT 200', ['a' => $z['id']]));
+    }
+    return $o;
 }
 
 function connect_auftraege(): array
@@ -314,7 +321,7 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
 {
     require_once __DIR__ . '/aufraeumen.php';
     $peer = connect_server((int) $a['server_id']);
-    db_tun("UPDATE connect_auftraege SET status = 'laeuft' WHERE id = :id AND status = 'wartet'", ['id' => $a['id']]);
+    db_tun("UPDATE connect_auftraege SET status = 'laeuft', gestartet_am = COALESCE(gestartet_am, NOW()) WHERE id = :id AND status = 'wartet'", ['id' => $a['id']]);
     // Dateiliste beim ersten Mal anlegen
     if (!db_wert('SELECT 1 FROM connect_dateien WHERE auftrag_id = :a LIMIT 1', ['a' => $a['id']])) {
         [$kopf] = connect_rufen($peer, 'liste', ['art' => $a['art'], 'id' => (int) $a['ref']]);
@@ -340,7 +347,9 @@ function connect_auftrag_ausfuehren(array $a, int $ende): void
         }
         $n = (int) db_wert('SELECT COUNT(*) FROM connect_dateien WHERE auftrag_id = :a', ['a' => $a['id']]);
         $titel = $a['titel'] !== '' ? $a['titel'] : (string) ($erster['album'] ?? '');
-        db_tun('UPDATE connect_auftraege SET dateien = :n, gesamt = :g, titel = :t WHERE id = :id', ['n' => $n, 'g' => $gesamt, 't' => $titel, 'id' => $a['id']]);
+        $cover = (string) ($erster['cover'] ?? '');
+        db_tun('UPDATE connect_auftraege SET dateien = :n, gesamt = :g, titel = :t, cover = :c WHERE id = :id',
+            ['n' => $n, 'g' => $gesamt, 't' => $titel, 'c' => preg_match('/^[A-Za-z0-9_.-]{1,80}$/', $cover) ? $cover : '', 'id' => $a['id']]);
         if ($n === 0) {
             db_tun("UPDATE connect_auftraege SET status = 'fertig', fehler = :f, fertig_am = NOW() WHERE id = :id",
                 ['f' => count((array) ($kopf['titel'] ?? [])) ? t('Alles schon vorhanden.') : t('Dort liegen keine Dateien dazu.'), 'id' => $a['id']]);

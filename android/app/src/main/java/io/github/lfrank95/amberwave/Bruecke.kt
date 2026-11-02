@@ -85,6 +85,14 @@ class Bruecke(private val app: Context, private val aktivitaet: () -> MainActivi
         aktivitaet()?.let { a -> a.runOnUiThread { Aktualisierung.pruefen(a, vonHand = true) } }
     }
 
+    /** Einstellungen › App & Updates: Stand (installierte/neue Version, Fortschritt), ohne Dialog suchen, installieren */
+    @JavascriptInterface fun updateStand(): String = if (vomServer()) Aktualisierung.json() else "{}"
+    @JavascriptInterface fun updateSuchen() { if (vomServer()) Aktualisierung.suchenStill() }
+    @JavascriptInterface fun updateInstallieren() {
+        if (!vomServer()) return
+        aktivitaet()?.let { a -> a.runOnUiThread { Aktualisierung.installieren(a) } }
+    }
+
     /** Oberfläche ist in die Offline-Ansicht gewechselt (oder zurück) – dann liefert die App Cover aus dem Speicher großzügiger */
     @JavascriptInterface fun offlineMelden(an: String) { if (vomServer()) Oberflaeche.offline = an == "1" }
 

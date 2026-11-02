@@ -676,6 +676,18 @@ $routen = [
     ['POST', '/heimnetz/geraete/{id}/space', fn($p) => api_heimnetz_space_neu(api_user(true), (int) $p['id'])],
     ['POST', '/heimnetz/raum', fn() => api_heimnetz_raum(api_user(true))],
     ['POST', '/heimnetz/geraete/{id}/tonmodus', fn($p) => api_heimnetz_tonmodus(api_user(true), (int) $p['id'])],
+    ['GET', '/admin/dashboard', function () {
+        api_user(true);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        require_once __DIR__ . '/../includes/dashboard.php';
+        // Nur die Geräte (für den Verbindungsgraphen auf der Connect-Seite)
+        if (($_GET['teil'] ?? '') === 'geraete') {
+            return ['geraete' => dashboard_geraete()];
+        }
+        return api_admin_dashboard();
+    }],
     ['GET', '/admin/aktivitaet', function () {
         api_user(true);
         return aktivitaet_liste();

@@ -1,3 +1,5 @@
 {
- "Bitte JavaScript aktivieren – {app} ist eine Web-App.": "Please enable JavaScript – {app} is a web app."
+ "Bitte JavaScript aktivieren – {app} ist eine Web-App.": "Please enable JavaScript – {app} is a web app.",
+ "Dashboard": "Dashboard",
+ "{n} hören gerade": "{n} listening now"
 }

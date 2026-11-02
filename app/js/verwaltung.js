@@ -8,6 +8,7 @@ import { netzweg } from './netzweg.js';
 import { sortierPanel } from './sortieren.js';
 import { gemerktAus, merken, scrollSetzen } from './merker.js';
 import { serverUpdateInstallieren } from './update_hinweis.js';
+import { TempoMesser, tempoText, restText, stufen, downloadStufe, durchsatzKurve } from './uebertragung_ui.js';
 
 /** Zahl nach Sprache (leere Werte als 0, wie früher in ui.js) */
 const zahl = (v, nachkomma) => zahlI(v || 0, nachkomma);
@@ -41,9 +42,72 @@ function takt(box, schnell) {
   return document.hidden || !box?.isConnected || !box.offsetParent ? Math.max(schnell * 6, 15000) : schnell;
 }
 
+/**
+ * Download-Aufträge im Stil eines Download-Managers: Übersicht mit Durchsatz, Probleme, Läuft (Stufen, Prozent, MB,
+ * Tempo, Restzeit), Warteschlange und eine Tabelle der fertigen. Das Tempo misst die Oberfläche aus den Fortschritten.
+ */
+function dlAuftraegeHtml(s, statusText, messer) {
+  const l = s.auftraege || [];
+  if (!l.length) return `<h3 class="dl-auftraege-titel">${t('Aufträge')}</h3><p class="ue-leer">${t('Noch nichts geholt.')}</p>`;
+  const mehrClients = (s.clients || []).length > 1;
+  const laeuft = l.filter((a) => ['laeuft', 'fertig'].includes(a.status)), wartet = l.filter((a) => a.status === 'gesendet');
+  const probleme = l.filter((a) => a.status === 'fehler'), fertig = l.filter((a) => a.status === 'importiert');
+  const tempi = {};
+  for (const a of l.filter((x) => x.status === 'laeuft')) tempi[a.id] = messer.messen(`d${a.id}`, (Number(a.groesse) * Number(a.prozent || 0)) / 100);
+  const summe = Object.values(tempi).reduce((x, y) => x + y, 0);
+  messer.punkt(summe);
+  const heute = new Date().toDateString();
+  const karte = (a) => {
+    const { namen, i } = downloadStufe(a, s.einsortieren);
+    const pz = a.status === 'laeuft' ? Number(a.prozent) || 0 : 100;
+    const gr = Number(a.groesse) || 0, tempo = tempi[a.id] || 0;
+    const rest = tempo > 0 && gr ? (gr * (100 - pz)) / 100 / tempo : NaN;
+    return `<article class="ue-karte ue-usenet">
+      <div class="ue-kopf"><span class="ue-cover ue-cover-leer">${icon('download', 28)}</span>
+        <div class="ue-titelblock"><div class="ue-quelle">${h(t('Download'))}${a.client && mehrClients ? ` · <b>${h(a.client)}</b>` : ''}${a.indexer ? ` · ${h(t('gefunden über {indexer}', { indexer: a.indexer }))}` : ''}</div>
+          <h3 title="${h(a.titel)}">${h(a.titel)}</h3><div class="ue-unter">${h(statusText(a)[0])}${gr ? ` · ${groesse(gr)}` : ''}</div></div></div>
+      ${stufen(namen, i)}
+      <div class="ue-fort">
+        <div class="ue-fort-zeile"><b>${zahlI(Math.floor(pz))} %</b>${gr ? `<span>${t('{a} von {b}', { a: groesse((gr * pz) / 100), b: groesse(gr) })}</span>` : ''}${tempo > 0 ? `<span class="ue-tempo">${tempoText(tempo)}</span>` : ''}${restText(rest) ? `<span>${restText(rest)}</span>` : ''}</div>
+        <div class="ue-balken gross"><i style="width:${Math.max(2, pz)}%"></i></div>
+        <div class="ue-fakten"><span>${h(t('übergeben {zeit}', { zeit: datumZeit(a.angelegt_am) }))}</span>${s.einsortieren ? `<span>${h(t('danach automatisch abgleichen und einsortieren'))}</span>` : ''}${a.meldung ? `<span>${h(a.meldung)}</span>` : ''}</div>
+      </div></article>`;
+  };
+  const warteZeile = (a, n) => `<div class="ue-zeile"><span class="ue-cover-leer ue-zeile-ico">${icon('download', 20)}</span>
+    <div class="ue-zeile-text"><b>${h(a.titel)}</b><small>${h([a.indexer, mehrClients ? a.client : '', Number(a.groesse) ? groesse(Number(a.groesse)) : ''].filter(Boolean).join(' · '))}</small></div>
+    <span class="einst-chip">${h(t('Platz {n}', { n }))}</span></div>`;
+  const fehlerZeile = (a) => `<div class="ue-fehler"><span class="ue-fehler-ico">${icon('warnung', 18)}</span>
+    <div class="ue-zeile-text"><b>${h(a.titel)}</b><small>${h(a.meldung || t('Fehler'))}</small></div>
+    <button type="button" class="btn btn-zweit btn-klein" data-dl-anderes="${h(a.suchbegriff || a.titel)}" title="${t('Usenet-Suche mit demselben Begriff öffnen')}">${t('Anderes Release suchen')}</button>
+    ${a.pfad_sab !== '' ? `<button type="button" class="btn btn-zweit btn-klein" data-dl-erneut="${a.id}">${t('Import wiederholen')}</button>` : ''}
+    <button type="button" class="ue-ico" data-dl-weg="${a.id}" title="${t('Nur aus dieser Liste entfernen')}" aria-label="${t('Nur aus dieser Liste entfernen')}">${icon('zu', 16)}</button></div>`;
+  const dauerSek = (a) => (a.fertig_am && a.angelegt_am ? Math.max(0, (new Date(a.fertig_am) - new Date(a.angelegt_am)) / 1000) : 0);
+  const fertigZeile = (a) => {
+    const sek = dauerSek(a), gr = Number(a.groesse) || 0;
+    return `<tr><td><b>${h(a.titel)}</b><small>${h([a.indexer, mehrClients ? a.client : ''].filter(Boolean).join(' · '))}</small></td>
+      <td><span class="einst-chip gut">${h(statusText(a)[0].split(' – ')[0])}</span></td><td>${gr ? groesse(gr) : ''}</td><td>${sek ? dauer(sek * 1000) : ''}</td><td>${sek && gr ? tempoText(gr / sek) : ''}</td>
+      <td>${a.fertig_am ? h(datumZeit(a.fertig_am)) : ''}</td>
+      <td><button type="button" class="ue-ico" data-dl-weg="${a.id}" title="${t('Nur aus dieser Liste entfernen')}" aria-label="${t('Nur aus dieser Liste entfernen')}">${icon('zu', 14)}</button></td></tr>`;
+  };
+  return `<div class="ue dl-ue">
+    <section class="ue-uebersicht">
+      <div class="ue-zahlen"><div><b>${laeuft.length}</b><span>${t('laufen')}</span></div><div><b>${wartet.length}</b><span>${t('warten')}</span></div>
+        <div class="${probleme.length ? 'ue-zahl-warn' : ''}"><b>${probleme.length}</b><span>${tn(probleme.length, 'Problem', 'Probleme')}</span></div>
+        <div><b>${fertig.filter((a) => a.fertig_am && new Date(a.fertig_am).toDateString() === heute).length}</b><span>${t('fertig heute')}</span></div></div>
+      <div class="ue-durchsatz"><div class="ue-d-kopf"><span><i class="ue-leg rein"></i>${t('rein')} <b>${tempoText(summe) || '–'}</b></span><span class="ue-grenze">${h(t('→ Musikordner/{ziel}', { ziel: s.ziel }))}</span></div>
+        ${durchsatzKurve(messer.verlauf)}<div class="ue-achse"><span>${t('vor 10 min')}</span><span>${t('jetzt')}</span></div></div>
+    </section>
+    ${probleme.length ? `<section class="ue-teil"><h2>${t('Probleme')}</h2><div class="ue-liste">${probleme.map(fehlerZeile).join('')}</div></section>` : ''}
+    ${laeuft.length ? `<section class="ue-teil"><h2>${t('Läuft')}</h2><div class="ue-aktiv-liste">${laeuft.map(karte).join('')}</div></section>` : ''}
+    ${wartet.length ? `<section class="ue-teil"><h2>${t('Warteschlange')} <small>${h(t('beim Downloadclient'))}</small></h2><div class="ue-liste">${wartet.map((a, n) => warteZeile(a, n + 1)).join('')}</div></section>` : ''}
+    ${fertig.length ? `<section class="ue-teil"><h2>${t('Fertig')}</h2><div class="ue-tabelle dl-fertig"><table><thead><tr><th>${t('Release')}</th><th>${t('Stand')}</th><th>${t('Größe')}</th><th>${t('Dauer')}</th><th>${t('Tempo')}</th><th>${t('Fertig')}</th><th></th></tr></thead><tbody>${fertig.map(fertigZeile).join('')}</tbody></table></div></section>` : ''}
+  </div>`;
+}
+
 function downloadsPanel(app, box, signal, sichtbar, zaehler) {
   let timer = null;
   let stand = null;
+  const messer = new TempoMesser();
   let suche = null;     // { suche, treffer, begriff }
   let sucht = false;
   signal?.addEventListener('abort', () => clearTimeout(timer));
@@ -206,17 +270,7 @@ function downloadsPanel(app, box, signal, sichtbar, zaehler) {
         ${!passend.length && !versteckt ? '' : !passend.length ? `<p class="hinweis dl-tipp">${t('Tipp: Schreibweise prüfen, weniger Wörter, „genaue Wortfolge“ in Anführungszeichen oder -wort zum Ausschließen.')}</p>` : ''}
       </div>`;
       })() : ''}
-      <h3 style="font-size:1rem;margin:6px 0 0">${t('Aufträge')}</h3>
-      <div class="dl-auftraege">${(s.auftraege || []).map((a) => {
-        const [text, art] = statusText(a);
-        const prozent = a.status === 'laeuft' ? Number(a.prozent) : a.status === 'importiert' || a.status === 'fertig' ? 100 : 0;
-        return `<div class="dl-auftrag ${art}">
-          <div class="dl-titel"><b title="${h(a.titel)}">${h(a.titel)}</b><small>${h(text)}${(s.clients || []).length > 1 && a.client ? ` · ${h(a.client)}` : ''}${a.meldung ? ` · ${h(a.meldung)}` : ''}</small>
-            ${['gesendet', 'laeuft', 'fertig'].includes(a.status) ? `<div class="fortschritt dl-fort"><i style="width:${Math.max(2, prozent)}%"></i></div>` : ''}</div>
-          <span class="dl-wert">${groesse(Number(a.groesse))}</span>
-          <span class="dl-knoepfe">${a.status === 'fehler' ? `<button type="button" class="pille" data-dl-anderes="${h(a.suchbegriff || a.titel)}" title="${t('Usenet-Suche mit demselben Begriff öffnen')}">${t('Anderes Release suchen')}</button>${a.pfad_sab !== '' ? `<button type="button" class="pille" data-dl-erneut="${a.id}">${t('Import wiederholen')}</button>` : ''}` : ''}${['importiert', 'fehler'].includes(a.status) ? `<button type="button" class="pille" data-dl-weg="${a.id}" title="${t('Nur aus dieser Liste entfernen')}">${icon('zu', 14)}</button>` : ''}</span>
-        </div>`;
-      }).join('') || `<p class="hinweis" style="margin:0">${t('Noch nichts geholt.')}</p>`}</div>
+      ${dlAuftraegeHtml(s, statusText, messer)}
     </div>`;
     // angepasst statt neu aufgebaut: Suchfeld behält Fokus und Eingabe, Fortschrittsbalken gleiten
     if (box.querySelector('.dl')) morph(box, html); else box.innerHTML = html;

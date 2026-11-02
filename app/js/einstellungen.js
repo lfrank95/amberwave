@@ -24,15 +24,18 @@ import { offlineAn, offlineQualitaetText } from './offline_ui.js';
 import { android, androidJson, androidRufen } from './android.js';
 
 const BEREICHE = [
-  { id: 'konto', gruppe: 'persoenlich', titel: t('Konto'), icon: 'profil', text: t('Name, Bild, Passwort und die Geräte, auf denen du angemeldet bist.') },
-  { id: 'wiedergabe', gruppe: 'persoenlich', titel: t('Wiedergabe'), icon: 'play', text: '' },
-  { id: 'ausgabe', gruppe: 'persoenlich', titel: t('Windows-Ausgabe'), icon: 'computer', zusatz: t('dieser PC'), text: t('Nur im Windows Client · gilt für diesen PC.') },
+  { id: 'app', gruppe: 'hier', titel: t('App & Updates'), icon: 'computer', text: t('Gilt nur für dieses Gerät: Version, Updates, mit welchem Server die App spricht und wie sie sich hier verhält.') },
+  { id: 'wiedergabe', gruppe: 'hier', titel: t('Wiedergabe'), icon: 'play', text: '' },
+  { id: 'ausgabe', gruppe: 'hier', titel: t('Ausgabe'), icon: 'surround', zusatz: t('dieser PC'), text: t('Nur im Windows Client · gilt für diesen PC.') },
+  { id: 'speichern', gruppe: 'hier', titel: t('Offline'), icon: 'download', nurOffline: true, text: t('Was dieses Gerät zum Hören ohne Netz speichert – und in welcher Qualität.') },
+  { id: 'konto', gruppe: 'konto', titel: t('Konto'), icon: 'profil', text: t('Name, Bild, Passwort und die Geräte, auf denen du angemeldet bist – gilt überall, wo du angemeldet bist.') },
+  { id: 'dashboard', gruppe: 'server', titel: t('Dashboard'), icon: 'tacho', link: '/dashboard', text: '' },
   { id: 'geraet', gruppe: 'server', titel: t('Amberwave OS'), icon: 'computer', nurOs: true, text: t('Dieses Gerät: Name im Netz, Netzwerk, wo die Musik liegt, Speicher, Updates und Strom.') },
   { id: 'bibliothek', gruppe: 'server', titel: t('Bibliothek & Automatik'), icon: 'alben', text: t('Wann Amberwave selbst einliest, abgleicht und misst. Von Hand ausführen geht weiter unter Verwaltung › Bibliothek.') },
   { id: 'dienste', gruppe: 'server', titel: t('Dienste & Schlüssel'), icon: 'schluessel', text: t('Zugänge zu Diensten für Metadaten, Bilder und Übersetzungen. Schlüssel werden verschlüsselt gespeichert und nie wieder angezeigt.') },
   { id: 'downloads', gruppe: 'server', titel: t('Downloads'), icon: 'download', text: t('Prowlarr oder Newznab-Indexer suchen, SABnzbd lädt, Amberwave übernimmt das Fertige in die Bibliothek.') },
   { id: 'connect', gruppe: 'server', titel: 'Amberwave Connect', icon: 'connect', text: t('Andere Amberwave-Server koppeln – im Wohnwagen, bei der Familie. Stöbern, reinhören und Musik herüberholen, Ende zu Ende verschlüsselt.') },
-  { id: 'offline', gruppe: 'server', titel: t('Offline auf Geräten'), icon: 'download', text: t('Was Handys und Browser speichern dürfen – zum Hören ohne Netz und als echte Datei.') },
+  { id: 'offline', gruppe: 'server', titel: t('Offline-Regeln'), icon: 'download', text: t('Was Handys und Browser speichern dürfen – zum Hören ohne Netz und als echte Datei. Gilt für alle Geräte.') },
   { id: 'mail', gruppe: 'server', titel: t('E-Mail'), icon: 'mail', text: t('Für Freischaltungen, Ablauf-Erinnerungen und „Passwort vergessen“.') },
   { id: 'zugang', gruppe: 'server', titel: t('Zugang & Netz'), icon: 'start', text: t('Wie Geräte den Server erreichen – zuhause und unterwegs.') },
   { id: 'heimnetz', gruppe: 'server', titel: t('Geräte im Heimnetz'), icon: 'anlage', text: t('AV-Receiver, Fernseher und Streamer, die per DLNA abspielen. Sie erscheinen unter „Wiedergabe auf“ – Ein, Eingang und Lautstärke steuert Amberwave bei Denon/Marantz, Yamaha und Onkyo/Pioneer selbst.') },
@@ -154,7 +157,10 @@ const SUCHE_PERSOENLICH = [
   ['konto', 'bild', t('Profilbild'), t('foto avatar')], ['konto', 'name', t('Name'), t('vorname nachname')], ['konto', 'passwort', t('Passwort ändern'), t('kennwort')],
   ['konto', 'mail_info', t('E-Mails zu meinem Konto'), t('erinnerung ablauf')], ['konto', 'sprache', 'Sprache / Language', 'language sprache deutsch english englisch german'], ['konto', 'geraete', t('Angemeldete Geräte'), t('abmelden umbenennen gerätename')],
   ['wiedergabe', 'qualitaet_heim', t('Qualität zuhause'), t('original flac opus heimnetz')], ['wiedergabe', 'qualitaet_unterwegs', t('Qualität unterwegs'), t('opus mobilfunk datensparen')],
-  ['wiedergabe', 'offline_qualitaet', t('Qualität beim Speichern'), t('offline herunterladen download speicher')],
+  ['speichern', 'offline_qualitaet', t('Qualität beim Speichern'), t('offline herunterladen download speicher')],
+  ['app', 'version', t('Nach Updates suchen'), t('update version aktualisieren neue app installieren')], ['app', 'server', t('Anderen Server wählen'), t('server wechseln adresse')],
+  ['app', 'fern_erlaubt', t('Fernsteuerung erlauben'), t('fernbedienung steuern andere geräte')], ['app', 'tray', t('Im Infobereich weiterlaufen'), t('tray autostart windows')],
+  ['app', 'haelften', t('Zwei Hälften (Faltgeräte)'), t('fold falz')],
   ['wiedergabe', 'lueckenlos', t('Lückenlose Wiedergabe'), t('gapless pause')], ['wiedergabe', 'lautheit', t('Lautstärke angleichen'), t('ebu r128 replaygain lufs normalisieren')],
   ['wiedergabe', 'lautheit_ziel', t('Zielwert Lautheit'), t('lufs')], ['wiedergabe', 'pegel', t('Pegelanzeige im Player'), t('meter dbfs')],
   ['wiedergabe', 'klang', t('Raumklang und Effekte'), t('upmix space hall glow iron silk eq rack')],
@@ -368,63 +374,8 @@ async function kontoZeichnen(app, inhalt, signal) {
       ${p.aktiviert_am ? zeile('seit', t('Freigeschaltet am'), '', `<span class="einst-wert">${datum(p.aktiviert_am)}</span>`) : ''}
       ${zeile('gehoert', t('Gehört'), '', `<span class="einst-wert">${tn(p.statistik.gehoert, 'ein Titel · {std} Stunden', '{n} Titel · {std} Stunden', { std: Number(p.statistik.stunden).toLocaleString(locale, { maximumFractionDigits: 1 }) })}</span>`)}
     `)}
-    ${karte(t('Dieses Gerät'), `
-      ${zeile('fern_erlaubt', t('Fernsteuerung erlauben'), t('Deine anderen Geräte dürfen die Wiedergabe hier steuern (Knopf „Wiedergabe auf …“ im Player). Admins können es immer.'),
-        schalter(true, `data-fern-erlaubt aria-label="${h(t('Fernsteuerung erlauben'))}"`))}
-      ${zeile('fern_max', t('Höchste Lautstärke per Fernsteuerung'), t('Schutz für nachts oder fürs Kinderzimmer – gilt nur für Befehle von anderen Geräten, hier selbst geht alles.'),
-        `<select class="einst-feld" data-fern-max aria-label="${h(t('Höchste Lautstärke per Fernsteuerung'))}">${[100, 90, 80, 70, 60, 50, 40, 30].map((v) => `<option value="${v}">${v === 100 ? t('keine Grenze') : `${v} %`}</option>`).join('')}</select>`)}
-      ${nativ?.clientEinst ? zeile('tray', t('Im Infobereich weiterlaufen'), t('Fenster schließen beendet Amberwave nicht – der PC bleibt per Fernsteuerung erreichbar. Ganz beenden: Rechtsklick aufs Symbol im Infobereich › Beenden.'),
-        schalter(true, `data-client-einst="tray" aria-label="${h(t('Im Infobereich weiterlaufen'))}"`)) : ''}
-      ${nativ?.clientEinst ? zeile('autostart', t('Mit Windows starten'), t('Startet unsichtbar im Infobereich – so lässt sich der PC gleich nach dem Anmelden fernsteuern.'),
-        schalter(false, `data-client-einst="autostart" aria-label="${h(t('Mit Windows starten'))}"`)) : ''}
-      ${zeile('haelften', t('Zwei Hälften (Faltgeräte)'), t('Kopf, Player und „Läuft gerade“ links/rechts der Falz. Automatisch: wenn der Browser eine Falz meldet oder das Gerät wie ein aufgeklapptes Fold aussieht.'),
-        `<select class="einst-feld" data-haelften-wahl aria-label="${h(t('Zwei Hälften'))}"><option value="">${t('Automatisch')}</option><option value="an">${t('Immer')}</option><option value="aus">${t('Nie')}</option></select>`)}
-      <details class="falz-bericht"><summary>${t('Was meldet dieses Gerät?')} <span data-falz-kurz></span></summary><dl data-falz-liste></dl>
-        <p class="einst-fuss">${t('Tipp: Fold halb zuklappen – die Liste aktualisiert sich von selbst. Steht bei „Falz-Schnittstelle“ „fehlt“, kann dieser Browser die Falz nicht melden; Chrome, Edge und Samsung Internet können es.')}</p></details>
-    `)}
     <div class="einst-karte einst-frei" data-exporte hidden></div>`;
   exportListe(inhalt.querySelector('[data-exporte]'));
-  // Fernsteuerung: erlauben und Lautstärke-Grenze (am Gerät auf dem Server gemerkt – der Server prüft beides)
-  api.get('/geraet/einstellungen').then((r) => {
-    const e = r?.einstellungen || {};
-    inhalt.querySelector('[data-fern-erlaubt]')?.setAttribute('aria-checked', String(e.fern_erlaubt !== false));
-    const m = inhalt.querySelector('[data-fern-max]');
-    if (m) m.value = String([100, 90, 80, 70, 60, 50, 40, 30].includes(Number(e.fern_max_lautstaerke)) ? Number(e.fern_max_lautstaerke) : 100);
-  }).catch(() => {});
-  inhalt.querySelector('[data-fern-erlaubt]')?.addEventListener('click', async (e) => {
-    const b = e.currentTarget, an = b.getAttribute('aria-checked') !== 'true';
-    b.setAttribute('aria-checked', String(an));
-    if (!(await versuche(() => api.put('/geraet/einstellungen', { einstellungen: { fern_erlaubt: an } }), an ? t('Fernsteuerung erlaubt') : t('Fernsteuerung aus')))) b.setAttribute('aria-checked', String(!an));
-  });
-  inhalt.querySelector('[data-fern-max]')?.addEventListener('change', async (e) => {
-    const v = Number(e.target.value);
-    if (await versuche(() => api.put('/geraet/einstellungen', { einstellungen: { fern_max_lautstaerke: v } }), v === 100 ? t('Keine Grenze') : t('Fernsteuerung höchstens {v} %', { v })) && app.fern) app.fern.maxVol = v / 100;
-  });
-  // Windows Client: im Infobereich weiterlaufen, mit Windows starten
-  if (nativ?.clientEinst) {
-    nativ.clientEinst().then((w) => {
-      inhalt.querySelectorAll('[data-client-einst]').forEach((b) => b.setAttribute('aria-checked', String(!!w?.[b.dataset.clientEinst])));
-    }).catch(() => {});
-    inhalt.querySelectorAll('[data-client-einst]').forEach((b) => b.addEventListener('click', async () => {
-      const an = b.getAttribute('aria-checked') !== 'true';
-      b.setAttribute('aria-checked', String(an));
-      const w = await nativ.clientEinstSetzen({ [b.dataset.clientEinst]: an }).catch(() => null);
-      if (!w) { b.setAttribute('aria-checked', String(!an)); toast(t('Nicht gespeichert'), 'fehler'); return; }
-      toast(b.dataset.clientEinst === 'tray' ? (an ? t('Läuft beim Schließen im Infobereich weiter') : t('Schließen beendet Amberwave')) : (an ? t('Startet mit Windows') : t('Startet nicht mehr mit Windows')), 'gut');
-    }));
-  }
-  // Faltgerät: Wahl + Live-Bericht
-  const hw = inhalt.querySelector('[data-haelften-wahl]');
-  hw.value = falzWahl();
-  hw.addEventListener('change', () => falzWahlSetzen(hw.value));
-  const falzZeigen = () => {
-    if (!inhalt.isConnected) { window.removeEventListener('aw-falz', falzZeigen); return; }
-    const st = falzStatus();
-    inhalt.querySelector('[data-falz-liste]').innerHTML = falzBericht(st).map(([k, w]) => `<dt>${h(k)}</dt><dd>${h(w)}</dd>`).join('');
-    inhalt.querySelector('[data-falz-kurz]').textContent = st.buch ? t('· halb geklappt (Buch)') : st.tisch ? t('· aufgestellt (Laptop)') : '';
-  };
-  falzZeigen();
-  window.addEventListener('aw-falz', falzZeigen);
 
   inhalt.querySelector('[data-alle-geraete]')?.addEventListener('click', (e) => {
     inhalt.querySelectorAll('[data-mehr]').forEach((z) => { z.hidden = false; });
@@ -516,6 +467,190 @@ async function kontoZeichnen(app, inhalt, signal) {
   }));
 }
 
+/** „Lorenzos PC · Windows Client“, „Pixel 8 · Android-App“, „Browser · Firefox“ – oben in der Gruppe „Dieses Gerät“ */
+function geraetBeschreibung(app) {
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  const art = nativ ? 'Windows Client' : android ? t('Android-App') : browser ? t('Browser · {name}', { name: browser }) : t('Browser');
+  const name = app.ich.geraet_name || '';
+  return [name, browser && name.includes(browser) && !nativ && !android ? '' : art].filter(Boolean).join(' · ');
+}
+
+/** Dieses Gerät › App & Updates: Version und Updates der App, mit welchem Server sie spricht, wie das Gerät in Amberwave heißt */
+function appZeichnen(app, inhalt, signal) {
+  const knoepfe = `<div class="os-knoepfe app-upd-knoepfe" style="margin:0"><button type="button" class="btn btn-zweit btn-klein" data-upd-suchen>${icon('suche', 16)}<span>${t('Nach Updates suchen')}</span></button>
+    <button type="button" class="btn btn-klein" data-upd-los hidden>${icon('download', 16)}<span>${t('Jetzt installieren')}</span></button></div>`;
+  let appKarte = '';
+  if (nativ) {
+    appKarte = karte(t('App'), `
+      ${zeile('version', `Amberwave Windows Client ${h(nativ.version || '')}`, '<span data-upd-text></span><span class="app-upd-balken" data-upd-balken hidden><i></i></span>', nativ.update?.suchen ? knoepfe : '')}
+      <div data-upd-ablauf hidden>${zeile('upd_ablauf', t('Was dabei passiert'), t('Amberwave schließt sich kurz, installiert die neue Version und öffnet sich wieder. Die Wiedergabe pausiert solange.'), '')}</div>
+      ${nativ.clientEinst ? zeile('tray', t('Im Infobereich weiterlaufen'), t('Fenster schließen beendet Amberwave nicht – der PC bleibt per Fernsteuerung erreichbar. Ganz beenden: Rechtsklick aufs Symbol im Infobereich › Beenden.'),
+        schalter(true, `data-client-einst="tray" aria-label="${h(t('Im Infobereich weiterlaufen'))}"`)) : ''}
+      ${nativ.clientEinst ? zeile('autostart', t('Mit Windows starten'), t('Startet unsichtbar im Infobereich – so lässt sich der PC gleich nach dem Anmelden fernsteuern.'),
+        schalter(false, `data-client-einst="autostart" aria-label="${h(t('Mit Windows starten'))}"`)) : ''}`, '<span data-upd-chip></span>');
+  } else if (android) {
+    appKarte = karte(t('App'), `
+      ${zeile('version', t('Amberwave für Android {version}', { version: h(String(androidRufen('version') || '')) }), '<span data-upd-text></span><span class="app-upd-balken" data-upd-balken hidden><i></i></span>', knoepfe)}
+      <div data-upd-ablauf hidden>${zeile('upd_ablauf', t('Was dabei passiert'), t('Die App lädt die neue Version, danach fragt Android einmal, ob Amberwave installieren darf. Musik, Offline-Titel und Anmeldung bleiben.'), '')}</div>
+      ${zeile('upd_auto', t('Selbst nach Updates schauen'), t('Zweimal am Tag – installiert wird nur, wenn du es sagst.'), `<span class="einst-wert">${t('an')}</span>`)}`, '<span data-upd-chip></span>');
+  } else {
+    appKarte = karte(t('App'), zeile('version', t('Amberwave im Browser · {version}', { version: h(app.ich.app.version) }),
+      t('Die Oberfläche kommt immer vom Server – ein Update des Servers bringt sie mit. Am Handy und am PC gibt es Amberwave auch als App mit eigenem Update-Knopf.'), ''));
+  }
+  const serverKarte = karte(t('Server'), zeile('server', h(location.host), android || nativ ? t('Mit diesem Server spricht die App – zuhause und unterwegs findet sie ihn von selbst.') : t('Mit diesem Server ist dieser Browser gerade verbunden.'),
+    android || nativ?.serverWechseln ? `<button type="button" class="btn btn-zweit btn-klein" data-server-wechseln>${t('Anderen Server wählen')}</button>` : ''));
+  inhalt.innerHTML = `${appKarte}${serverKarte}
+    ${karte(t('Dieses Gerät in Amberwave'), `
+      ${zeile('geraet_name', t('Name'), t('So erscheint das Gerät unter „Wiedergabe auf“, in „Wer hört gerade“ und bei deinen angemeldeten Geräten. Leer = automatisch.'), `<input type="text" class="einst-feld" data-geraet-name maxlength="60" placeholder="${h(app.ich.geraet_name || '')}" value="${h(app.ich.geraet_name || '')}" aria-label="${h(t('Name dieses Geräts'))}">`)}
+      ${zeile('fern_erlaubt', t('Fernsteuerung erlauben'), t('Deine anderen Geräte dürfen die Wiedergabe hier steuern (Knopf „Wiedergabe auf …“ im Player). Admins können es immer.'),
+        schalter(true, `data-fern-erlaubt aria-label="${h(t('Fernsteuerung erlauben'))}"`))}
+      ${zeile('fern_max', t('Höchste Lautstärke per Fernsteuerung'), t('Schutz für nachts oder fürs Kinderzimmer – gilt nur für Befehle von anderen Geräten, hier selbst geht alles.'),
+        `<select class="einst-feld" data-fern-max aria-label="${h(t('Höchste Lautstärke per Fernsteuerung'))}">${[100, 90, 80, 70, 60, 50, 40, 30].map((v) => `<option value="${v}">${v === 100 ? t('keine Grenze') : `${v} %`}</option>`).join('')}</select>`)}
+      ${zeile('haelften', t('Zwei Hälften (Faltgeräte)'), t('Kopf, Player und „Läuft gerade“ links/rechts der Falz. Automatisch: wenn der Browser eine Falz meldet oder das Gerät wie ein aufgeklapptes Fold aussieht.'),
+        `<select class="einst-feld" data-haelften-wahl aria-label="${h(t('Zwei Hälften'))}"><option value="">${t('Automatisch')}</option><option value="an">${t('Immer')}</option><option value="aus">${t('Nie')}</option></select>`)}
+      <details class="falz-bericht"><summary>${t('Was meldet dieses Gerät?')} <span data-falz-kurz></span></summary><dl data-falz-liste></dl>
+        <p class="einst-fuss">${t('Tipp: Fold halb zuklappen – die Liste aktualisiert sich von selbst. Steht bei „Falz-Schnittstelle“ „fehlt“, kann dieser Browser die Falz nicht melden; Chrome, Edge und Samsung Internet können es.')}</p></details>
+    `)}
+`;
+  // Updates der App: Windows Client über die Brücke (Installer läuft eigenständig), Android ohne Dialog mit Fortschritt
+  const txt = inhalt.querySelector('[data-upd-text]');
+  const los = inhalt.querySelector('[data-upd-los]');
+  const such = inhalt.querySelector('[data-upd-suchen]');
+  const balken = inhalt.querySelector('[data-upd-balken]');
+  const chipBox = inhalt.querySelector('[data-upd-chip]');
+  const ablauf = inhalt.querySelector('[data-upd-ablauf]');
+  const zeigen = (u) => {
+    if (!txt) return;
+    const st = u?.stand || '';
+    const neu = u?.neu || u?.version || '';
+    const laedt = st === 'laedt';
+    txt.innerHTML = st === 'sucht' ? h(t('Sucht bei GitHub …'))
+      : laedt ? h(t('{version} wird geladen · {p} %', { version: neu, p: u.prozent || 0 }))
+        : st === 'startet' || st === 'installieren' ? h(nativ ? t('Wird installiert – Amberwave startet gleich in der neuen Version.') : t('Android fragt jetzt, ob Amberwave installieren darf.'))
+          : st === 'fehler' ? h(u.fehler === 'github' ? t('GitHub ist gerade nicht erreichbar – später noch einmal versuchen.') : u.fehler && u.fehler !== 'laden' ? u.fehler : t('Das hat nicht geklappt – noch einmal versuchen.'))
+            : st === 'aktuell' ? h(t('Auf dem neuesten Stand.'))
+              : neu && st !== 'aktuell' ? `<b>${h(t('{version} ist da', { version: neu }))}</b>`
+                : h(t('Schaut zweimal am Tag selbst nach – installiert wird nur, wenn du es sagst.'));
+    const da = !!neu && !['aktuell', 'sucht', 'laedt', 'startet', 'installieren'].includes(st) && (nativ ? u?.installierbar !== false : true);
+    if (los) los.hidden = !da;
+    if (ablauf) ablauf.hidden = !da && !laedt;
+    if (balken) { balken.hidden = !laedt; balken.querySelector('i').style.width = `${u?.prozent || 0}%`; }
+    if (such) such.disabled = st === 'sucht' || laedt;
+    if (chipBox) chipBox.innerHTML = laedt ? chip(t('Update lädt'), 'akzent') : da ? chip(t('Update da'), 'akzent') : st === 'aktuell' ? chip(t('aktuell'), 'gut') : '';
+  };
+  if (nativ?.update?.suchen) {
+    nativ.update.info().then((u) => zeigen(u ? { ...u, neu: u.version } : null)).catch(() => zeigen(null));
+    const ab = nativ.update.auf?.((u) => zeigen(u ? { ...u, neu: u.version } : null));
+    signal?.addEventListener('abort', () => ab?.());
+    such?.addEventListener('click', async () => {
+      zeigen({ stand: 'sucht' });
+      const r = await nativ.update.suchen().catch(() => null);
+      if (!r?.ok) zeigen({ stand: 'fehler', fehler: 'github' });
+      else if (!r.update) zeigen({ stand: 'aktuell' });
+      else zeigen({ ...r.update, neu: r.update.version });
+    });
+    los?.addEventListener('click', async () => { los.disabled = true; await nativ.update.installieren().catch(() => false); los.disabled = false; });
+  } else if (android) {
+    const neueApp = typeof android.updateStand === 'function';
+    window.awAndroidUpdate = (u) => { if (inhalt.isConnected) zeigen(u); };
+    signal?.addEventListener('abort', () => { delete window.awAndroidUpdate; });
+    zeigen(neueApp ? androidJson('updateStand') : null);
+    such?.addEventListener('click', () => { if (neueApp) androidRufen('updateSuchen'); else androidRufen('updatePruefen'); });
+    los?.addEventListener('click', () => androidRufen('updateInstallieren'));
+  }
+  inhalt.querySelector('[data-server-wechseln]')?.addEventListener('click', async () => {
+    if (android) {
+      if (!await bestaetigen(t('Anderen Server wählen?'), t('Die Offline-Musik auf diesem Handy gehört zu diesem Server und wird beim Wechsel gelöscht.'), t('Server wählen'), true)) return;
+      androidRufen('serverWechseln');
+    } else nativ?.serverWechseln?.();
+  });
+  // Name dieses Geräts (wie unter Konto › Angemeldete Geräte; leer = automatisch)
+  const nameFeld = inhalt.querySelector('[data-geraet-name]');
+  nameFeld?.addEventListener('change', async () => {
+    const neu = nameFeld.value.trim();
+    if (!app.ich.geraet_id) return;
+    const r = await versuche(() => api.put(`/profil/geraete/${app.ich.geraet_id}`, { name: neu }));
+    if (r) {
+      const g = (r.geraete || []).find((x) => x.id === app.ich.geraet_id);
+      app.ich.geraet_name = g?.name || neu;
+      nameFeld.value = app.ich.geraet_name;
+      toast(neu ? t('Gerätename gespeichert') : t('Gerätename wieder automatisch'), 'gut');
+      const z = document.querySelector('.einst-geraet-name'); if (z) z.textContent = geraetBeschreibung(app);
+    }
+  });
+  // Fernsteuerung: erlauben und Lautstärke-Grenze (am Gerät auf dem Server gemerkt – der Server prüft beides)
+  api.get('/geraet/einstellungen').then((r) => {
+    const e = r?.einstellungen || {};
+    inhalt.querySelector('[data-fern-erlaubt]')?.setAttribute('aria-checked', String(e.fern_erlaubt !== false));
+    const m = inhalt.querySelector('[data-fern-max]');
+    if (m) m.value = String([100, 90, 80, 70, 60, 50, 40, 30].includes(Number(e.fern_max_lautstaerke)) ? Number(e.fern_max_lautstaerke) : 100);
+  }).catch(() => {});
+  inhalt.querySelector('[data-fern-erlaubt]')?.addEventListener('click', async (e) => {
+    const b = e.currentTarget, an = b.getAttribute('aria-checked') !== 'true';
+    b.setAttribute('aria-checked', String(an));
+    if (!(await versuche(() => api.put('/geraet/einstellungen', { einstellungen: { fern_erlaubt: an } }), an ? t('Fernsteuerung erlaubt') : t('Fernsteuerung aus')))) b.setAttribute('aria-checked', String(!an));
+  });
+  inhalt.querySelector('[data-fern-max]')?.addEventListener('change', async (e) => {
+    const v = Number(e.target.value);
+    if (await versuche(() => api.put('/geraet/einstellungen', { einstellungen: { fern_max_lautstaerke: v } }), v === 100 ? t('Keine Grenze') : t('Fernsteuerung höchstens {v} %', { v })) && app.fern) app.fern.maxVol = v / 100;
+  });
+  // Windows Client: im Infobereich weiterlaufen, mit Windows starten
+  if (nativ?.clientEinst) {
+    nativ.clientEinst().then((w) => {
+      inhalt.querySelectorAll('[data-client-einst]').forEach((b) => b.setAttribute('aria-checked', String(!!w?.[b.dataset.clientEinst])));
+    }).catch(() => {});
+    inhalt.querySelectorAll('[data-client-einst]').forEach((b) => b.addEventListener('click', async () => {
+      const an = b.getAttribute('aria-checked') !== 'true';
+      b.setAttribute('aria-checked', String(an));
+      const w = await nativ.clientEinstSetzen({ [b.dataset.clientEinst]: an }).catch(() => null);
+      if (!w) { b.setAttribute('aria-checked', String(!an)); toast(t('Nicht gespeichert'), 'fehler'); return; }
+      toast(b.dataset.clientEinst === 'tray' ? (an ? t('Läuft beim Schließen im Infobereich weiter') : t('Schließen beendet Amberwave')) : (an ? t('Startet mit Windows') : t('Startet nicht mehr mit Windows')), 'gut');
+    }));
+  }
+  // Faltgerät: Wahl + Live-Bericht
+  const hw = inhalt.querySelector('[data-haelften-wahl]');
+  hw.value = falzWahl();
+  hw.addEventListener('change', () => falzWahlSetzen(hw.value));
+  const falzZeigen = () => {
+    if (!inhalt.isConnected) { window.removeEventListener('aw-falz', falzZeigen); return; }
+    const st = falzStatus();
+    inhalt.querySelector('[data-falz-liste]').innerHTML = falzBericht(st).map(([k, w]) => `<dt>${h(k)}</dt><dd>${h(w)}</dd>`).join('');
+    inhalt.querySelector('[data-falz-kurz]').textContent = st.buch ? t('· halb geklappt (Buch)') : st.tisch ? t('· aufgestellt (Laptop)') : '';
+  };
+  falzZeigen();
+  window.addEventListener('aw-falz', falzZeigen);
+}
+
+/** Dieses Gerät › Offline: Qualität beim Speichern, am Handy nur im WLAN */
+function speichernZeichnen(app, inhalt) {
+  const pl = app.player;
+  const persoenlich = (feld, wert) => {
+    pl.einst[feld] = wert;
+    pl.einstSpeichern();
+    api.put('/geraet/einstellungen', { einstellungen: { [feld]: wert } }).catch(() => {});
+    toast(t('Übernommen'));
+  };
+  inhalt.innerHTML = `
+    ${offlineAn() ? karte(t('Speichern'), `
+      ${zeile('offline_qualitaet', `<label for="ew-oq">${t('Qualität beim Speichern')}</label>`, t('Gilt für neu gespeicherte Titel. Höher klingt besser und braucht mehr Platz: Opus 256 etwa 2 MB pro Minute, Original etwa 5–10 MB.') + (offlineStufen().length < 4 && android ? ' ' + t('Mehr hat der Admin nicht freigegeben.') : ''),
+        `<select id="ew-oq" class="einst-feld" data-offline-q>${offlineStufen().map((q) => `<option value="${q}" ${offlineAktuell() === q ? 'selected' : ''}>${h(offlineQualitaetText(q))}</option>`).join('')}</select>`)}
+      ${android ? zeile('offline_wlan', t('Nur im WLAN laden'), t('Im Mobilfunk wartet das Speichern, bis wieder WLAN da ist.'), schalter(!!androidJson('einstellungen')?.nurWlan, `data-offline-wlan aria-label="${h(t('Nur im WLAN laden'))}"`)) : ''}
+    `) : ''}
+    ${karte(t('Gespeicherte Titel'), zeile('offline_liste', t('Auf diesem Gerät'), t('Was gespeichert ist, wie viel Platz es braucht, und neu laden oder löschen.'), `<a class="btn btn-zweit btn-klein" href="/offline" data-link>${t('Öffnen')}</a>`))}`;
+  inhalt.querySelector('[data-offline-q]')?.addEventListener('change', (ev) => {
+    offlineWunsch(ev.target.value);
+    persoenlich('offline_qualitaet', ev.target.value);
+    if (offline.andereQualitaet()) toast(t('Schon gespeicherte Titel lassen sich unter „Auf diesem Gerät“ neu laden.'), 'info', 6000);
+  });
+  inhalt.querySelector('[data-offline-wlan]')?.addEventListener('click', (ev) => {
+    const b = ev.currentTarget, an = b.getAttribute('aria-checked') !== 'true';
+    b.setAttribute('aria-checked', String(an));
+    androidRufen('einstellungSetzen', 'nurWlan', an ? '1' : '0');
+    toast(t('Übernommen'));
+  });
+}
+
 function wiedergabeZeichnen(app, inhalt) {
   const pl = app.player;
   const e = pl.einst;
@@ -527,15 +662,6 @@ function wiedergabeZeichnen(app, inhalt) {
       ${zeile('qualitaet_heim', `<label for="ew-qh">${t('Zuhause')}</label>`, t('Im Heimnetz – auch über die öffentliche Adresse. „Original“ spielt die Datei unverändert; was hier nicht abspielbar ist (z. B. DSD, APE), wird umgewandelt.'), `<select id="ew-qh" class="einst-feld" data-qualitaet="heim">${qOpt('qualitaet_heim', t('Automatisch (Original, wenn möglich)'))}</select>`)}
       ${zeile('qualitaet_unterwegs', `<label for="ew-qu">${t('Unterwegs')}</label>`, t('Über das Internet und Mobilfunk. Original braucht viel Datenvolumen.'), `<select id="ew-qu" class="einst-feld" data-qualitaet="unterwegs">${qOpt('qualitaet_unterwegs', t('Automatisch ({was})', { was: pl.mobil ? t('Handy/Tablet: Opus 160, im Mobilfunk 128') : 'Opus 256' }))}</select>`)}
     `, chip(pl.netz?.lokal ? t('gerade zuhause') : t('gerade unterwegs'), pl.netz?.lokal ? 'gut' : ''))}
-    ${android ? karte(t('Android-App'), `
-      ${zeile('android_server', t('Server'), h(String(androidRufen('server') || '')), `<button type="button" class="btn btn-zweit btn-klein" data-android-server>${t('Anderen Server wählen')}</button>`)}
-      ${zeile('android_update', t('App-Version {version}', { version: String(androidRufen('version') || '') }), t('Die App schaut zweimal am Tag bei GitHub nach einer neuen Version und fragt, bevor sie etwas installiert.'), `<button type="button" class="btn btn-zweit btn-klein" data-android-update>${t('Jetzt nachsehen')}</button>`)}
-    `) : ''}
-    ${offlineAn() ? karte(t('Offline auf diesem Gerät'), `
-      ${zeile('offline_qualitaet', `<label for="ew-oq">${t('Qualität beim Speichern')}</label>`, t('Gilt für neu gespeicherte Titel. Höher klingt besser und braucht mehr Platz: Opus 256 etwa 2 MB pro Minute, Original etwa 5–10 MB.') + (offlineStufen().length < 4 && android ? ' ' + t('Mehr hat der Admin nicht freigegeben.') : ''),
-        `<select id="ew-oq" class="einst-feld" data-offline-q>${offlineStufen().map((q) => `<option value="${q}" ${offlineAktuell() === q ? 'selected' : ''}>${h(offlineQualitaetText(q))}</option>`).join('')}</select>`)}
-      ${android ? zeile('offline_wlan', t('Nur im WLAN laden'), t('Im Mobilfunk wartet das Speichern, bis wieder WLAN da ist.'), schalter(!!androidJson('einstellungen')?.nurWlan, `data-offline-wlan aria-label="${h(t('Nur im WLAN laden'))}"`)) : ''}
-    `) : ''}
     ${karte(t('Lückenlos'), `
       ${zeile('lueckenlos', t('Titel ohne Pause aneinanderhängen'), t('Live-Alben und durchgehende Alben laufen auf das Sample genau durch. Nur ausschalten, wenn ein Gerät Probleme macht.'), schalter(e.lueckenlos !== false, `data-lueckenlos aria-label="${h(t('Lückenlose Wiedergabe'))}"`))}
       ${zeile('lueckenlos_vorrang', `<label for="ew-lv">${t('Wenn „Original“ hier nicht lückenlos geht')}</label>`, h(t('Dieses Gerät: {mse} · FLAC-Strom: {flac} · Opus-Strom: {opus}', { mse: dg.mse || t('keine Media Source Extensions'), flac: jn(dg.flac), opus: jn(dg.opus) }) + (pl.motorFehlerText ? ' · ' + t('zuletzt gestört: {fehler}', { fehler: pl.motorFehlerText }) : '')),
@@ -557,22 +683,6 @@ function wiedergabeZeichnen(app, inhalt) {
     if (neuLaden && pl.track && pl.audio.src) pl.laden(pl.zeit, !pl.audio.paused);
     toast(t('Übernommen'));
   };
-  inhalt.querySelector('[data-android-update]')?.addEventListener('click', () => androidRufen('updatePruefen'));
-  inhalt.querySelector('[data-android-server]')?.addEventListener('click', async () => {
-    if (!await bestaetigen(t('Anderen Server wählen?'), t('Die Offline-Musik auf diesem Handy gehört zu diesem Server und wird beim Wechsel gelöscht.'), t('Server wählen'), true)) return;
-    androidRufen('serverWechseln');
-  });
-  inhalt.querySelector('[data-offline-q]')?.addEventListener('change', (ev) => {
-    offlineWunsch(ev.target.value);
-    persoenlich('offline_qualitaet', ev.target.value);
-    if (offline.andereQualitaet()) toast(t('Schon gespeicherte Titel lassen sich unter „Auf diesem Gerät“ neu laden.'), 'info', 6000);
-  });
-  inhalt.querySelector('[data-offline-wlan]')?.addEventListener('click', (ev) => {
-    const b = ev.currentTarget, an = b.getAttribute('aria-checked') !== 'true';
-    b.setAttribute('aria-checked', String(an));
-    androidRufen('einstellungSetzen', 'nurWlan', an ? '1' : '0');
-    toast(t('Übernommen'));
-  });
   inhalt.querySelector('[data-lueckenlos]').addEventListener('click', (ev) => { const b = ev.currentTarget, an = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', String(an)); persoenlich('lueckenlos', an, true); });
   inhalt.querySelector('[data-lueckenlos-vorrang]').addEventListener('change', (ev) => persoenlich('lueckenlos_vorrang', ev.target.value === 'ja', true));
   inhalt.querySelectorAll('[data-lautheit] button').forEach((b) => b.addEventListener('click', async () => {
@@ -644,34 +754,7 @@ function ausgabeZeichnen(app, inhalt, signal) {
       ${zeile('aufschlag', `<label for="en-aufschlag">${t('Pause nach dem Umschalten')}</label>`, t('Wie beim CD-Wechsel: lieber kurz Stille als ein abgeschnittener Anfang. Manche Interfaces geben ihren Ausgang nach einem Ratenwechsel erst spät frei. Gemerkt für dieses Gerät.') + ' <span class="aus-zeitleiste" data-zeitleiste></span>', `<select id="en-aufschlag" class="einst-feld" data-n-aufschlag>${AUFSCHLAG_STUFEN.map(([w, tx]) => `<option value="${w}">${tx}</option>`).join('')}</select>`)}
       ${zeile('asio', t('ASIO-Treiber'), t('Puffergröße und Taktquelle stellt das Treiberfenster des Herstellers ein.'), `<button type="button" class="btn btn-zweit btn-klein" data-n-asio>${t('Treiber-Einstellungen …')}</button>`, 'data-asio-zeile hidden')}
     `)}
-    ${nativ.update?.suchen ? karte(t('Windows Client'), zeile('client-update', `Amberwave Windows Client ${h(nativ.version || '')}`, '<span data-client-upd-text></span>',
-      `<div class="os-knoepfe" style="margin:0"><button type="button" class="btn btn-zweit btn-klein" data-client-suchen>${icon('suche', 16)}<span>${t('Nach Updates suchen')}</span></button>
-       <button type="button" class="btn btn-klein" data-client-los hidden>${icon('download', 16)}<span>${t('Jetzt aktualisieren')}</span></button></div>`)) : ''}
     <p class="einst-fuss aus-fuss">${t('Bitgenau (exklusiv oder ASIO) heißt: Lautstärke 100 %, Lautstärke-Angleich aus und keine Effekte – sonst rechnet die Engine (64 Bit, mit Dither).')} Amberwave Windows Client ${h(nativ.version || '')}.</p>`;
-  // Windows Client: von Hand nach Updates suchen; installiert wird vom eigenständigen Installer (Client beendet sich vorher)
-  const cuText = inhalt.querySelector('[data-client-upd-text]');
-  const cuLos = inhalt.querySelector('[data-client-los]');
-  const cuZeigen = (u) => {
-    if (!cuText) return;
-    cuText.textContent = u?.version ? (u.stand === 'laedt' ? t('Wird geladen … {p} %', { p: u.prozent || 0 }) : u.stand === 'startet' ? t('Wird installiert – Amberwave startet gleich in der neuen Version.')
-      : u.stand === 'fehler' ? (u.fehler || t('Das hat nicht geklappt.')) : t('Neue Version {version} verfügbar.', { version: u.version })) : t('Wird beim Start und alle 12 Stunden geprüft.');
-    if (cuLos) cuLos.hidden = !(u?.version && u.installierbar && !['laedt', 'startet'].includes(u.stand));
-  };
-  if (cuText) {
-    nativ.update.info().then(cuZeigen).catch(() => cuZeigen(null));
-    const ab = nativ.update.auf?.(cuZeigen);
-    signal?.addEventListener('abort', () => ab?.());
-    inhalt.querySelector('[data-client-suchen]').addEventListener('click', async (e) => {
-      const b = e.currentTarget;
-      b.disabled = true;
-      const r = await nativ.update.suchen().catch(() => null);
-      b.disabled = false;
-      if (!r?.ok) toast(t('GitHub ist gerade nicht erreichbar – später noch einmal versuchen.'), 'fehler');
-      else if (!r.update) { toast(t('Auf dem neuesten Stand ({version}).', { version: r.version })); cuText.textContent = t('Auf dem neuesten Stand.'); }
-      else cuZeigen(r.update);
-    });
-    cuLos.addEventListener('click', async () => { cuLos.disabled = true; await nativ.update.installieren().catch(() => false); cuLos.disabled = false; });
-  }
   const $ = (s) => inhalt.querySelector(s);
   const aktuell = () => geraete.find((g) => g.id === wahl.geraet) || (wahl.geraet === '' ? { id: '', name: t('Windows-Standardgerät') } : null);
 
@@ -1139,7 +1222,7 @@ function kopfChips(id) {
 
 // ---------- Suche ----------
 function suchIndex(admin, appOs = false) {
-  const liste = SUCHE_PERSOENLICH.filter(([b]) => (b !== 'ausgabe' || nativ) && (admin || bereichVon(b).gruppe === 'persoenlich') && (!bereichVon(b).nurOs || appOs))
+  const liste = SUCHE_PERSOENLICH.filter(([b]) => (b !== 'ausgabe' || nativ) && (admin || bereichVon(b).gruppe !== 'server') && (!bereichVon(b).nurOs || appOs) && (!bereichVon(b).nurOffline || offlineAn()))
     .map(([b, k, t, w]) => ({ b, k, t, w: `${t} ${w}`.toLowerCase() }));
   if (admin) for (const f of Object.values(FELD)) liste.push({ b: f.bereich, k: f.k, t: f.name, w: `${f.name} ${f.hinweis || ''} ${f.k.replace(/_/g, ' ')}`.toLowerCase() });
   return liste;
@@ -1189,12 +1272,13 @@ function zuZeileSpringen(inhalt) {
 // ---------- Ansicht ----------
 export async function einstellungenAnsicht({ app, ziel, param, signal }) {
   const admin = app.ich.user.rolle === 'admin';
-  const sichtbar = BEREICHE.filter((b) => (b.gruppe === 'persoenlich' || admin) && (b.id !== 'ausgabe' || nativ) && (!b.nurOs || app.ich.app.os));
+  const sichtbar = BEREICHE.filter((b) => (b.gruppe !== 'server' || admin) && (b.id !== 'ausgabe' || nativ) && (!b.nurOs || app.ich.app.os) && (!b.nurOffline || offlineAn()));
   const gewaehlt = param?.[0] || '';
-  const b = bereichVon(gewaehlt) && sichtbar.includes(bereichVon(gewaehlt)) ? bereichVon(gewaehlt) : bereichVon('wiedergabe');
+  if (gewaehlt && bereichVon(gewaehlt)?.link) { app.navigieren(bereichVon(gewaehlt).link, false, true); return; }
+  const b = bereichVon(gewaehlt) && sichtbar.includes(bereichVon(gewaehlt)) ? bereichVon(gewaehlt) : bereichVon(['persoenlich', 'ausgabe_alt'].includes(gewaehlt) ? 'konto' : 'wiedergabe');
   // Bereich hier nicht verfügbar (z. B. Windows-Ausgabe im Browser, Server-Bereich ohne Admin): Adresse passend zur Seite
   if (gewaehlt && b.id !== gewaehlt) history.replaceState(history.state, '', '/einstellungen/' + b.id);
-  const punkt = (x) => `<a href="/einstellungen/${x.id}" data-link class="einst-punkt" data-b="${x.id}" ${x === b && gewaehlt ? 'aria-current="page"' : x === b ? 'data-standard' : ''}>${icon(x.icon, 18)}<span>${h(x.titel)}</span>${x.zusatz ? `<small>${h(x.zusatz)}</small>` : ''}<i class="einst-pfeil">${icon('rechts', 16)}</i></a>`;
+  const punkt = (x) => `<a href="${x.link || `/einstellungen/${x.id}`}" data-link class="einst-punkt" data-b="${x.id}" ${x === b && gewaehlt ? 'aria-current="page"' : x === b ? 'data-standard' : ''}>${icon(x.icon, 18)}<span>${h(x.titel)}</span>${x.zusatz ? `<small>${h(x.zusatz)}</small>` : ''}<i class="einst-pfeil">${icon('rechts', 16)}</i></a>`;
   const gruppe = (g, titel) => { const xs = sichtbar.filter((x) => x.gruppe === g); return xs.length ? `<div class="einst-gruppe">${titel}</div>${xs.map(punkt).join('')}` : ''; };
   const text = b.id === 'wiedergabe'
     ? (app.ich.geraet_name ? t('Gilt nur auf diesem Gerät („{name}“) · wird sofort übernommen.', { name: h(app.ich.geraet_name) }) : t('Gilt nur auf diesem Gerät · wird sofort übernommen.'))
@@ -1204,7 +1288,7 @@ export async function einstellungenAnsicht({ app, ziel, param, signal }) {
       <h1 class="einst-titel">${t('Einstellungen')}</h1>
       <div class="einst-suche">${icon('suche', 17)}<input type="search" data-einst-suche placeholder="${h(t('Einstellung suchen …'))}" aria-label="${h(t('Einstellung suchen'))}" autocomplete="off" enterkeyhint="search"></div>
       <div class="einst-treffer" data-einst-treffer hidden></div>
-      <nav data-einst-nav>${gruppe('persoenlich', t('Persönlich'))}${gruppe('server', t('Server · nur Admins'))}</nav>
+      <nav data-einst-nav>${gruppe('hier', `${t('Dieses Gerät')}<small class="einst-geraet-name">${h(geraetBeschreibung(app))}</small>`)}${gruppe('konto', t('Mein Konto'))}${gruppe('server', t('Server · nur Admins'))}</nav>
     </aside>
     <section class="einst-inhalt">
       <a href="/einstellungen" data-link class="einst-zurueck">${icon('zurueckPfeil', 16)} ${t('Einstellungen')}</a>
@@ -1214,7 +1298,7 @@ export async function einstellungenAnsicht({ app, ziel, param, signal }) {
   </div>`;
   sucheVerbinden(app, ziel, admin);
   const inhalt = ziel.querySelector('[data-einst-karten]');
-  const zeichner = { konto: kontoZeichnen, wiedergabe: wiedergabeZeichnen, ausgabe: ausgabeZeichnen, bibliothek: bibliothekZeichnen, zugang: zugangZeichnen, raeume: raeumeZeichnen, downloads: downloadsZeichnen, heimnetz: heimnetzZeichnen, sicherung: sicherungZeichnen, system: systemZeichnen, geraet: geraetZeichnen, connect: connectZeichnen }[b.id]
+  const zeichner = { app: appZeichnen, speichern: speichernZeichnen, konto: kontoZeichnen, wiedergabe: wiedergabeZeichnen, ausgabe: ausgabeZeichnen, bibliothek: bibliothekZeichnen, zugang: zugangZeichnen, raeume: raeumeZeichnen, downloads: downloadsZeichnen, heimnetz: heimnetzZeichnen, sicherung: sicherungZeichnen, system: systemZeichnen, geraet: geraetZeichnen, connect: connectZeichnen }[b.id]
     || ((a, i, s) => serverBereichZeichnen(a, i, b.id, s));
   await zeichner(app, inhalt, signal);
   if (signal?.aborted) return;

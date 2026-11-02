@@ -97,7 +97,9 @@ function geraet_aktiv(int $userId, int $geraetId): bool
     // Name mitziehen (Browser-Update, Windows Client mit Computername statt „Chrome auf Windows“)
     $ua = (string) ($_SERVER['HTTP_USER_AGENT'] ?? '');
     $name = $ua !== '' ? mb_substr(geraet_name_aus_ua($ua), 0, 120) : null;
-    db_tun('UPDATE nutzer_geraete SET zuletzt_am = NOW(), name = COALESCE(:n, name) WHERE id = :id AND zuletzt_am < (NOW() - INTERVAL 60 SECOND)', ['id' => $geraetId, 'n' => $name]);
+    // IP mitziehen: das Dashboard zeigt daran, ob ein Gerät gerade zuhause oder unterwegs ist
+    db_tun('UPDATE nutzer_geraete SET zuletzt_am = NOW(), name = COALESCE(:n, name), ip = :ip WHERE id = :id AND zuletzt_am < (NOW() - INTERVAL 60 SECOND)',
+        ['id' => $geraetId, 'n' => $name, 'ip' => mb_substr(client_ip(), 0, 64)]);
     return true;
 }
 

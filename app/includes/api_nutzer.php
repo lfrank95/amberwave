@@ -428,5 +428,10 @@ function dl_menue_stand(): array
     } catch (Throwable $e) {
         $c = 0;
     }
-    return ['download_reiter' => $an, 'downloads_laufen' => $n, 'usenet' => $usenet, 'musik_schreiben' => einstellung('musik_schreiben') === '1', 'connect_laufen' => $c, 'connect_qualitaet' => einstellung('connect_qualitaet')];
+    try {
+        $hoeren = (int) db_wert('SELECT COUNT(*) FROM aktive_wiedergaben WHERE spielt = 1 AND aktualisiert_am >= NOW() - INTERVAL 35 SECOND');
+    } catch (Throwable $e) {
+        $hoeren = 0;
+    }
+    return ['hoeren' => $hoeren, 'download_reiter' => $an, 'downloads_laufen' => $n, 'usenet' => $usenet, 'musik_schreiben' => einstellung('musik_schreiben') === '1', 'connect_laufen' => $c, 'connect_qualitaet' => einstellung('connect_qualitaet')];
 }

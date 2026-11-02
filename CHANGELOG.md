@@ -1,9 +1,14 @@
 # Changelog
 
-## 0.9.1-beta.17 – Connect: home network found automatically
+## 0.9.1-beta.17 – Dashboard, cleaner settings, home network found automatically
+- **New: Dashboard** (gauge button in the header, admins only – the green number shows how many are listening). Now playing as cards with blurred cover, user, device, at home/on the go and quality, progress running live; transfers (Connect and downloads); a connection graph of everything talking to the server – home network on top, the server in the middle, internet and partners below, Amberwave servers marked with a gold frame and the Connect icon, a simple list on phones; storage, background jobs and machine below. Updates per platform: install button on Amberwave OS and Windows Server, step-by-step instructions for Docker (incl. Unraid).
+- **Settings tidied up:** grouped into *This device* (with the device name), *My account* and *Server · admins only*. New page **App & updates**: version, check for updates and install for the Windows client and the Android app (with progress), which server the app talks to, and the device's name. Offline storage on this device has its own page; the server-wide offline settings are now called *Offline rules*.
+- **Android app:** checks for updates and installs them from the settings page, with download progress.
+- **Connect tab:** the connection graph moved behind a *Connections* button (a window, a bottom sheet on phones). Transfers now look like a download manager: overview with throughput curve, problems, running transfers with stages, %, MB, speed, time left and a per-track list, queue and a table of finished ones.
+- **Downloads tab:** jobs in the same style – stages from sent to sorted in, progress with speed and time left, queue, problems with "Find another release" and a table of finished downloads.
 - **Connect: coming home switches to the home network on its own.** When a request from a partner arrives directly from the home network while it's still listed as "back channel" or "tunnel", the server knocks on the sender's address right away (under a second) instead of waiting for the next check or a click on "Check connection". The other way round, a partner that suddenly calls in over the internet is re-checked at the next request.
 - Connect: the back-channel loop also looks once a minute whether a partner it reaches over the internet is now on the home network – this works even where a server can't notice its own network change (Docker with its own network).
-- Connect tab and Connect settings: the connection chips and the network map update by themselves every few seconds, so a switch shows without reloading.
+- Connect tab and Connect settings: the connection chips and the connection graph update by themselves every few seconds, so a switch shows without reloading.
 
 ## 0.9.1-beta.16 – Better MusicBrainz search, browse by artist
 - **MusicBrainz matching: browse by artist.** Next to "Search album" there is now "Browse by artist": pick the artist and see all their releases like on musicbrainz.org – albums, EPs, singles, live, compilations – with covers and year; click one to see all its editions and compare as usual. When an album search finds nothing, a button takes you straight to the artist's releases.
