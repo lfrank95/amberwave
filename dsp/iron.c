@@ -116,7 +116,7 @@ static void iron_setzen(AwFx *fx, const AwWert *w, int n) {
   if ((s = wert_text(w, n, "quelle")) && quelle_suchen(s)) t->quelle = quelle_suchen(s);
   if (wert_zahl(w, n, "glanz", &v)) t->glanz = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "mix", &v)) t->mix = klemmen(v, 0, 1);
-  if (wert_zahl(w, n, "vert", &v)) t->vert = klemmen(v, 0, 1);
+  /* "vert" (Verteilung) rechnet gemeinsam.c um das Gerät herum */
   if (wert_zahl(w, n, "auto", &v)) t->auto_ = v != 0;
   if (wert_zahl(w, n, "hq", &v)) t->hq = v != 0;
   if (wert_zahl(w, n, "q", &v)) { t->hq = v >= 1; t->ultra = v >= 2; }

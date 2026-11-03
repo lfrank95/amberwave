@@ -6,9 +6,9 @@
 // (+3 dB Ansteuerung → −3 dB danach, bezogen auf die Kleinsignal-Verstärkung der Stufe am Arbeitspunkt). Keine Regelung,
 // kein Pumpen: die Sättigung selbst darf die Spitzen hörbar zusammendrücken.
 // Stereo wird in Mitte/Seite gerechnet: jede Ebene hat ihre eigene Röhre, Kompression der lauten Mitte drückt so nie die
-// Seiten zusammen (das Stereobild bleibt auch bei kräftiger Sättigung gleich breit). Verteilung: 0 = Röhre nur in der Mitte,
-// 0,5 = beide gleich angefahren, 1 = Röhre nur auf den Seiten – dort wird die (meist leisere) Seite bis +9 dB stärker
-// angefahren, damit sie hörbar Obertöne bekommt. Jede Ebene hat ihren eigenen Auto-Gain, der Pegel bleibt.
+// Seiten zusammen (das Stereobild bleibt auch bei kräftiger Sättigung gleich breit). Verteilung (seit 0.9.1-beta.19, in process()
+// um das Gerät herum wie dsp/gemeinsam.c): Richtung Seiten bis +9 dB heißer auf den Seiten und −9 dB sanfter in der Mitte, Richtung
+// Mitte umgekehrt, danach genau zurück – der Pegel bleibt, nur die Sättigung wandert.
 //
 // Standard: statische Trioden-Kennlinie (zwei tanh-Hälften, oben weicher als unten) – sparsam.
 // HQ: eine echte 12AX7-Stufe wird je Takt gelöst (Koren-Gleichungen, Newton-Verfahren) – keine Kennlinie, sondern Schaltung:
@@ -342,12 +342,12 @@ class AwRoehre extends AudioWorkletProcessor {
   }
 
   setzen(d) {
-    if (typeof d.drive === 'number') this.ziel.drive = Math.max(0.1, Math.min(40, d.drive));
+    if (typeof d.drive === 'number') this.ziel.drive = Math.max(0.1, Math.min(160, d.drive));   // wie dsp/glow.c
     if (typeof d.bias === 'number') this.ziel.bias = Math.max(-0.6, Math.min(0.6, d.bias));
     if (typeof d.ton === 'number') this.ziel.ton = Math.max(0, Math.min(1, d.ton));
     if (typeof d.mix === 'number') this.ziel.mix = Math.max(0, Math.min(1, d.mix));
     if (typeof d.auto === 'number' || typeof d.auto === 'boolean') this.ziel.auto = d.auto ? 1 : 0;
-    if (typeof d.vert === 'number') this.ziel.vert = Math.max(0, Math.min(1, d.vert));
+    if (typeof d.vert === 'number') this.vtSetzen(d.vert);   // Verteilung rechnet process() um das Gerät herum
     if (typeof d.hq === 'number' || typeof d.hq === 'boolean') this.ziel.hq = d.hq ? 1 : 0;
     if (typeof d.gegentakt === 'number' || typeof d.gegentakt === 'boolean') this.ziel.pp = d.gegentakt ? 1 : 0;
     if (typeof d.symm === 'number') this.ziel.symm = Math.max(0, Math.min(1, d.symm));
@@ -405,7 +405,36 @@ class AwRoehre extends AudioWorkletProcessor {
     return z;
   }
 
+  /** Verteilung (wie dsp/gemeinsam.c): Seiten bis +9 dB heißer ins Gerät, Mitte bis −9 dB sanfter (oder umgekehrt), danach genau zurück */
+  vtSetzen(v) {
+    this.vtZiel = Math.pow(10, 9 * (Math.max(0, Math.min(1, v)) - 0.5) * 2 / 20);
+    if (!this.vtGestartet || !(this.vtIst > 0)) this.vtIst = this.vtZiel;
+  }
+
   process(inputs, outputs) {
+    this.vtGestartet = true;
+    const ein = inputs[0], aus = outputs[0];
+    const g0 = this.vtIst > 0 ? this.vtIst : 1, g1 = this.vtZiel > 0 ? this.vtZiel : 1;
+    if (!ein || ein.length !== 2 || !ein[0] || !ein[1] || !aus || aus.length !== 2 || (g0 === 1 && g1 === 1)) { this.vtIst = g1; return this.processInnen(inputs, outputs); }
+    const n = ein[0].length;
+    if (!this.vtPuf || this.vtPuf[0].length !== n) this.vtPuf = [new Float32Array(n), new Float32Array(n)];
+    const [l2, r2] = this.vtPuf, dg = (g1 - g0) / n;
+    for (let i = 0; i < n; i++) {
+      const gs = g0 + dg * (i + 1), gm = 1 / gs;
+      const m = (ein[0][i] + ein[1][i]) * 0.5, s = (ein[0][i] - ein[1][i]) * 0.5;
+      l2[i] = m * gm + s * gs; r2[i] = m * gm - s * gs;
+    }
+    const r = this.processInnen([[l2, r2], ...inputs.slice(1)], outputs);
+    for (let i = 0; i < n; i++) {
+      const gs = g0 + dg * (i + 1), gm = 1 / gs;
+      const m = (aus[0][i] + aus[1][i]) * 0.5 / gm, s = (aus[0][i] - aus[1][i]) * 0.5 / gs;
+      aus[0][i] = m + s; aus[1][i] = m - s;
+    }
+    this.vtIst = g1;
+    return r;
+  }
+
+  processInnen(inputs, outputs) {
     if (this.ende) return false;
     const ein = inputs[0], aus = outputs[0];
     if (!aus || !aus.length) return true;

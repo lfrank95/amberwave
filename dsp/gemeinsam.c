@@ -167,6 +167,31 @@ static void innen_setzen(AwFx *fx, const AwWert *w, int n) {
   if (wert_zahl(w, n, "uebersprechen", &v)) fx->ueber = v <= -120 || v >= 0 ? 0 : pow(10, klemmen(v, -100, -30) / 20);
   if (wert_zahl(w, n, "brumm", &v)) fx->brumm = v != 0;
   if (wert_zahl(w, n, "netzfrequenz", &v)) fx->brumm_hz = v == 60 ? 60 : 50;
+  // Verteilung 0…1: Richtung Seiten fahren die Seiten bis +9 dB heißer ins Gerät und die Mitte bis −9 dB sanfter (Richtung Mitte
+  // umgekehrt); hinter dem Gerät wird beides genau zurückgenommen – Lautheit und Anteil bleiben, nur die Sättigung wandert
+  if (wert_zahl(w, n, "vert", &v)) { fx->vt_ziel = pow(10, 9 * (klemmen(v, 0, 1) - 0.5) * 2 / 20); if (!fx->gestartet || fx->vt_ist <= 0) fx->vt_ist = fx->vt_ziel; }
+}
+
+/** Effekt-Block mit Verteilung: M/S gewichtet → Schwerpunkt/Effekt → zurückgewichtet. Bei „gleich“ direkt (bitgleich wie bisher). */
+static void vt_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) {
+  double g0 = fx->vt_ist > 0 ? fx->vt_ist : 1, g1 = fx->vt_ziel > 0 ? fx->vt_ziel : 1;
+  if (kan != 2 || !ein || !ein[0] || !ein[1] || (g0 == 1 && g1 == 1)) { sp_block(fx, ein, aus, kan, n); fx->vt_ist = g1; return; }
+  if (fx->vt_kap < n) { for (int c = 0; c < 2; c++) { free(fx->vt_puf[c]); fx->vt_puf[c] = malloc(sizeof(float) * (size_t)n); } fx->vt_kap = n; }
+  float *l2 = fx->vt_puf[0], *r2 = fx->vt_puf[1];
+  const double dg = (g1 - g0) / n;
+  for (int i = 0; i < n; i++) {
+    double gs = g0 + dg * (i + 1), gm = 1 / gs;
+    double m = ((double)ein[0][i] + ein[1][i]) * 0.5, s = ((double)ein[0][i] - ein[1][i]) * 0.5;
+    l2[i] = (float)(m * gm + s * gs); r2[i] = (float)(m * gm - s * gs);
+  }
+  const float *e2[2] = { l2, r2 };
+  sp_block(fx, e2, aus, kan, n);
+  for (int i = 0; i < n; i++) {
+    double gs = g0 + dg * (i + 1), gm = 1 / gs;
+    double m = ((double)aus[0][i] + aus[1][i]) * 0.5 / gm, s = ((double)aus[0][i] - aus[1][i]) * 0.5 / gs;
+    aus[0][i] = (float)(m + s); aus[1][i] = (float)(m - s);
+  }
+  fx->vt_ist = g1;
 }
 
 static void innen_block(AwFx *fx, float *const *aus, int kan, int n) {
@@ -221,7 +246,7 @@ void aw_fx_steuern(AwFx *fx, const char *was, int an) {
 }
 void aw_fx_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) {
   if (!fx || n <= 0) return;
-  sp_block(fx, ein, aus, kan, n);
+  if (fx->mit_sp) vt_block(fx, ein, aus, kan, n); else sp_block(fx, ein, aus, kan, n);
   if (fx->netz || fx->ueber > 0 || fx->brumm) innen_block(fx, aus, kan, n);
 }
 int aw_fx_faerbung(AwFx *fx, float w[2]) {
@@ -235,6 +260,7 @@ void aw_fx_frei(AwFx *fx) {
   if (!fx) return;
   faerb_frei(fx->messer);
   free(fx->dz_puffer);
+  free(fx->vt_puf[0]); free(fx->vt_puf[1]);
   sp_frei(fx);
   fx->frei(fx);
 }

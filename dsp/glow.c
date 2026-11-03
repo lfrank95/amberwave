@@ -296,7 +296,7 @@ static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
   if (wert_zahl(w, n, "ton", &v)) z->ton = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "mix", &v)) z->mix = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "auto", &v)) z->auto_ = v != 0;
-  if (wert_zahl(w, n, "vert", &v)) z->vert = klemmen(v, 0, 1);
+  /* "vert" (Verteilung) rechnet gemeinsam.c um das Gerät herum – hier bleibt vert 0,5: kein Seiten-Boost, voller Anteil */
   if (wert_zahl(w, n, "hq", &v)) z->hq = v != 0;
   if (wert_zahl(w, n, "gegentakt", &v)) z->pp = v != 0;
   if (wert_zahl(w, n, "symm", &v)) z->symm = klemmen(v, 0, 1);

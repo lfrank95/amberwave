@@ -4,7 +4,7 @@
 //  charakter 0–100 → Arbeitspunkt: mehr = mehr gerade Harmonische (k2), „röhriger“
 //  ton       0–100 → Höhen: 0 = unverändert, 100 = samtig (ca. 6 kHz)
 //  mix       0–100 → Anteil des gesättigten Signals (Parallelbetrieb erhält die Transienten)
-//  vert      0–100 → Verteilung im Stereobild: 0 = Röhre nur in der Mitte, 50 = gleich, 100 = nur auf den Seiten
+//  vert      0–100 → Verteilung der Ansteuerung: Richtung 100 fahren die Seiten bis +9 dB heißer und die Mitte bis −9 dB sanfter ins Gerät, Richtung 0 umgekehrt; danach genau zurück (dsp/gemeinsam.c)
 //  roehre    ax7 | at7 | au7 | sn7 → Röhrentyp (12AX7 heiß, 12AT7 Punch, 12AU7 glatt, 6SN7 breit)
 //  schaltung eintakt | gegentakt → Eintakt: gerade Obertöne (H2); Gegentakt: zwei Röhren gegenphasig, gerade Obertöne heben sich auf
 //  symm      0–100 → nur Gegentakt: wie gleich die beiden Röhren sind (100 = H2 ganz weg, darunter bleibt ein Rest)
@@ -15,12 +15,13 @@
 import { t } from './i18n.js';
 import { spNormal, spParameter } from './schwerpunkt.js';
 import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
+import { ansteuerungFaktor, ansteuerungUmrechnen } from './ansteuerung.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 
 export const WAERME_STUFEN = {
-  hauch: { name: t('Hauch'), kurz: t('kaum hörbar, etwas Glanz'), drive: 22, charakter: 35, ton: 20, mix: 60, vert: 50 },
-  warm: { name: 'Warm', kurz: t('rund und dicht'), drive: 45, charakter: 55, ton: 40, mix: 85, vert: 50 },
-  glut: { name: t('Glut'), kurz: t('kräftig, Spitzen schmelzen'), drive: 70, charakter: 75, ton: 60, mix: 100, vert: 50 },
+  hauch: { name: t('Hauch'), kurz: t('kaum hörbar, etwas Glanz'), drive: ansteuerungUmrechnen('glow', 22), charakter: 35, ton: 20, mix: 60, vert: 50 },
+  warm: { name: 'Warm', kurz: t('rund und dicht'), drive: ansteuerungUmrechnen('glow', 45), charakter: 55, ton: 40, mix: 85, vert: 50 },
+  glut: { name: t('Glut'), kurz: t('kräftig, Spitzen schmelzen'), drive: ansteuerungUmrechnen('glow', 70), charakter: 75, ton: 60, mix: 100, vert: 50 },
 };
 
 const META = (() => { try { return JSON.parse(metaInhalt('aw-waerme') || '{}'); } catch (e) { return {}; } })();
@@ -41,7 +42,7 @@ const VORGABE_ROEHRE = WAERME_ROEHREN[META.roehre] ? META.roehre : 'ax7';
 const VORGABE_SCHALTUNG = WAERME_SCHALTUNGEN[META.schaltung] ? META.schaltung : 'eintakt';
 export const WAERME_BEZUG_LUFS = Number.isFinite(+META.bezug) ? +META.bezug : -18;
 
-export const WAERME_STANDARD = { an: VORGABE_STUFE !== 'aus' && !!WAERME_STUFEN[VORGABE_STUFE], stufe: WAERME_STUFEN[VORGABE_STUFE] ? VORGABE_STUFE : 'warm', ...WAERME_STUFEN[WAERME_STUFEN[VORGABE_STUFE] ? VORGABE_STUFE : 'warm'], auto: true, bezug: true, roehre: VORGABE_ROEHRE, schaltung: VORGABE_SCHALTUNG, symm: 90 };
+export const WAERME_STANDARD = { an: VORGABE_STUFE !== 'aus' && !!WAERME_STUFEN[VORGABE_STUFE], stufe: WAERME_STUFEN[VORGABE_STUFE] ? VORGABE_STUFE : 'warm', ...WAERME_STUFEN[WAERME_STUFEN[VORGABE_STUFE] ? VORGABE_STUFE : 'warm'], auto: true, bezug: true, skala: 2, roehre: VORGABE_ROEHRE, schaltung: VORGABE_SCHALTUNG, symm: 90 };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, Number.isFinite(+v) ? +v : a));
 
@@ -50,7 +51,8 @@ export function waermeNormal(w) {
   const aus = {
     an: !!x.an,
     stufe: WAERME_STUFEN[x.stufe] ? x.stufe : (x.stufe === 'eigen' ? 'eigen' : 'warm'),
-    drive: Math.round(clamp(x.drive, 0, 150)), charakter: Math.round(clamp(x.charakter, 0, 100)),
+    // Ansteuerung auf der Klirr-Skala (ansteuerung.js); Werte von vor beta.19 (ohne skala) klingen nach dem Umrechnen gleich
+    drive: Math.round(clamp(w && w.skala !== 2 && w.drive != null ? ansteuerungUmrechnen('glow', w.drive) : x.drive, 0, 150)), skala: 2, charakter: Math.round(clamp(x.charakter, 0, 100)),
     ton: Math.round(clamp(x.ton, 0, 100)), mix: Math.round(clamp(x.mix, 0, 100)), vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
     sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,   // immer an (Gegenkopplung zur Ansteuerung)
@@ -78,7 +80,7 @@ export function waermeStufeErkennen(w) {
 export function waermeStufe(w, stufe) {
   const s = WAERME_STUFEN[stufe];
   if (!s) return waermeNormal(w);
-  return waermeNormal({ ...w, stufe, drive: s.drive, charakter: s.charakter, ton: s.ton, mix: s.mix });
+  return waermeNormal({ ...w, skala: 2, stufe, drive: s.drive, charakter: s.charakter, ton: s.ton, mix: s.mix });
 }
 
 export function waermeWirksam(w) {
@@ -99,7 +101,7 @@ export function waermeBezugDb(w, lufsEingang) {
 export function waermeParameter(w, bezugDb = 0) {
   const x = waermeNormal(w);
   return {
-    drive: 0.6 * Math.pow(10, (x.drive / 100) * 1.1) * Math.pow(10, (bezugDb || 0) / 20),  // 0 → 0,6 … 100 → 7,5 … 150 → 27 (logarithmisch), × Lautheitsbezug
+    drive: ansteuerungFaktor('glow', x.drive) * Math.pow(10, (bezugDb || 0) / 20),  // Klirr-Skala (ansteuerung.js) × Lautheitsbezug
     bias: 0.04 + (x.charakter / 100) * 0.4,              // 0,04 … 0,44
     ton: x.ton / 100,
     mix: x.mix / 100,

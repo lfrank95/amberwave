@@ -277,7 +277,7 @@ static void silk_setzen(AwFx *fx, const AwWert *w, int n) {
   if (wert_zahl(w, n, "gleichlauf", &v)) z->gleichlauf = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "kopf", &v)) z->kopf = v != 0;
   if (wert_zahl(w, n, "mix", &v)) z->mix = klemmen(v, 0, 1);
-  if (wert_zahl(w, n, "vert", &v)) z->vert = klemmen(v, 0, 1);
+  /* "vert" (Verteilung) rechnet gemeinsam.c um das Gerät herum */
   if (wert_zahl(w, n, "auto", &v)) z->auto_ = v != 0;
   if (wert_zahl(w, n, "hq", &v)) z->hq = v != 0;
   if (wert_zahl(w, n, "q", &v)) { z->hq = v >= 1; z->ultra = v >= 2; }

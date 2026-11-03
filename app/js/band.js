@@ -6,7 +6,7 @@
 //  gleichlauf 0–100 → Wow und Flutter (HQ), 100 ≈ 0,25 % Geschwindigkeitsabweichung
 //  kopf       true  → Kopfbump (Bassanhebung je Geschwindigkeit)
 //  mix        0–100 → Anteil des Bandsignals (parallel)
-//  vert       0–100 → Verteilung im Stereobild (Mitte … Seiten), wie bei der Röhre
+//  vert       0–100 → Verteilung der Ansteuerung: Richtung 100 fahren die Seiten bis +9 dB heißer und die Mitte bis −9 dB sanfter ins Gerät, Richtung 0 umgekehrt; danach genau zurück (dsp/gemeinsam.c)
 //  auto       true  → Gegenkopplung zur Ansteuerung (Kleinsignal-Verstärkung bleibt 1)
 //  bezug      true  → Ansteuerung an die gemessene Lautheit des Titels koppeln (wie bei der Röhre, gleicher Bezugspunkt)
 //  hq         true  → innere 8× Rechnung mit Hysterese-Rest, Toleranzen, Gleichlauf, Modulationsrauschen, optional Rauschen
@@ -16,6 +16,7 @@
 import { t } from './i18n.js';
 import { spNormal, spParameter } from './schwerpunkt.js';
 import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
+import { ansteuerungFaktor, ansteuerungUmrechnen } from './ansteuerung.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 const META = (() => { try { return JSON.parse(metaInhalt('aw-band') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
@@ -34,15 +35,15 @@ const VORGABE_SORTE = BAND_SORTEN[META.sorte] ? META.sorte : 'sm900';
 const VORGABE_NORM = BAND_NORMEN[META.norm] ? META.norm : 'nab';
 
 export const BAND_STUFEN = {
-  fresh: { name: 'Fresh', kurz: t('15 ips, neues Band'), drive: 30, ips: 15, bias: 55, gleichlauf: 8, kopf: true, mix: 100 },
-  worn: { name: 'Worn In', kurz: t('7,5 ips, eingespielt'), drive: 50, ips: 7.5, bias: 45, gleichlauf: 25, kopf: true, mix: 100 },
-  old: { name: 'Old', kurz: t('altes Band, lebt'), drive: 62, ips: 7.5, bias: 35, gleichlauf: 55, kopf: true, mix: 100 },
+  fresh: { name: 'Fresh', kurz: t('15 ips, neues Band'), drive: ansteuerungUmrechnen('silk', 30), ips: 15, bias: 55, gleichlauf: 8, kopf: true, mix: 100 },
+  worn: { name: 'Worn In', kurz: t('7,5 ips, eingespielt'), drive: ansteuerungUmrechnen('silk', 50), ips: 7.5, bias: 45, gleichlauf: 25, kopf: true, mix: 100 },
+  old: { name: 'Old', kurz: t('altes Band, lebt'), drive: ansteuerungUmrechnen('silk', 62), ips: 7.5, bias: 35, gleichlauf: 55, kopf: true, mix: 100 },
 };
 const STUFEN_FELDER = ['drive', 'ips', 'bias', 'gleichlauf', 'kopf', 'mix'];
 export const BAND_IPS = [7.5, 15, 30];
 
 const stufeOderWarm = BAND_STUFEN[VORGABE_STUFE] ? VORGABE_STUFE : 'fresh';
-export const BAND_STANDARD = { an: VORGABE_STUFE !== 'aus' && !!BAND_STUFEN[VORGABE_STUFE], stufe: stufeOderWarm, ...BAND_STUFEN[stufeOderWarm], vert: 50, auto: true, bezug: true, hq: false, rauschen: false, sorte: VORGABE_SORTE, norm: VORGABE_NORM };
+export const BAND_STANDARD = { an: VORGABE_STUFE !== 'aus' && !!BAND_STUFEN[VORGABE_STUFE], stufe: stufeOderWarm, ...BAND_STUFEN[stufeOderWarm], vert: 50, auto: true, bezug: true, skala: 2, hq: false, rauschen: false, sorte: VORGABE_SORTE, norm: VORGABE_NORM };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, Number.isFinite(+v) ? +v : a));
 
@@ -51,7 +52,8 @@ export function bandNormal(b) {
   return {
     an: !!x.an,
     stufe: BAND_STUFEN[x.stufe] ? x.stufe : 'eigen',
-    drive: Math.round(clamp(x.drive, 0, 150)),   // über 100 %: bewusst übertreiben
+    drive: Math.round(clamp(b && b.skala !== 2 && b.drive != null ? ansteuerungUmrechnen('silk', b.drive) : x.drive, 0, 150)),   // Klirr-Skala; alte Werte umgerechnet
+    skala: 2,
     ips: BAND_IPS.includes(+x.ips) ? +x.ips : 15,
     bias: Math.round(clamp(x.bias, 0, 100)),
     gleichlauf: Math.round(clamp(x.gleichlauf, 0, 100)),
@@ -80,7 +82,7 @@ export function bandStufeErkennen(b) {
 export function bandStufe(b, stufe) {
   const s = BAND_STUFEN[stufe];
   if (!s) return bandNormal(b);
-  const neu = { ...b, stufe };
+  const neu = { ...b, skala: 2, stufe };
   for (const f of STUFEN_FELDER) neu[f] = s[f];
   return bandNormal(neu);
 }
@@ -99,7 +101,7 @@ export function bandBezugDb(b, lufsEingang) {
 export function bandParameter(b, bezugDb = 0) {
   const x = bandNormal(b);
   return {
-    drive: 0.5 * Math.pow(10, (x.drive / 100) * 1.2) * Math.pow(10, (bezugDb || 0) / 20), // 0 → 0,5 … 100 → 7,9 … 150 → 32
+    drive: ansteuerungFaktor('silk', x.drive) * Math.pow(10, (bezugDb || 0) / 20),   // Klirr-Skala (ansteuerung.js) × Lautheitsbezug
     ips: x.ips,
     bias: x.bias / 100,
     gleichlauf: x.gleichlauf / 100,

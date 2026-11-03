@@ -126,12 +126,12 @@ class AwTrafo extends AudioWorkletProcessor {
 
   setzen(d) {
     const z = this.ziel;
-    if (typeof d.drive === 'number') z.drive = Math.max(0.05, Math.min(30, d.drive));
+    if (typeof d.drive === 'number') z.drive = Math.max(0.05, Math.min(160, d.drive));   // wie der C-Kern
     if (typeof d.kern === 'string' && KERNE[d.kern]) z.kern = d.kern;
     if (typeof d.quelle === 'string' && QUELLEN[d.quelle] !== undefined) z.quelle = d.quelle;
     if (typeof d.glanz === 'number') z.glanz = Math.max(0, Math.min(1, d.glanz));
     if (typeof d.mix === 'number') z.mix = Math.max(0, Math.min(1, d.mix));
-    if (typeof d.vert === 'number') z.vert = Math.max(0, Math.min(1, d.vert));
+    if (typeof d.vert === 'number') this.vtSetzen(d.vert);   // Verteilung rechnet process() um das Gerät herum
     if (typeof d.auto === 'number' || typeof d.auto === 'boolean') z.auto = d.auto ? 1 : 0;
     if (typeof d.hq === 'number' || typeof d.hq === 'boolean') z.hq = d.hq ? 1 : 0;
     const neuStart = this.abgeleitet && (this.abgeleitet.kern !== z.kern || this.abgeleitet.hq !== z.hq);
@@ -173,7 +173,36 @@ class AwTrafo extends AudioWorkletProcessor {
     return z;
   }
 
+  /** Verteilung (wie dsp/gemeinsam.c): Seiten bis +9 dB heißer ins Gerät, Mitte bis −9 dB sanfter (oder umgekehrt), danach genau zurück */
+  vtSetzen(v) {
+    this.vtZiel = Math.pow(10, 9 * (Math.max(0, Math.min(1, v)) - 0.5) * 2 / 20);
+    if (!this.vtGestartet || !(this.vtIst > 0)) this.vtIst = this.vtZiel;
+  }
+
   process(inputs, outputs) {
+    this.vtGestartet = true;
+    const ein = inputs[0], aus = outputs[0];
+    const g0 = this.vtIst > 0 ? this.vtIst : 1, g1 = this.vtZiel > 0 ? this.vtZiel : 1;
+    if (!ein || ein.length !== 2 || !ein[0] || !ein[1] || !aus || aus.length !== 2 || (g0 === 1 && g1 === 1)) { this.vtIst = g1; return this.processInnen(inputs, outputs); }
+    const n = ein[0].length;
+    if (!this.vtPuf || this.vtPuf[0].length !== n) this.vtPuf = [new Float32Array(n), new Float32Array(n)];
+    const [l2, r2] = this.vtPuf, dg = (g1 - g0) / n;
+    for (let i = 0; i < n; i++) {
+      const gs = g0 + dg * (i + 1), gm = 1 / gs;
+      const m = (ein[0][i] + ein[1][i]) * 0.5, s = (ein[0][i] - ein[1][i]) * 0.5;
+      l2[i] = m * gm + s * gs; r2[i] = m * gm - s * gs;
+    }
+    const r = this.processInnen([[l2, r2], ...inputs.slice(1)], outputs);
+    for (let i = 0; i < n; i++) {
+      const gs = g0 + dg * (i + 1), gm = 1 / gs;
+      const m = (aus[0][i] + aus[1][i]) * 0.5 / gm, s = (aus[0][i] - aus[1][i]) * 0.5 / gs;
+      aus[0][i] = m + s; aus[1][i] = m - s;
+    }
+    this.vtIst = g1;
+    return r;
+  }
+
+  processInnen(inputs, outputs) {
     if (this.ende) return false;
     const ein = inputs[0], aus = outputs[0];
     if (!aus || !aus.length) return true;

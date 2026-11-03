@@ -43,6 +43,9 @@ struct AwFx {
   double ueber;                 /* Übersprechen linear bei 10 kHz (0 = aus) */
   double ueber_z[2], ueber_x[2];
   int brumm; double brumm_hz, brumm_ph, brumm_env;
+  /* Verteilung (gemeinsam.c): Ansteuerung zwischen Mitte und Seite verschoben, danach genau zurück */
+  double vt_ziel, vt_ist;       /* Seiten-Faktor (Mitte = Kehrwert); 0 = nie gesetzt */
+  float *vt_puf[2]; int vt_kap;
 };
 /** Bauteilstreuung: Faktor um 1 für Exemplar ex (1 = basis, sonst fest aus ex und idx abgeleitet, ±streu) */
 double exemplar_faktor(int ex, int idx, double basis, double streu);

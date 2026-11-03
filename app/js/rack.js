@@ -19,6 +19,7 @@ import { titelFarbe } from './nativ.js';
 import { t, tn, zahl, sprache } from './i18n.js';
 import { spPopup, spPopupZu, spAktiv } from './schwerpunkt.js';
 import { INNEN, QUALITAET, GERAET_FELDER, innenPresetFelder } from './innenleben.js';
+import { ansteuerungText, ansteuerungUmrechnen } from './ansteuerung.js';
 import { ultraFragen, aktuelleLast, lastText, geraetSetzen } from './ultra.js';
 
 // ---------- Kleinigkeiten ----------
@@ -40,7 +41,9 @@ function gleich(a, b) {
   }
   return a === b;
 }
-const VERT = (v) => (v === 50 ? t('gleich') : v < 50 ? t('Mitte +{n} %', { n: (50 - v) * 2 }) : t('Seiten +{n} %', { n: (v - 50) * 2 }));
+// Verteilung: verschiebt die Ansteuerung zwischen Mitte und Seiten (dsp/gemeinsam.c) – Anzeige in dB, die eine Seite heißer bekommt
+const VERT = (v) => { const n = Math.round(Math.abs(v - 50) / 50 * 9); return v === 50 || !n ? t('gleich') : v < 50 ? t('Mitte +{n} dB', { n }) : t('Seiten +{n} dB', { n }); };
+const VERT_TIPP = t('Verschiebt die Ansteuerung zwischen Mitte und Seiten: Richtung Seiten fahren die Seiten bis +9 dB heißer ins Gerät und die Mitte bis −9 dB sanfter, Richtung Mitte umgekehrt. Danach wird beides genau zurückgenommen – Lautheit und Anteil bleiben, nur die Sättigung wandert. Seiten: breiter, Obertöne nur im Raum (verschwinden in Mono). Mitte: Bass und Gesang dichter, Seiten sauber.');
 const fRund = (f) => (f < 100 ? Math.round(f) : f < 1000 ? Math.round(f / 5) * 5 : f < 10000 ? Math.round(f / 50) * 50 : Math.round(f / 100) * 100);
 
 // ---------- Geräte ----------
@@ -61,27 +64,28 @@ function geraet(art) {
   return { name: n, kurz: n, rolle: 'VST3', farbe: '#b9dcc9', netz: true, vst: true };
 }
 
+const ANSTEUERUNG_TIPP = t('Wie heiß das Signal ins Gerät geht – danach wird genau so viel wieder zurückgenommen, lauter wird es nicht. Bei allen drei Geräten gleich geeicht: 25 % ≈ 0,3 %, 50 % ≈ 1 %, 75 % ≈ 3 %, 100 % ≈ 10 % Klirr bei lauten Stellen (gemessen bei −18 LUFS, dem Pegel nach dem Einpegeln). Bassreiche Musik treibt Iron und Silk etwas stärker.');
 const KNOEPFE = {
   glow: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: PROZ },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v) => ansteuerungText('glow', v), tipp: ANSTEUERUNG_TIPP },
     { k: 'charakter', n: t('Charakter'), min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'ton', n: t('Höhen'), min: 0, max: 100, step: 1, fmt: (v) => (v < 1 ? t('neutral') : t('samtig {n} %', { n: Math.round(v) })) },
     { k: 'symm', n: t('Symmetrie'), min: 0, max: 100, step: 1, nurGegentakt: true, fmt: PROZ },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
-    { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT },
+    { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT, tipp: VERT_TIPP },
   ],
   iron: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: PROZ },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v) => ansteuerungText('iron', v), tipp: ANSTEUERUNG_TIPP },
     { k: 'glanz', n: t('Glanz'), min: 0, max: 100, step: 1, bip: true, fmt: (v) => `${vz((v - 50) / 50, 1)} dB` },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
-    { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT },
+    { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT, tipp: VERT_TIPP },
   ],
   silk: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: PROZ },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v) => ansteuerungText('silk', v), tipp: ANSTEUERUNG_TIPP },
     { k: 'bias', n: 'Bias', min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'gleichlauf', n: t('Gleichlauf'), min: 0, max: 100, step: 1, nurHq: true, fmt: (v) => `${dez(v * 0.0025, 3)} %` },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
-    { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT },
+    { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT, tipp: VERT_TIPP },
   ],
   space: [
     { k: 'intensitaet', n: t('Raum'), min: 0, max: 100, step: 1, bip: true, fmt: (v) => feinText('intensitaet', v) },
@@ -125,9 +129,9 @@ const SCHALTER = { silk: [{ k: 'kopf', t: t('Kopfbump') }, { k: 'rauschen', t: t
 // Felder, die ein eigenes Geräte-Preset speichert (ohne an/aus und HQ – die gehören dem Rack)
 // Klangbestimmendes aus dem Innenleben gehört dazu; Exemplar, Netzteil, Übersprechen, Brumm, Alter und Einpegeln bleiben beim Gerät
 const PRESET_FELDER = {
-  glow: ['roehre', 'schaltung', 'symm', 'drive', 'charakter', 'ton', 'mix', 'vert', ...innenPresetFelder('glow')],
-  iron: ['kern', 'quelle', 'drive', 'glanz', 'mix', 'vert', ...innenPresetFelder('iron')],
-  silk: ['drive', 'ips', 'bias', 'gleichlauf', 'kopf', 'mix', 'vert', 'sorte', 'norm', 'rauschen', ...innenPresetFelder('silk')],
+  glow: ['skala', 'roehre', 'schaltung', 'symm', 'drive', 'charakter', 'ton', 'mix', 'vert', ...innenPresetFelder('glow')],
+  iron: ['skala', 'kern', 'quelle', 'drive', 'glanz', 'mix', 'vert', ...innenPresetFelder('iron')],
+  silk: ['skala', 'drive', 'ips', 'bias', 'gleichlauf', 'kopf', 'mix', 'vert', 'sorte', 'norm', 'rauschen', ...innenPresetFelder('silk')],
 };
 // Typenschild: Seriennummer je Exemplar
 const SN = { glow: 'SN 1962-04', iron: 'SN 1971-20', silk: 'SN 1978-11' };
@@ -222,9 +226,15 @@ function eigeneWerte(p, art) {
   if (art === 'rack') return p.rackZustand();
   return {};
 }
+/** Geräte-Preset von vor der Klirr-Skala (ohne skala): Ansteuerung umrechnen, damit es gleich klingt */
+function skalaWerte(art, werte) {
+  if (!werte || !['glow', 'iron', 'silk'].includes(art) || werte.skala === 2 || werte.drive == null) return werte;
+  return { ...werte, skala: 2, drive: ansteuerungUmrechnen(art, werte.drive) };
+}
 /** Passt ein eigenes Preset zum jetzigen Stand? */
 function eigenesPasst(p, art, werte) {
   if (!werte) return false;
+  werte = skalaWerte(art, werte);
   if (art === 'glow') return gleich(pick(waermeNormal({ ...p.einst.waerme, ...werte }), PRESET_FELDER.glow), eigeneWerte(p, art));
   if (art === 'iron') return gleich(pick(trafoNormal({ ...p.einst.trafo, ...werte }), PRESET_FELDER.iron), eigeneWerte(p, art));
   if (art === 'silk') return gleich(pick(bandNormal({ ...p.einst.band, ...werte }), PRESET_FELDER.silk), eigeneWerte(p, art));
@@ -234,6 +244,7 @@ function eigenesPasst(p, art, werte) {
   return false;
 }
 async function eigenesAnwenden(p, art, werte) {
+  werte = skalaWerte(art, werte);
   if (art === 'glow') p.waermeSetzen({ ...p.einst.waerme, ...werte, an: true });
   else if (art === 'iron') p.trafoSetzen({ ...p.einst.trafo, ...werte, an: true });
   else if (art === 'silk') p.bandSetzen({ ...p.einst.band, ...werte, an: true });
@@ -308,7 +319,7 @@ ${raster ? `<path d="${raster}" fill="none" stroke="rgba(255,236,214,.4)" stroke
 }
 function knopfHtml(p, art, key, farbe, aus = false) {
   const d = knopfDef(p, art, key), v = knopfWert(p, art, key);
-  return `<div class="fx-knopf${aus ? ' gesperrt' : ''}" data-knopf="${key}" data-art="${art}" role="slider" tabindex="0" aria-label="${h(d.n)}" aria-valuetext="${h(d.fmt(v))}" title="${aus ? (d.nurGegentakt ? t('nur im Gegentakt') : t('nur mit HQ')) : t('Ziehen: ändern · Doppelklick: zurück aufs Preset')}">${knopfSvg(d, v, farbe)}<span>${h(d.n)}</span><b>${h(d.fmt(v))}</b></div>`;
+  return `<div class="fx-knopf${aus ? ' gesperrt' : ''}" data-knopf="${key}" data-art="${art}" role="slider" tabindex="0" aria-label="${h(d.n)}" aria-valuetext="${h(d.fmt(v))}" title="${aus ? (d.nurGegentakt ? t('nur im Gegentakt') : t('nur mit HQ')) : h(d.tipp ? `${d.tipp}\n${t('Ziehen: ändern · Doppelklick: zurück aufs Preset')}` : t('Ziehen: ändern · Doppelklick: zurück aufs Preset'))}">${knopfSvg(d, v, farbe)}<span>${h(d.n)}</span><b>${h(d.fmt(v))}</b></div>`;
 }
 
 // Färbungsmeter: logarithmische Skala 0,01 … 10 % Klirr, ab 3 % rot

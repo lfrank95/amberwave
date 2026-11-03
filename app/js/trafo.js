@@ -7,13 +7,14 @@
 //  quelle auto | nieder | studio | roehre → was den Übertrager treibt: der Innenwiderstand der Quelle bestimmt (physikalisch),
 //         wie viel Klirr und Bassabfall entstehen. auto = Röhre, wenn AmberGlow an ist, sonst Studio (600 Ω)
 //  mix    0–100 → Anteil des Übertragersignals (parallel)
-//  vert   0–100 → Verteilung im Stereobild: 0 = Übertrager nur in der Mitte, 50 = gleich, 100 = nur auf den Seiten (wie Glow und Silk)
+//  vert   0–100 → Verteilung der Ansteuerung: Richtung 100 fahren die Seiten bis +9 dB heißer und die Mitte bis −9 dB sanfter ins Gerät, Richtung 0 umgekehrt; danach genau zurück (dsp/gemeinsam.c)
 //  hq     true  → Hysterese mit Gedächtnis (Play-Operatoren): feiner Klirr auch bei leisen Signalen, Nebenschleifen, Toleranzen L/R
 //  auto   true  → Ansteuerung wird hinter dem Kern herausgerechnet (gleich laut, nur dichter) – immer an
 //  bezug  true  → Ansteuerung folgt der gemessenen Lautheit (wie Glow und Silk) – immer an
 import { t } from './i18n.js';
 import { spNormal, spParameter } from './schwerpunkt.js';
 import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
+import { ansteuerungFaktor, ansteuerungUmrechnen } from './ansteuerung.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 const META = (() => { try { return JSON.parse(metaInhalt('aw-trafo') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
@@ -21,9 +22,9 @@ const VORGABE_KERN = ['nickel', 'stahl', 'eisen', 'mumetall', 'amorph'].includes
 export const TRAFO_BEZUG_LUFS = Number.isFinite(+META.bezug) ? +META.bezug : -18;
 
 export const TRAFO_STUFEN = {
-  hauch: { name: t('Hauch'), kurz: t('nur ganz unten etwas dichter'), drive: 25, mix: 100 },
-  satt: { name: t('Satt'), kurz: t('fester Bass, dichte Mitten'), drive: 50, mix: 100 },
-  schwer: { name: t('Schwer'), kurz: t('heiß gefahren, Bass verdichtet'), drive: 75, mix: 100 },
+  hauch: { name: t('Hauch'), kurz: t('nur ganz unten etwas dichter'), drive: ansteuerungUmrechnen('iron', 25), mix: 100 },
+  satt: { name: t('Satt'), kurz: t('fester Bass, dichte Mitten'), drive: ansteuerungUmrechnen('iron', 50), mix: 100 },
+  schwer: { name: t('Schwer'), kurz: t('heiß gefahren, Bass verdichtet'), drive: ansteuerungUmrechnen('iron', 75), mix: 100 },
 };
 export const TRAFO_QUELLEN = {
   auto: { name: 'Auto', kurz: t('Röhre, wenn AmberGlow an ist, sonst Studio') },
@@ -41,7 +42,7 @@ export const TRAFO_KERNE = {
 const STUFEN_FELDER = ['drive', 'mix'];
 
 const stufeOderSatt = TRAFO_STUFEN[VORGABE_STUFE] ? VORGABE_STUFE : 'satt';
-export const TRAFO_STANDARD = { an: VORGABE_STUFE !== 'aus' && !!TRAFO_STUFEN[VORGABE_STUFE], stufe: stufeOderSatt, ...TRAFO_STUFEN[stufeOderSatt], kern: VORGABE_KERN, glanz: 50, vert: 50, auto: true, bezug: true, hq: false };
+export const TRAFO_STANDARD = { an: VORGABE_STUFE !== 'aus' && !!TRAFO_STUFEN[VORGABE_STUFE], stufe: stufeOderSatt, ...TRAFO_STUFEN[stufeOderSatt], kern: VORGABE_KERN, glanz: 50, vert: 50, auto: true, bezug: true, skala: 2, hq: false };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, Number.isFinite(+v) ? +v : a));
 
@@ -52,7 +53,8 @@ export function trafoNormal(t) {
     stufe: TRAFO_STUFEN[x.stufe] ? x.stufe : 'eigen',
     kern: TRAFO_KERNE[x.kern] ? x.kern : 'stahl',
     quelle: TRAFO_QUELLEN[x.quelle] ? x.quelle : 'auto',
-    drive: Math.round(clamp(x.drive, 0, 150)),   // über 100 %: bewusst übertreiben
+    drive: Math.round(clamp(t && t.skala !== 2 && t.drive != null ? ansteuerungUmrechnen('iron', t.drive) : x.drive, 0, 150)),   // Klirr-Skala; alte Werte umgerechnet
+    skala: 2,
     glanz: Math.round(clamp(x.glanz, 0, 100)),
     mix: Math.round(clamp(x.mix, 0, 100)),
     vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
@@ -75,7 +77,7 @@ export function trafoStufeErkennen(t) {
 export function trafoStufe(t, stufe) {
   const s = TRAFO_STUFEN[stufe];
   if (!s) return trafoNormal(t);
-  const neu = { ...t, stufe };
+  const neu = { ...t, skala: 2, stufe };
   for (const f of STUFEN_FELDER) neu[f] = s[f];
   return trafoNormal(neu);
 }
@@ -97,7 +99,7 @@ export function trafoBezugDb(t, lufsEingang) {
 export function trafoParameter(t, bezugDb = 0, glowAn = false) {
   const x = trafoNormal(t);
   return {
-    drive: Math.pow(10, x.drive / 100) * Math.pow(10, (bezugDb || 0) / 20),
+    drive: ansteuerungFaktor('iron', x.drive) * Math.pow(10, (bezugDb || 0) / 20),
     kern: x.kern,
     quelle: x.quelle === 'auto' ? (glowAn ? 'roehre' : 'studio') : x.quelle,
     glanz: x.glanz / 100,
