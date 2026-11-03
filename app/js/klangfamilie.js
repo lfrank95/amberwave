@@ -119,9 +119,9 @@ export function klangKartenEinrichten(box, player, oeffnen) {
     box.querySelectorAll('[data-kf]').forEach((karte) => {
       const art = karte.dataset.kf;
       bind(karte.querySelector('[data-kf-hq]'), 'click', () => {
-        if (art === 'glow') { const w = waermeNormal(player.einst.waerme); player.waermeSetzen({ ...w, hq: !w.hq }); }
-        else if (art === 'iron') { const t = trafoNormal(player.einst.trafo); player.trafoSetzen({ ...t, hq: !t.hq }); }
-        else { const b = bandNormal(player.einst.band); player.bandSetzen({ ...b, hq: !b.hq }); }
+        if (art === 'glow') { const w = waermeNormal(player.einst.waerme); player.waermeSetzen({ ...w, q: w.hq ? 0 : 1, hq: !w.hq }); }
+        else if (art === 'iron') { const t = trafoNormal(player.einst.trafo); player.trafoSetzen({ ...t, q: t.hq ? 0 : 1, hq: !t.hq }); }
+        else { const b = bandNormal(player.einst.band); player.bandSetzen({ ...b, q: b.hq ? 0 : 1, hq: !b.hq }); }
         zeichnen();
       });
       bind(karte.querySelector('[data-kf-schalter]'), 'click', async () => {

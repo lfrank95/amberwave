@@ -244,6 +244,9 @@ export class NativAudio extends EventTarget {
         }
         this._zeit = m.pos;
         if (m.puffer != null) this._puffer = m.puffer;
+        // Sub-Begrenzer (Bassmanagement) und Rechenlast der Klangkette – für Lämpchen und Ultra-Rückfall
+        if (m.sub_begrenzt) { this.subBegrenztUm = Date.now(); window.dispatchEvent(new CustomEvent('aw-sub-begrenzt')); }
+        if (m.klang_last != null) { this.klangLast = m.klang_last; window.dispatchEvent(new CustomEvent('aw-klanglast', { detail: { art: 'engine', last: m.klang_last } })); }
         if (m.dauer > 0 && !(this._dauer > 0)) { this._dauer = m.dauer; this._feuern('durationchange'); }
         if (performance.now() - this._letztesUpdate > 240) { this._letztesUpdate = performance.now(); this._feuern('timeupdate'); }
         break;
@@ -259,6 +262,7 @@ export class NativAudio extends EventTarget {
         break;
       case 'aussetzer':
         this.aussetzerZahl = (this.aussetzerZahl || 0) + 1;
+        window.dispatchEvent(new CustomEvent('aw-aussetzer'));
         this._feuern('waiting');
         break;
       case 'anlauf':

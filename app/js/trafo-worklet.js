@@ -50,6 +50,8 @@ const KERNE = {
   nickel: { bs: 2.6, fRef: 20, rCu: 1.0, hfF: 14000, hfDb: 0.3, hyst: 0.012, hystW: 0.25 },
   stahl: { bs: 2.0, fRef: 24, rCu: 2.0, hfF: 11000, hfDb: 0.5, hyst: 0.03, hystW: 0.35 },
   eisen: { bs: 1.5, fRef: 30, rCu: 3.5, hfF: 8000, hfDb: -1.2, hyst: 0.07, hystW: 0.45 },
+  mumetall: { bs: 1.8, fRef: 16, rCu: 1.2, hfF: 16000, hfDb: 0.2, hyst: 0.006, hystW: 0.15 },
+  amorph: { bs: 2.3, fRef: 18, rCu: 1.0, hfF: 18000, hfDb: 0.1, hyst: 0.004, hystW: 0.1 },
 };
 // Quelle: zusätzliche Hochpass-Eckfrequenz (Hz) durch den Innenwiderstand der Quelle (R/2πL)
 const QUELLEN = { nieder: 0.6, studio: 3.0, roehre: 9.0 };

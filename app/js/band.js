@@ -15,6 +15,7 @@
 //  norm       nab | ccir → Entzerrungsnorm (Zeitkonstante der Höhen-Vorentzerrung)
 import { t } from './i18n.js';
 import { spNormal, spParameter } from './schwerpunkt.js';
+import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 const META = (() => { try { return JSON.parse(metaInhalt('aw-band') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
@@ -59,8 +60,10 @@ export function bandNormal(b) {
     vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
     sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,   // immer an
-    bezug: true,  // immer an
-    hq: x.hq === true,
+    bezug: x.bezug !== false,
+    q: qualitaet(x),
+    hq: qualitaet(x) >= 1,
+    ...innenNormal('silk', x),
     rauschen: x.rauschen === true,
     sorte: BAND_SORTEN[x.sorte] ? x.sorte : VORGABE_SORTE,
     norm: BAND_NORMEN[x.norm] ? x.norm : VORGABE_NORM,
@@ -109,6 +112,7 @@ export function bandParameter(b, bezugDb = 0) {
     rauschen: x.rauschen ? 1 : 0,
     band: x.sorte,
     norm: x.norm,
+    ...innenParameter('silk', x),
   };
 }
 

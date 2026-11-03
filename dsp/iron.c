@@ -10,11 +10,14 @@ static const Kern KERNE[] = {
   { "nickel", 2.6, 20, 1.0, 14000, 0.3, 0.012, 0.25 },
   { "stahl", 2.0, 24, 2.0, 11000, 0.5, 0.03, 0.35 },
   { "eisen", 1.5, 30, 3.5, 8000, -1.2, 0.07, 0.45 },
+  { "mumetall", 1.8, 16, 1.2, 16000, 0.2, 0.006, 0.15 },   /* Mu-Metall: sehr sauber bis zum Knie, dann recht plötzlich */
+  { "amorph", 2.3, 18, 1.0, 18000, 0.1, 0.004, 0.1 },      /* amorphes Band: kaum Hysterese, sehr offen */
 };
+#define KERNE_N 5
 typedef struct { const char *name; double f; } Quelle;
 static const Quelle QUELLEN[] = { { "nieder", 0.6 }, { "studio", 3.0 }, { "roehre", 9.0 } };
 
-static const Kern *kern_suchen(const char *n) { for (int i = 0; i < 3; i++) if (!strcmp(KERNE[i].name, n)) return &KERNE[i]; return NULL; }
+static const Kern *kern_suchen(const char *n) { for (int i = 0; i < KERNE_N; i++) if (!strcmp(KERNE[i].name, n)) return &KERNE[i]; return NULL; }
 static const Quelle *quelle_suchen(const char *n) { for (int i = 0; i < 3; i++) if (!strcmp(QUELLEN[i].name, n)) return &QUELLEN[i]; return NULL; }
 
 typedef struct {
@@ -23,6 +26,11 @@ typedef struct {
   double sb0, sb1, sb2, sa1, sa2;   /* Kuhschwanz */
   double rho, w_ref;
   double play_r[PLAYS], play_w[PLAYS];
+  /* Innenleben: Last und Übersetzung immer, Remanenz und Wirbelstrom nur in Ultra */
+  int ultra, last, wirbel; double uebers, remanenz;
+  double lb0, lb1, lb2, la1, la2; int last_an;   /* Last: Höhenresonanz (offen) bzw. Abfall (600 Ω) */
+  double wb_k;   /* Wirbelstrom: Hautwirkung im Blech, ein Pol bei 60 kHz */
+  double drive_f, ke;
 } Abgel;
 
 typedef struct {
@@ -31,6 +39,7 @@ typedef struct {
   double *runter; int runter_pos;
   double *trocken; int trocken_pos;
   double *delta_runter; double d_s1, d_s2;
+  double l1, l2, wb;
 } Kanal;
 
 typedef struct {
@@ -38,6 +47,8 @@ typedef struct {
   int os, taps, ph, verz;
   double *fir, *poly, *fir_r;
   double drive, glanz, mix, vert; int auto_, hq; const Kern *kern; const Quelle *quelle;   /* Ziel */
+  int ultra, last, wirbel; double uebers, remanenz;
+  double tol_basis[3][2];
   Abgel abg, ist;
   int abg_da;
   Kanal *kanal[16];
@@ -50,10 +61,13 @@ static Abgel ableiten(Iron *t) {
   Abgel a;
   memset(&a, 0, sizeof a);
   a.drive = t->drive; a.glanz = t->glanz; a.mix = t->mix; a.vert = t->vert; a.auto_ = t->auto_; a.hq = t->hq; a.k = t->kern; a.q = t->quelle;
+  a.ultra = t->ultra; a.last = t->last; a.wirbel = t->ultra && t->wirbel; a.uebers = t->uebers > 0 ? t->uebers : 1; a.remanenz = t->remanenz;
   const Kern *k = t->kern;
   double sr = t->fx.sr;
   double gDb = k->hfDb + (t->glanz - 0.5) * 2;
-  double A = pow(10, gDb / 40), w0 = 2 * M_PI * min_d(k->hfF, sr * 0.45) / sr, cw = cos(w0), sw = sin(w0);
+  // Übersetzung: mehr Windungen sekundär = mehr Wicklungskapazität, die Höhen-Eigenheit des Kerns rückt tiefer
+  double hfF = k->hfF / pow(a.uebers, 0.35);
+  double A = pow(10, gDb / 40), w0 = 2 * M_PI * min_d(hfF, sr * 0.45) / sr, cw = cos(w0), sw = sin(w0);
   double al = sw / 2 * M_SQRT2;
   double sq = 2 * sqrt(A) * al;
   double a0 = (A + 1) - (A - 1) * cw + sq;
@@ -62,9 +76,26 @@ static Abgel ableiten(Iron *t) {
   double fHP = k->rCu + t->quelle->f;
   a.rho = fHP / k->fRef;
   double ws = 0;
-  for (int j = 1; j <= PLAYS; j++) { a.play_r[j - 1] = k->hyst * j / PLAYS; a.play_w[j - 1] = j; ws += j; }
+  double rem = a.ultra ? 0.4 + 1.2 * a.remanenz : 1;   /* Remanenz (Ultra): wie stark der Kern sich erinnert */
+  for (int j = 1; j <= PLAYS; j++) { a.play_r[j - 1] = k->hyst * rem * j / PLAYS; a.play_w[j - 1] = j; ws += j; }
   for (int j = 0; j < PLAYS; j++) a.play_w[j] /= ws;
   a.w_ref = 2 * M_PI * k->fRef;
+  a.drive_f = (a.last == 1 ? 1.15 : a.last == 2 ? 0.95 : 1) * (1 + 0.1 * (a.uebers - 1));
+  a.ke = a.wirbel ? 0.06 : 0;
+  a.wb_k = a.wirbel ? 1 - exp(-2 * M_PI * min_d(60000, sr * 0.49) / sr) : 0;
+  // Last: 10 kΩ (Standard) neutral; 600 Ω dämpft die Höhen; offen (hochohmig) lässt die Streuresonanz stehen
+  a.last_an = a.last == 1 || a.last == 2;
+  if (a.last_an) {
+    double fr = min_d(sr * 0.45, hfF * (a.last == 2 ? 2.6 : 2.2)), w = 2 * M_PI * fr / sr, cs = cos(w), sn = sin(w);
+    if (a.last == 2) {
+      double q = a.wirbel ? 1.0 : 1.4, AA = pow(10, 2.5 / 40), al = sn / (2 * q);
+      double b0 = 1 + al * AA, b1 = -2 * cs, b2 = 1 - al * AA, a0 = 1 + al / AA, a2 = 1 - al / AA;
+      a.lb0 = b0 / a0; a.lb1 = b1 / a0; a.lb2 = b2 / a0; a.la1 = b1 / a0; a.la2 = a2 / a0;
+    } else {
+      double al = sn / (2 * 0.6), a0 = 1 + al;
+      a.lb0 = (1 - cs) / 2 / a0; a.lb1 = (1 - cs) / a0; a.lb2 = a.lb0; a.la1 = -2 * cs / a0; a.la2 = (1 - al) / a0;
+    }
+  }
   return a;
 }
 
@@ -79,6 +110,16 @@ static void iron_setzen(AwFx *fx, const AwWert *w, int n) {
   if (wert_zahl(w, n, "vert", &v)) t->vert = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "auto", &v)) t->auto_ = v != 0;
   if (wert_zahl(w, n, "hq", &v)) t->hq = v != 0;
+  if (wert_zahl(w, n, "q", &v)) { t->hq = v >= 1; t->ultra = v >= 2; }
+  if ((s = wert_text(w, n, "last"))) t->last = !strcmp(s, "600ohm") ? 1 : !strcmp(s, "offen") ? 2 : 0;
+  if (wert_zahl(w, n, "uebersetzung", &v)) t->uebers = v >= 4 ? 4 : v >= 2 ? 2 : 1;
+  if (wert_zahl(w, n, "remanenz", &v)) t->remanenz = klemmen(v, 0, 1);
+  if (wert_zahl(w, n, "wirbelstrom", &v)) t->wirbel = v != 0;
+  for (int i = 0; i < 2; i++) {
+    t->tol_f[i] = exemplar_faktor(fx->exemplar, 10 + i, t->tol_basis[0][i], 0.03);
+    t->tol_d[i] = exemplar_faktor(fx->exemplar, 12 + i, t->tol_basis[1][i], 0.02);
+    t->tol_r[i] = exemplar_faktor(fx->exemplar, 14 + i, t->tol_basis[2][i], 0.06);
+  }
   fx->latenz = t->hq ? t->verz : 0;
   int neu_start = t->abg_da && (t->abg.k != t->kern || t->abg.hq != t->hq);
   t->abg = ableiten(t);
@@ -99,13 +140,14 @@ static Kanal *iron_kanal(Iron *t, int c) {
   return z;
 }
 
-typedef struct { double *phi, *play; double rho, cI, bs, bs2, hystW; const double *playR, *playW; double kAbw, kLin; } KernZ;
+typedef struct { double *phi, *play; double rho, cI, bs, bs2, hystW; const double *playR, *playW; double kAbw, kLin; double ke; int iter; } KernZ;
 
 /** ein Takt des Kerns: Spannung u → neuer Fluss (implizit, Newton), Magnetisierungsstrom, Wicklungsspannung */
 static double kern_takt(KernZ *k, double u) {
   double phi = *k->phi, p = phi;
   const double hystW = k->hystW, bs = k->bs, bs2 = k->bs2, rho = k->rho, cI = k->cI;
-  for (int it = 0; it < 3; it++) {
+  const double ke = k->ke / max_d(1e-12, cI);   /* Wirbelstrom: Feldanteil ∝ dΦ/dt (klassische Kernverluste) */
+  for (int it = 0; it < k->iter; it++) {
     double b = p, dbdp = 1;
     if (hystW > 0) {
       double bh = 0, dh = 0;
@@ -119,8 +161,9 @@ static double kern_takt(KernZ *k, double u) {
     double q = min_d(0.96, b * b / bs2);
     double H = b / (1 - q);
     double dH = (1 + q) / ((1 - q) * (1 - q)) * dbdp;
-    double f = p - phi - cI * (u - rho * H);
-    double df = 1 + cI * rho * dH;
+    double He = ke * (p - phi);
+    double f = p - phi - cI * (u - rho * (H + He));
+    double df = 1 + cI * rho * (dH + ke);
     p -= f / df;
     if (p > bs * 0.98) p = bs * 0.98; else if (p < -bs * 0.98) p = -bs * 0.98;
   }
@@ -135,9 +178,10 @@ static double kern_takt(KernZ *k, double u) {
   double b = hystW > 0 ? (1 - hystW) * p + hystW * bh : p;
   double q = min_d(0.96, b * b / bs2);
   double H = b / (1 - q);
+  double He = ke * (p - *k->phi);
   *k->phi = p;
   k->kAbw = rho * (H - b); k->kLin = u - rho * b;
-  return u - rho * H;
+  return u - rho * (H + He);
 }
 
 static void iron_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) {
@@ -176,13 +220,14 @@ static void iron_block(AwFx *fx, const float *const *ein, float *const *aus, int
     double tf = hq ? t->tol_f[t1] : 1, td = hq ? t->tol_d[t1] : 1, tr = hq ? t->tol_r[t1] : 1;
     double dft = hq ? t->drift_wert[t1] : 1;
     double fsK = hq ? sr * OS : sr;
-    KernZ kz = { &z->phi, z->play, rhoBasis * tr, z1->w_ref * tf * dft / fsK, bs, bs2, hystW, z1->play_r, z1->play_w, 0, 0 };
+    KernZ kz = { &z->phi, z->play, rhoBasis * tr, z1->w_ref * tf * dft / fsK, bs, bs2, hystW, z1->play_r, z1->play_w, 0, 0, z1->ke, z1->ultra ? 5 : 3 };
+    double keAusgl = 1 / (1 - min_d(0.5, rhoBasis * tr * z1->ke));
     double s1 = z->s1, s2 = z->s2;
     double *hoch = z->hoch, *runter = z->runter, *trk = z->trocken;
     int tLen = VERZ + 2;
     int hpP = z->hoch_pos, rp = z->runter_pos, tp = z->trocken_pos;
     for (int i = 0; i < n; i++) {
-      double dr = (drive + dDrive * i) * td;
+      double dr = (drive + dDrive * i) * td * z1->drive_f;
       double mx = mix + dMix * i;
       double e = x[i];
       double v, trocken = e, rest = 0;
@@ -211,10 +256,13 @@ static void iron_block(AwFx *fx, const float *const *ein, float *const *aus, int
         if (dzA) rest = skalar(t->fir_r, z->delta_runter + b2 - TAPS + 1, TAPS);
       }
       if (auto_) v /= dr;
+      if (z1->ke > 0) v *= keAusgl;
       double o = z1->sb0 * v + s1;
       s1 = z1->sb1 * v - z1->sa1 * o + s2;
       s2 = z1->sb2 * v - z1->sa2 * o;
       v = o;
+      if (z1->wb_k > 0) { z->wb += z1->wb_k * (v - z->wb); v = z->wb; }
+      if (z1->last_an) { double ol = z1->lb0 * v + z->l1; z->l1 = z1->lb1 * v - z1->la1 * ol + z->l2; z->l2 = z1->lb2 * v - z1->la2 * ol; v = ol; }
       if (dzA) {
         if (auto_) rest /= dr;
         double od = z1->sb0 * rest + z->d_s1; z->d_s1 = z1->sb1 * rest - z1->sa1 * od + z->d_s2; z->d_s2 = z1->sb2 * rest - z1->sa2 * od; rest = od;
@@ -270,7 +318,8 @@ AwFx *iron_neu(double sr) {
   t->fx.latenz = 0; /* Standard ohne Oversampling; HQ: verz (trockener Weg wird gleich verzögert) */
   t->drive = 1; t->kern = kern_suchen("stahl"); t->glanz = 0.5; t->mix = 1; t->vert = 0.5; t->auto_ = 1; t->hq = 0; t->quelle = quelle_suchen("studio");
   double tf[2] = {1.03, 0.97}, td[2] = {1.02, 0.98}, tr[2] = {1.06, 0.95};
-  for (int i = 0; i < 2; i++) { t->tol_f[i] = tf[i]; t->tol_d[i] = td[i]; t->tol_r[i] = tr[i]; }
+  for (int i = 0; i < 2; i++) { t->tol_f[i] = t->tol_basis[0][i] = tf[i]; t->tol_d[i] = t->tol_basis[1][i] = td[i]; t->tol_r[i] = t->tol_basis[2][i] = tr[i]; }
+  t->uebers = 1; t->remanenz = 0.5;
   t->drift_ph = 0.7; t->drift_wert[0] = t->drift_wert[1] = 1;
   return &t->fx;
 }

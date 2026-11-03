@@ -13,10 +13,11 @@
 //  bezug  true  → Ansteuerung folgt der gemessenen Lautheit (wie Glow und Silk) – immer an
 import { t } from './i18n.js';
 import { spNormal, spParameter } from './schwerpunkt.js';
+import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 const META = (() => { try { return JSON.parse(metaInhalt('aw-trafo') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
-const VORGABE_KERN = ['nickel', 'stahl', 'eisen'].includes(META.kern) ? META.kern : 'stahl';
+const VORGABE_KERN = ['nickel', 'stahl', 'eisen', 'mumetall', 'amorph'].includes(META.kern) ? META.kern : 'stahl';
 export const TRAFO_BEZUG_LUFS = Number.isFinite(+META.bezug) ? +META.bezug : -18;
 
 export const TRAFO_STUFEN = {
@@ -34,6 +35,8 @@ export const TRAFO_KERNE = {
   nickel: { name: 'Nickel', kurz: t('klar und schnell – sättigt spät, dann deutlich') },
   stahl: { name: t('Stahl'), kurz: t('satter Bass, etwas Glanz – der Pult-Klassiker') },
   eisen: { name: t('Eisen'), kurz: t('früh und weich, rund – wie ein Ausgangsübertrager') },
+  mumetall: { name: t('Mu-Metall'), kurz: t('sehr sauber bis zum Knie, dann recht plötzlich – Mikrofon-Übertrager') },
+  amorph: { name: t('Amorph'), kurz: t('kaum Hysterese, sehr offen – moderne Bandkerne') },
 };
 const STUFEN_FELDER = ['drive', 'mix'];
 
@@ -55,8 +58,10 @@ export function trafoNormal(t) {
     vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
     sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,
-    bezug: true,
-    hq: x.hq === true,
+    bezug: x.bezug !== false,
+    q: qualitaet(x),
+    hq: qualitaet(x) >= 1,
+    ...innenNormal('iron', x),
   };
 }
 
@@ -101,6 +106,7 @@ export function trafoParameter(t, bezugDb = 0, glowAn = false) {
     ...spParameter(x.sp),
     auto: x.auto ? 1 : 0,
     hq: x.hq ? 1 : 0,
+    ...innenParameter('iron', x),
   };
 }
 

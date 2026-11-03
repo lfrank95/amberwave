@@ -827,7 +827,10 @@ export class Raumklang {
       k = new AudioWorkletNode(ctx, 'aw-band', { ...stereo, processorOptions: { ...bandParameter(this.band, this.bandBezug || 0), ...wasm } });
     }
     if (art !== 'eq') {
-      k.port.onmessage = (e) => { if (e.data && e.data.faerb) this.faerbung[art] = { w: e.data.faerb, t: performance.now() }; };
+      k.port.onmessage = (e) => {
+        if (e.data && e.data.faerb) this.faerbung[art] = { w: e.data.faerb, t: performance.now() };
+        if (e.data && typeof e.data.last === 'number') { (this.klangLast ||= {})[art] = e.data.last; dispatchEvent(new CustomEvent('aw-klanglast', { detail: { art, last: e.data.last } })); }
+      };
       if (this.messenAn) k.port.postMessage({ messen: true });
       if (this.deltaArt === art) k.port.postMessage({ delta: true });
     }

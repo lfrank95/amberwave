@@ -127,11 +127,11 @@ static void wf_bauen(void) {
   wf_fertig = 1;
 }
 
-static double wiedergabeverlust(double f, double ips, double schicht_um, int mit_schicht) {
+static double wiedergabeverlust(double f, double ips, double schicht_um, int mit_schicht, double spalt_um) {
   double v = ips * 25.4e-3;
   double lambda = v / f;
   double k = 2 * M_PI / lambda;
-  double g = SPALT_UM * 1e-6, d = ABSTAND_UM * 1e-6, delta = schicht_um * 1e-6;
+  double g = spalt_um * 1e-6, d = ABSTAND_UM * 1e-6, delta = schicht_um * 1e-6;
   double x = M_PI * g / lambda;
   double spalt = x < 1e-6 ? 1 : fabs(sin(x) / x);
   double abstand = exp(-k * d);
@@ -144,7 +144,18 @@ static double wiedergabeverlust(double f, double ips, double schicht_um, int mit
 
 typedef struct {
   double drive, ips, bias, gleichlauf, mix, vert, unperfekt; int kopf, auto_, hq, rauschen, ccir; const Band *band;
+  /* Innenleben: Einmesspegel und Kopf immer; Maschine, Vormagnetisierung, Selbstlöschung, Kopiereffekt nur in Ultra */
+  int ultra, maschine, sync, selbst, nabbass; double nwb, ueberbias, kopier;
 } Ziel;
+
+/* Maschinen (Ultra): Kopfbuckel (Frequenz, Höhe, Güte), Gleichlauf (Wow, Flutter), Höhen der Wiedergabe */
+typedef struct { const char *name; double fk, gk, qk, wow, flut, fc; } Maschine;
+static const Maschine MASCHINEN[] = {
+  { "neutral", 1, 1, 0.8, 1, 1, 1 },
+  { "a80", 1.0, 1.15, 0.85, 0.8, 0.9, 1.0 },
+  { "atr102", 0.82, 0.75, 0.7, 0.5, 0.6, 1.06 },
+  { "b77", 1.3, 1.35, 1.0, 1.7, 1.5, 0.9 },
+};
 
 typedef struct {
   Ziel z;
@@ -154,6 +165,9 @@ typedef struct {
   double kb0, kb1, kb2, ka1, ka2;    /* Kopfbump */
   double sb0, sb1, sb2, sa1, sa2;    /* Kopfkontur */
   double azimut, drive, ausgleich, tiefe, rausch_db, hy_norm;
+  double bias_eff, flut;
+  double nb0, nb1, na1, pb0, pb1, pa1;   /* NAB-Bass 3180 µs: vor dem Band anheben, danach genau zurück */
+  int nab_an, selbst_an; double kopier_g; int kopier_l;
 } Abgel;
 
 typedef struct {
@@ -167,6 +181,9 @@ typedef struct {
   double *wf, *wft; int wf_pos, wf_len;   // je doppelt lang (gespiegelt), damit 32 Punkte am Stück gelesen werden
   double *delta_runter;
   double dpX, dpY, dhf, dk1, dk2, ds1, ds2, ddX, ddY;
+  double nx1, ny1, px1, py1, dnx1, dny1;   /* NAB-Bass vor/nach */
+  double sl_x, sl_y, sl_env;               /* Selbstlöschung: Höhen-Hüllkurve */
+  double *kop; int kop_len, kop_pos; double kop_h, kop_hx, kop_l;   /* Kopiereffekt: Wickel-Echo */
 } Kanal;
 
 typedef struct {
@@ -181,7 +198,7 @@ typedef struct {
   float *ms_ein[2]; int ms_kap;
   double *wf_mod; int wf_kap;
   double wf_phase[4], wf_rausch, rausch_z[3];
-  double tol_bias[2], tol_drive[2], tol_hf[2];
+  double tol_bias[2], tol_drive[2], tol_hf[2], tol_basis[3][2];
   double drift_ph1, drift_ph2, drift_walk, drift_wert[2];
   double kratz, azimut_z;
 } Silk;
@@ -206,17 +223,21 @@ static Abgel ableiten(Silk *s, const Ziel *z) {
   int ii = ips_index(z->ips);
   double tauUs = (z->ccir ? TAU_CCIR : TAU_NAB)[ii];
   double fE = 1e6 / (2 * M_PI * tauUs);
-  double hfDb = max_d(1.0, band->mol[ii] - band->sol[ii]) + 1.0 + (0.5 - z->bias) * 2;
+  const Maschine *M = &MASCHINEN[z->ultra ? z->maschine : 0];
+  double bias = z->ultra ? klemmen(z->bias + (z->ueberbias - 1.5) * 0.1, 0, 1) : z->bias;
+  a.bias_eff = bias; a.flut = M->flut;
+  double hfDb = max_d(1.0, band->mol[ii] - band->sol[ii]) + 1.0 + (0.5 - bias) * 2;
   double aE = 1 - exp(-2 * M_PI * fE / sr);
   double lp10 = 1 / sqrt(1 + pow(10000 / fE, 2));
   double gE = (pow(10, hfDb / 20) - 1) / max_d(0.05, 1 - lp10);
   a.pre_a = aE; a.pre_g = gE;
   double a0 = (1 + gE) - gE * aE;
   a.post_b0 = 1 / a0; a.post_b1 = -(1 - aE) / a0; a.post_a1 = -(1 + gE) * (1 - aE) / a0;
-  double v10 = wiedergabeverlust(10000, z->ips, band->schicht, 0), v20 = wiedergabeverlust(20000, z->ips, band->schicht, 0);
+  double spalt = z->sync ? 9.0 : SPALT_UM;   /* Sync: der Aufnahmekopf liest mit – breiterer Spalt, dumpfer */
+  double v10 = wiedergabeverlust(10000, z->ips, band->schicht, 0, spalt), v20 = wiedergabeverlust(20000, z->ips, band->schicht, 0, spalt);
   double rest20 = max_d(0.3, min_d(0.999, v20 / v10));
-  a.fc_basis = min_d(200000, 20000 / sqrt(1 / (rest20 * rest20) - 1));
-  double fK = ii == 0 ? 75 : ii == 1 ? 45 : 28, gK = ii == 0 ? 2.6 : ii == 1 ? 1.8 : 1.2, qK = 0.8;
+  a.fc_basis = min_d(200000, 20000 / sqrt(1 / (rest20 * rest20) - 1)) * M->fc * (z->ultra ? exp(-0.35 * M_LN2 * (z->ueberbias - 1.5)) : 1);   /* überbiast = dumpfer */
+  double fK = (ii == 0 ? 75 : ii == 1 ? 45 : 28) * M->fk, gK = (ii == 0 ? 2.6 : ii == 1 ? 1.8 : 1.2) * M->gk, qK = M->qk;
   double A = pow(10, gK / 40), w0 = 2 * M_PI * fK / sr, al = sin(w0) / (2 * qK);
   double kb0 = 1 + al * A, kb1 = -2 * cos(w0), kb2 = 1 - al * A, ka0 = 1 + al / A, ka1 = kb1, ka2 = 1 - al / A;
   a.kb0 = kb0 / ka0; a.kb1 = kb1 / ka0; a.kb2 = kb2 / ka0; a.ka1 = ka1 / ka0; a.ka2 = ka2 / ka0;
@@ -224,14 +245,25 @@ static Abgel ableiten(Silk *s, const Ziel *z) {
   double sb0 = 1 + al1 * AS, sb1 = -2 * cos(w1), sb2 = 1 - al1 * AS, sa0 = 1 + al1 / AS, sa2 = 1 - al1 / AS;
   a.sb0 = sb0 / sa0; a.sb1 = sb1 / sa0; a.sb2 = sb2 / sa0; a.sa1 = sb1 / sa0; a.sa2 = sa2 / sa0;
   a.azimut = 7e-6 * sr;
-  double kurve = 1.6 - 0.8 * z->bias;
+  double kurve = 1.6 - 0.8 * bias;
   double molSkala = pow(10, -(band->mol[ii] - 12.0) / 20);
-  double drive = z->drive * kurve * molSkala;
+  double pegel = z->nwb > 0 ? z->nwb / 250 : 1;   /* Einmesspegel: heißer eingemessen = mehr Fluss aufs Band */
+  double drive = z->drive * kurve * molSkala * pegel;
   a.ausgleich = z->auto_ ? 1 / drive : 1;
   a.hy_norm = z->hq ? drive / kleinsignal(drive, 1) : 1;
   a.drive = drive;
-  a.tiefe = z->gleichlauf * z->gleichlauf * 0.0025 * sr / (2 * M_PI * 0.55);
-  a.rausch_db = band->rauschen[ii];
+  a.tiefe = z->gleichlauf * z->gleichlauf * 0.0025 * sr / (2 * M_PI * 0.55) * M->wow;
+  a.rausch_db = band->rauschen[ii] - 20 * log10(pegel);
+  a.nab_an = z->nabbass && !z->ccir;
+  if (a.nab_an) {
+    // NAB 3180 µs (50 Hz): Aufnahme hebt den Tiefbass an (bis +10 dB), Wiedergabe senkt genau so ab – sättigt im Bass früher
+    double w1 = 1 / 3180e-6, w0 = w1 / 3.1623, K = 2 * sr;
+    a.nb0 = (K + w1) / (K + w0); a.nb1 = (w1 - K) / (K + w0); a.na1 = (w0 - K) / (K + w0);
+    a.pb0 = (K + w0) / (K + w1); a.pb1 = (w0 - K) / (K + w1); a.pa1 = (w1 - K) / (K + w1);
+  }
+  a.selbst_an = z->ultra && z->selbst;
+  a.kopier_g = z->ultra && z->kopier < 0 && z->kopier > -100 ? pow(10, z->kopier / 20) : 0;
+  a.kopier_l = (int)floor(sr * 0.628 / (z->ips * 0.0254) + 0.5);   /* eine Umdrehung des Wickels (Ø 20 cm) */
   return a;
 }
 
@@ -248,10 +280,23 @@ static void silk_setzen(AwFx *fx, const AwWert *w, int n) {
   if (wert_zahl(w, n, "vert", &v)) z->vert = klemmen(v, 0, 1);
   if (wert_zahl(w, n, "auto", &v)) z->auto_ = v != 0;
   if (wert_zahl(w, n, "hq", &v)) z->hq = v != 0;
+  if (wert_zahl(w, n, "q", &v)) { z->hq = v >= 1; z->ultra = v >= 2; }
+  if ((t = wert_text(w, n, "maschine"))) { z->maschine = 0; for (int i = 0; i < 4; i++) if (!strcmp(MASCHINEN[i].name, t)) z->maschine = i; }
+  if (wert_zahl(w, n, "einmesspegel", &v)) z->nwb = klemmen(v, 150, 400);
+  if ((t = wert_text(w, n, "kopfwahl"))) z->sync = !strcmp(t, "sync");
+  if (wert_zahl(w, n, "vormag", &v)) z->ueberbias = klemmen(v, -3, 5);
+  if (wert_zahl(w, n, "selbstloeschung", &v)) z->selbst = v != 0;
+  if (wert_zahl(w, n, "nab_bass", &v)) z->nabbass = v != 0;
+  if (wert_zahl(w, n, "kopiereffekt", &v)) z->kopier = v;
   if (wert_zahl(w, n, "rauschen", &v)) z->rauschen = v != 0;
   if ((t = wert_text(w, n, "norm")) && (!strcmp(t, "nab") || !strcmp(t, "ccir"))) z->ccir = !strcmp(t, "ccir");
   if (wert_zahl(w, n, "unperfekt", &v)) z->unperfekt = klemmen(v, 0, 1);
   if ((t = wert_text(w, n, "band")) && band_suchen(t)) z->band = band_suchen(t);
+  for (int i = 0; i < 2; i++) {
+    s->tol_bias[i] = exemplar_faktor(fx->exemplar, i, s->tol_basis[0][i], 0.035);
+    s->tol_drive[i] = exemplar_faktor(fx->exemplar, 2 + i, s->tol_basis[1][i], 0.04);
+    s->tol_hf[i] = exemplar_faktor(fx->exemplar, 4 + i, s->tol_basis[2][i], 0.035);
+  }
   s->abg = ableiten(s, z);
   if (s->ist_da && s->ist.z.hq != z->hq) for (int c = 0; c < 16; c++) if (s->kanal[c]) { s->kanal[c]->ja.M = 0; s->kanal[c]->ja.Hv = 0; }
   fx->initial = 1;
@@ -298,7 +343,7 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
   double ausg = z0->ausgleich, dAusg = (z1->ausgleich - z0->ausgleich) / n;
   double tiefe = z0->tiefe, dTiefe = (z1->tiefe - z0->tiefe) / n;
   int hq = z1->z.hq, kopfAn = z1->z.kopf, rauschAn = hq && z1->z.rauschen;
-  double hyW = hq ? 0.06 + 0.14 * (1 - z1->z.bias) : 0;
+  double hyW = hq ? 0.06 + 0.14 * (1 - z1->bias_eff) : 0;
   double hyK = 1 - exp(-2 * M_PI * 3000 / (sr * OS * 2));
   double hyNorm = z1->hy_norm ? z1->hy_norm : 1;
   if (hq) {
@@ -356,15 +401,19 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
     double tolDrive = hq ? 1 + (S->tol_drive[t1] - 1) * unp : 1, tolHf = hq ? 1 + (S->tol_hf[t1] - 1) * unp : 1;
     double dft = hq ? 1 + (S->drift_wert[t1] - 1) * unp : 1;
     double fcB = hq ? fcBasis * tolHf : fcBasis;
+    double slA = exp(-2 * M_PI * 6000 / sr);
+    if (z1->kopier_g > 0 && (!z->kop || z->kop_len < z1->kopier_l + 1)) { free(z->kop); z->kop_len = z1->kopier_l + 1; z->kop = calloc((size_t)z->kop_len, sizeof(double)); z->kop_pos = 0; }
+    double kopHA = exp(-2 * M_PI * 250 / sr), kopLK = 1 - exp(-2 * M_PI * 3500 / sr);
     for (int i = 0; i < n; i++) {
       double vt = vert + dVert * i;
-      double dr = (drive + dDrive * i) * (hq ? tolDrive * dft : 1), ag = ausg + dAusg * i;
+      double dr = (drive + dDrive * i) * (hq ? tolDrive * dft : 1), ag = (ausg + dAusg * i) / (hq && z1->z.auto_ ? tolDrive : 1);   /* eingemessen: Streuung im Klirr, nicht im Pegel */
       double mx = (mix + dMix * i) * (!ms ? 1 : seite ? min_d(1, 2 * vt) : min_d(1, 2 * (1 - vt)));
       double ein_i = x[i];
       trk[tp] = ein_i;
       int lesePos = tp - trockenVerz; if (lesePos < 0) lesePos += tLen;
       double trocken = trk[lesePos];
       tp = tp == tLen - 1 ? 0 : tp + 1;
+      if (z1->nab_an) { double o = z1->nb0 * ein_i + z1->nb1 * z->nx1 - z1->na1 * z->ny1; z->nx1 = ein_i; z->ny1 = o; ein_i = o; }
       preLP += z1->pre_a * (ein_i - preLP);
       double vorband = ein_i + z1->pre_g * (ein_i - preLP);
       hoch[hp] = vorband; hoch[hp + PH] = vorband;
@@ -416,10 +465,18 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
       double band = skalar(S->fir_r, runter + b2 - TAPS + 1, TAPS);
       band *= ag;
       double ent = z1->post_b0 * band + z1->post_b1 * postX1 - z1->post_a1 * postY1; postX1 = band; postY1 = ent; band = ent;
+      if (z1->nab_an) { double o = z1->pb0 * band + z1->pb1 * z->px1 - z1->pa1 * z->py1; z->px1 = band; z->py1 = o; band = o; }
       double betrag = fabs(vorband * dr);
       env += (betrag > env ? envA : envR) * (betrag - env);
       double ueber = max_d(0, min_d(1, (env - 0.8) / 1.2));
       double fc = fcB * (1 - 0.5 * ueber);
+      if (z1->selbst_an) {
+        // Selbstlöschung: laute Höhen löschen sich beim Aufnehmen teils selbst (der Bias-Kopf wirkt wie ein Löschkopf)
+        z->sl_y = slA * (z->sl_y + vorband - z->sl_x); z->sl_x = vorband;
+        double hb = fabs(z->sl_y * dr);
+        z->sl_env += (hb > z->sl_env ? envA : envR) * (hb - z->sl_env);
+        fc *= 1 - 0.4 * max_d(0, min_d(1, (z->sl_env - 0.25) / 0.8));
+      }
       double cq = cw20 * (fc / 20000) * (fc / 20000);
       double hfK = min_d(1, (-cq + sqrt(cq * cq + 4 * cq)) / 2);
       hfLP += hfK * (band - hfLP); band = hfLP;
@@ -431,11 +488,21 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
         if (hq) { double o2 = z1->sb0 * band + s1; s1 = z1->sb1 * band - z1->sa1 * o2 + s2; s2 = z1->sb2 * band - z1->sa2 * o2; band = o2; }
       }
       double w = band - dcX + dcR * dcY; dcX = band; dcY = w; band = w;
+      if (z1->kopier_g > 0 && z->kop) {
+        // Kopiereffekt: die Lage darüber magnetisiert mit – leises Echo eine Wickel-Umdrehung später, nur Mitten
+        int L = z1->kopier_l, q = z->kop_pos - L; if (q < 0) q += z->kop_len;
+        double e = z->kop[q];
+        z->kop[z->kop_pos] = band; z->kop_pos = z->kop_pos == z->kop_len - 1 ? 0 : z->kop_pos + 1;
+        z->kop_h = kopHA * (z->kop_h + e - z->kop_hx); z->kop_hx = e;
+        z->kop_l += kopLK * (z->kop_h - z->kop_l);
+        band += z1->kopier_g * z->kop_l;
+      }
       double rest = 0;
       if (dzA) {
         double r = skalar(S->fir_r, z->delta_runter + b2 - TAPS + 1, TAPS);
         r *= ag;
         double e2 = z1->post_b0 * r + z1->post_b1 * z->dpX - z1->post_a1 * z->dpY; z->dpX = r; z->dpY = e2; r = e2;
+        if (z1->nab_an) { double o = z1->pb0 * r + z1->pb1 * z->dnx1 - z1->pa1 * z->dny1; z->dnx1 = r; z->dny1 = o; r = o; }
         z->dhf += hfK * (r - z->dhf); r = z->dhf;
         if (kopfAn) {
           double o = z1->kb0 * r + z->dk1; z->dk1 = z1->kb1 * r - z1->ka1 * o + z->dk2; z->dk2 = z1->kb2 * r - z1->ka2 * o; r = o;
@@ -448,7 +515,7 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
         wf[wfPos] = band; wf[wfPos + wfLen] = band;
         wft[wfPos] = trocken; wft[wfPos + wfLen] = trocken;
         if (c == 0 || !ms) S->kratz += 0.02 * ((aw_zufall(&fx->zufall) * 2 - 1) - S->kratz);
-        double d = wfNominal + (wfMod ? wfMod[i] : 0) + S->kratz * 0.015 * sr / 48000 * (0.3 + z1->z.gleichlauf) * unp;
+        double d = wfNominal + (wfMod ? wfMod[i] : 0) + S->kratz * 0.015 * sr / 48000 * (0.3 + z1->z.gleichlauf) * unp * z1->flut;
         double lp = wfPos - d; while (lp < 0) lp += wfLen;
         int i0 = (int)floor(lp); double fr = lp - i0;
         double pf = fr * WF_P; int p = (int)floor(pf); double a = pf - p;
@@ -487,7 +554,7 @@ static void silk_frei(AwFx *fx) {
   for (int c = 0; c < 16; c++) {
     Kanal *z = s->kanal[c];
     if (!z) continue;
-    free(z->hoch); free(z->runter); free(z->trocken); free(z->wf); free(z->wft); free(z->delta_runter); free(z);
+    free(z->hoch); free(z->runter); free(z->trocken); free(z->wf); free(z->wft); free(z->delta_runter); free(z->kop); free(z);
   }
   free(s->ms_ein[0]); free(s->ms_ein[1]); free(s->wf_mod); free(s->fir); free(s->poly); free(s->fir_r);
   free(s);
@@ -507,10 +574,10 @@ AwFx *silk_neu(double sr) {
   s->fir_r = rueckwaerts(s->fir, s->taps);
   s->hb = halbband();
   s->fx.latenz = s->verz;
-  Ziel z = { .drive = 1, .ips = 15, .bias = 0.5, .gleichlauf = 0.3, .kopf = 1, .mix = 1, .vert = 0.5, .auto_ = 1, .hq = 0, .rauschen = 0, .ccir = 0, .band = &BAENDER[0], .unperfekt = 1 };
+  Ziel z = { .drive = 1, .ips = 15, .bias = 0.5, .gleichlauf = 0.3, .kopf = 1, .mix = 1, .vert = 0.5, .auto_ = 1, .hq = 0, .rauschen = 0, .ccir = 0, .band = &BAENDER[0], .unperfekt = 1, .nwb = 250, .ueberbias = 1.5 };
   s->ziel = z;
   double tb[2] = {1.03, 0.97}, td[2] = {1.035, 0.966}, th_[2] = {0.97, 1.03};
-  for (int i = 0; i < 2; i++) { s->tol_bias[i] = tb[i]; s->tol_drive[i] = td[i]; s->tol_hf[i] = th_[i]; }
+  for (int i = 0; i < 2; i++) { s->tol_bias[i] = s->tol_basis[0][i] = tb[i]; s->tol_drive[i] = s->tol_basis[1][i] = td[i]; s->tol_hf[i] = s->tol_basis[2][i] = th_[i]; }
   s->drift_ph1 = 1.3; s->drift_ph2 = 0.4; s->drift_wert[0] = s->drift_wert[1] = 1;
   return &s->fx;
 }

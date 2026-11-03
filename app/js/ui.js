@@ -169,7 +169,7 @@ export function icon(name, groesse = 20, extra = '') {
 
 // ---------- Hinweise (Toasts) ----------
 let toastBereich = null;
-export function toast(text, art = 'info', ms = 3800) {
+export function toast(text, art = 'info', ms = 3800, extra = null) {
   if (!toastBereich) {
     toastBereich = document.createElement('div');
     toastBereich.className = 'toast-bereich';
@@ -180,6 +180,18 @@ export function toast(text, art = 'info', ms = 3800) {
   t.className = 'toast' + (art === 'fehler' ? ' fehler-toast' : art === 'gut' ? ' gut-toast' : '');
   if (art === 'fehler' || art === 'gut') t.innerHTML = `${icon(art === 'gut' ? 'haken' : 'warnung', 18)}<span>${h(text)}</span>`;
   else t.textContent = text;
+  // extra: { unter: zweite Zeile, knopf: { text, aktion } } – z. B. „Trotzdem Ultra“
+  if (extra) {
+    t.classList.add('toast-mit');
+    const tx = document.createElement('span'); tx.className = 'toast-tx';
+    tx.innerHTML = `<b>${h(text)}</b>${extra.unter ? `<small>${h(extra.unter)}</small>` : ''}`;
+    t.replaceChildren(...(art === 'fehler' || art === 'gut' ? [t.firstElementChild] : []), tx);
+    if (extra.knopf) {
+      const k = document.createElement('button'); k.type = 'button'; k.className = 'toast-knopf'; k.textContent = extra.knopf.text;
+      k.addEventListener('click', () => { extra.knopf.aktion(); t.classList.add('raus'); setTimeout(() => t.remove(), 220); });
+      t.appendChild(k);
+    }
+  }
   toastBereich.appendChild(t);
   setTimeout(() => { t.classList.add('raus'); setTimeout(() => t.remove(), 220); }, ms);
 }

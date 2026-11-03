@@ -36,7 +36,16 @@ struct AwFx {
   /* Sättigungs-Schwerpunkt (schwerpunkt.c), NULL = nie gesetzt */
   struct Schwerpunkt *sp;
   int mit_sp;
+  /* Innenleben (gemeinsam.c), wirkt hinter dem Gerät; nie gesetzt = aus (alter Rechenweg bleibt bitgleich) */
+  int exemplar;                 /* 1–4: Bauteilstreuung (1 = die bisherigen Toleranzen) */
+  int netz;                     /* 0 aus, 1 getrennt (je Kanal), 2 gemeinsam (beide Kanäle ziehen an einem Netzteil) */
+  double netz_env[2];
+  double ueber;                 /* Übersprechen linear bei 10 kHz (0 = aus) */
+  double ueber_z[2], ueber_x[2];
+  int brumm; double brumm_hz, brumm_ph, brumm_env;
 };
+/** Bauteilstreuung: Faktor um 1 für Exemplar ex (1 = basis, sonst fest aus ex und idx abgeleitet, ±streu) */
+double exemplar_faktor(int ex, int idx, double basis, double streu);
 #define SP_BAENDER 5
 void sp_setzen(AwFx *fx, const AwWert *w, int n);
 void sp_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n);

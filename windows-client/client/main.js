@@ -78,6 +78,7 @@ function ausgangPruefen(a) {
     delay: Math.max(-30, Math.min(30, Math.round((Number(a.delay) || 0) * 1000) / 1000)),
     einheit: ['ms', 'm', 'in'].includes(a.einheit) ? a.einheit : 'ms',
     phase: !!a.phase,   // Sub um 180° gedreht
+    lfe: Number(a.lfe) === 0 ? 0 : 10,   // LFE der Quelle: +10 dB (Kinonorm) oder 0 dB, wenn Amberwave den Sub speist
     ...lsUndKh(a, karte),
   };
 }
@@ -198,7 +199,7 @@ function bassAnEngine(geraet) {
   if (g.startsWith('asio:')) { const [treiber, bus] = g.split('#'); const l = ausgaengeFuer(treiber); a = l.find((x) => x.id === bus) || l[0]; }
   const an = !!a?.sub && a.art !== 'kh';
   // Delay des Subs steckt jetzt in der Korrektur (Abstände je Lautsprecher)
-  engineSenden({ c: 'bass', 'w.an': an ? 1 : 0, 'w.hz': a?.trenn || 80, 'w.delay': 0, 'w.layout': a ? LAYOUT_KANAELE[a.layout] : 2, 'w.phase': an && a.phase ? 1 : 0 });
+  engineSenden({ c: 'bass', 'w.an': an ? 1 : 0, 'w.hz': a?.trenn || 80, 'w.delay': 0, 'w.layout': a ? LAYOUT_KANAELE[a.layout] : 2, 'w.phase': an && a.phase ? 1 : 0, 'w.lfe': a?.lfe === 0 ? 0 : 10 });
   korrAnEngine(geraet);
 }
 function ausgabeAnEngine() {

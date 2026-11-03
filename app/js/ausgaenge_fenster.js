@@ -412,6 +412,9 @@ export async function ausgaengeFenster({ treiber, name, aktiv = '', player = nul
           <div class="lm-karte"><span class="lm-lbl">${t('Phase Sub')}</span><div class="lm-seg"><button type="button" data-phase="0" aria-pressed="${!x.phase}">0°</button><button type="button" data-phase="1" aria-pressed="${!!x.phase}">${t('180° invertiert')}</button></div>
             <span class="lm-hilfe">${t('Am Hörplatz umschalten: wo der Bass an der Trennfrequenz voller klingt, ist richtig.')}</span></div>
           <div class="lm-karte"><span class="lm-lbl">${t('Delay Sub')}</span><b class="lm-wertgross">${dText(delayVon(x, 'LFE'))}</b><span class="lm-hilfe">${t('Kommt aus Abstand &amp; Pegel – dort einstellen.')}</span><button type="button" class="lm-ton" data-schritt="abstand">${t('→ Abstand &amp; Pegel')}</button></div>
+          <div class="lm-karte"><span class="lm-lbl">${t('LFE der Quelle')}</span><div class="lm-seg"><button type="button" data-lfe="10" aria-pressed="${x.lfe !== 0}" title="${t('Kinonorm: Filme und Mehrkanal-Musik mischen den LFE-Kanal 10 dB leiser, der Sub muss ihn wieder anheben.')}">${t('+10 dB · Norm')}</button><button type="button" data-lfe="0" aria-pressed="${x.lfe === 0}" title="${t('Nur wenn der Sub selbst schon +10 dB auf den LFE-Eingang gibt.')}">0 dB</button></div>
+            <span class="lm-hilfe">${t('Amberwave macht das Bassmanagement: der Bass aller Lautsprecher geht 1:1 auf den Sub, der LFE-Kanal kommt mit +10 dB dazu. Hängt ein AV-Receiver dazwischen, der das selbst macht: 5.1 ohne Sub-Weiche wählen, dann geht LFE unverändert raus.')}</span>
+            <span class="lm-begrenzer" data-begrenzer title="${t('Leuchtet, wenn der Sub kurz zurückgenommen wird, damit die Summe aus Bass und LFE nicht übersteuert.')}"><i></i>${t('Begrenzer Sub')}</span></div>
         </div>`;
     }
     const nav = ueb ? `<button type="button" class="lm-btn" data-schritt="ausgang">${t('Assistent ›')}</button><button type="button" class="lm-btn weiter" disabled style="visibility:hidden">${t('Weiter →')}</button>`
@@ -611,6 +614,7 @@ export async function ausgaengeFenster({ treiber, name, aktiv = '', player = nul
     }, 'input');
     $$('[data-pegel]', () => zeichnen(), 'change');
     $$('[data-phase]', (b) => aendern((x) => { x.phase = b.dataset.phase === '1'; }));
+    $$('[data-lfe]', (b) => aendern((x) => { x.lfe = b.dataset.lfe === '0' ? 0 : 10; }));
     $$('[data-trenn]', (b) => aendern((x) => { x.trenn = Math.max(50, Math.min(200, x.trenn + Number(b.dataset.trenn))); }));
     // Kopfhörer-Klang
     $$('[data-khcf]', (b) => aendern((x) => { x.kh.crossfeed = b.dataset.khcf; }));
@@ -664,10 +668,18 @@ export async function ausgaengeFenster({ treiber, name, aktiv = '', player = nul
       if (nativ.ausgangVorschau) for (const x of liste) nativ.ausgangVorschau(treiber, x.id, null).catch(() => {});
     }
     zu = true;
+    window.removeEventListener('aw-sub-begrenzt', begrenzerLampe);
     d.classList.add('schliesst');
     setTimeout(() => { d.close(); d.remove(); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200);
   };
   d.addEventListener('cancel', (e) => { e.preventDefault(); schliessen(false); });
+  // Sub-Begrenzer der Engine: Lämpchen leuchtet 1,5 s nach jedem Eingriff
+  let begrenzerT = null;
+  function begrenzerLampe() {
+    const l = d.querySelector('[data-begrenzer]'); if (!l) return;
+    l.classList.add('an'); clearTimeout(begrenzerT); begrenzerT = setTimeout(() => l.classList.remove('an'), 1500);
+  }
+  window.addEventListener('aw-sub-begrenzt', begrenzerLampe);
 
   zeichnen();
   d.showModal();

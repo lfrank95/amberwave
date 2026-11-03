@@ -14,6 +14,7 @@
 //                   (Bezugspunkt WAERME_BEZUG_LUFS, Standard −18 LUFS; Korrektur auf ±12 dB begrenzt)
 import { t } from './i18n.js';
 import { spNormal, spParameter } from './schwerpunkt.js';
+import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 
 export const WAERME_STUFEN = {
@@ -53,8 +54,10 @@ export function waermeNormal(w) {
     ton: Math.round(clamp(x.ton, 0, 100)), mix: Math.round(clamp(x.mix, 0, 100)), vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
     sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,   // immer an (Gegenkopplung zur Ansteuerung)
-    bezug: true,  // immer an (Ansteuerung folgt der gemessenen Lautheit)
-    hq: x.hq === true,
+    bezug: x.bezug !== false,  // Einpegeln (Innenleben): Ansteuerung folgt der gemessenen Lautheit
+    q: qualitaet(x),            // 0 Standard, 1 HQ, 2 Ultra
+    hq: qualitaet(x) >= 1,
+    ...innenNormal('glow', x),
     roehre: WAERME_ROEHREN[x.roehre] ? x.roehre : VORGABE_ROEHRE,
     schaltung: WAERME_SCHALTUNGEN[x.schaltung] ? x.schaltung : VORGABE_SCHALTUNG,
     symm: Math.round(clamp(x.symm ?? 90, 0, 100)),
@@ -107,6 +110,7 @@ export function waermeParameter(w, bezugDb = 0) {
     roehre: x.roehre,
     gegentakt: x.schaltung === 'gegentakt' ? 1 : 0,
     symm: x.symm / 100,
+    ...innenParameter('glow', x),
   };
 }
 

@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include "klang.h"
 #include "vstanbindung.h"
 #include "../../dsp/aw_dsp.h"
@@ -360,7 +361,13 @@ static void kette_rechnen(Kette *k, float *const *x, int kan, int n, int abgreif
   }
 }
 
+/* Rechenlast der Kette: Rechenzeit / Echtzeit der gerechneten Audiodaten seit dem letzten Lesen – für die Ultra-Rückfallregel */
+static double last_rechen, last_echt;
+static double uhr_k(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec * 1e-9; }
+double klang_last_lesen(void) { double l = last_echt > 0 ? last_rechen / last_echt : 0; last_rechen = last_echt = 0; return l; }
+
 int klang_rechnen(float *const *x, int kan, int n, double *gain_ist, double gain_ziel, double gain_k) {
+  double t0 = uhr_k();
   pthread_mutex_lock(&K);
   if (kan > MAX_K) kan = MAX_K;
   int ein_kan = kan;
@@ -405,6 +412,10 @@ int klang_rechnen(float *const *x, int kan, int n, double *gain_ist, double gain
     if (abgriffe & AB_MESS) abgriff_rein(&ab_mess, xs, kan, m, 0);
   }
   pthread_mutex_unlock(&K);
+  if (rate > 0 && n > 0) {
+    last_rechen += uhr_k() - t0;
+    last_echt += n / rate;
+  }
   return kan;
 }
 

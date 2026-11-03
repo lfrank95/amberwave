@@ -1104,15 +1104,15 @@ export class PlayerLeiste {
     const stufe = {
       glow: () => {
         teile.forEach((y) => { y.gut = false; });
-        teile.push({ text: t('AmberGlow „{kurz}“: Röhrensättigung ({detail})', { kurz: waermeKurzText(p.einst.waerme), detail: `${p.einst.waerme.hq ? `HQ: ${t('12AX7-Stufe als Schaltung gelöst, 8× Oversampling')}` : t('4× Oversampling mit Antiderivative-Antialiasing')}${p.einst.waerme.auto ? `, ${t('Auto-Gain gegen die Ansteuerung')}` : ''}` }), mittel: `AmberGlow ${waermeKurzText(p.einst.waerme)}`, kurz: 'Glow' });
+        teile.push({ text: t('AmberGlow „{kurz}“: Röhrensättigung ({detail})', { kurz: waermeKurzText(p.einst.waerme), detail: `${p.einst.waerme.q === 2 ? 'Ultra · ' : ''}${p.einst.waerme.hq ? `HQ: ${t('12AX7-Stufe als Schaltung gelöst, 8× Oversampling')}` : t('4× Oversampling mit Antiderivative-Antialiasing')}${p.einst.waerme.auto ? `, ${t('Auto-Gain gegen die Ansteuerung')}` : ''}` }), mittel: `AmberGlow ${waermeKurzText(p.einst.waerme)}`, kurz: 'Glow' });
       },
       iron: () => {
         teile.forEach((y) => { y.gut = false; });
-        teile.push({ text: t('AmberIron „{kurz}“: Übertrager ({detail})', { kurz: trafoKurzText(p.einst.trafo), detail: `${t('Kernmodell mit Quellwiderstand')}${p.einst.trafo.hq ? `, ${t('HQ: Play-Hysterese, Toleranzen, 2× Oversampling')}` : ''}, Auto-Gain` }), mittel: `AmberIron ${trafoKurzText(p.einst.trafo)}`, kurz: 'Iron' });
+        teile.push({ text: t('AmberIron „{kurz}“: Übertrager ({detail})', { kurz: trafoKurzText(p.einst.trafo), detail: `${p.einst.trafo.q === 2 ? 'Ultra · ' : ''}${t('Kernmodell mit Quellwiderstand')}${p.einst.trafo.hq ? `, ${t('HQ: Play-Hysterese, Toleranzen, 2× Oversampling')}` : ''}, Auto-Gain` }), mittel: `AmberIron ${trafoKurzText(p.einst.trafo)}`, kurz: 'Iron' });
       },
       silk: () => {
         teile.forEach((y) => { y.gut = false; });
-        teile.push({ text: t('AmberSilk „{kurz}“: Bandsättigung {ips} ips, {sorte} {norm} ({detail})', { kurz: bandKurzText(p.einst.band), ips: Number(p.einst.band.ips).toLocaleString(locale), sorte: ({ sm900: 'SM 900', 456: '456', sm468: 'SM 468' })[p.einst.band.sorte] || 'SM 900', norm: (p.einst.band.norm || 'nab').toUpperCase(), detail: `${p.einst.band.hq ? `HQ: ${t('8× Oversampling, Hysterese-Rest, Gleichlauf')}` : t('4× Oversampling mit Antiderivative-Antialiasing')}${p.einst.band.auto ? ', Auto-Gain' : ''}` }), mittel: `AmberSilk ${bandKurzText(p.einst.band)}`, kurz: 'Silk' });
+        teile.push({ text: t('AmberSilk „{kurz}“: Bandsättigung {ips} ips, {sorte} {norm} ({detail})', { kurz: bandKurzText(p.einst.band), ips: Number(p.einst.band.ips).toLocaleString(locale), sorte: ({ sm900: 'SM 900', 456: '456', sm468: 'SM 468' })[p.einst.band.sorte] || 'SM 900', norm: (p.einst.band.norm || 'nab').toUpperCase(), detail: `${p.einst.band.q === 2 ? 'Ultra · ' : ''}${p.einst.band.hq ? `HQ: ${t('8× Oversampling, Hysterese-Rest, Gleichlauf')}` : t('4× Oversampling mit Antiderivative-Antialiasing')}${p.einst.band.auto ? ', Auto-Gain' : ''}` }), mittel: `AmberSilk ${bandKurzText(p.einst.band)}`, kurz: 'Silk' });
       },
       eq: () => {
         teile.forEach((y) => { y.gut = false; });

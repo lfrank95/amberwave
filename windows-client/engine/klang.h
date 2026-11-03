@@ -19,6 +19,8 @@ void klang_raum_param(int knoten, const char *art, double wert, double dt, doubl
 void klang_raum_nachricht(int knoten, double effekte, double breite);
 /** Kanäle, die Space am Gerät braucht (0 = kein Space) */
 int klang_raum_kanaele(void);
+/** Rechenlast der Kette (Anteil der Echtzeit, gemittelt seit dem letzten Aufruf) */
+double klang_last_lesen(void);
 void klang_nur_abgreifen(float *const *x, int kan, int n, double gain);
 /** Zustände der Effekte verwerfen (Titelwechsel von Hand, Spulen): kein Rest des Alten im Neuen */
 void klang_leeren(void);

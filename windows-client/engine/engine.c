@@ -1025,6 +1025,8 @@ static inline void korr_frame(double *y, int ak) {
  * Delay > 0 verzögert den Sub, < 0 die Hauptlautsprecher. Gesetzt vom Befehlsfaden, gerechnet im Ausgabefaden. */
 static volatile int bass_an, bass_layout = 2, bass_gen, bass_phase;
 static volatile double bass_hz = 80, bass_delay_ms = 0;
+static volatile double bass_lfe_db = 10;    /* LFE der Quelle beim eigenen Bassmanagement: +10 dB nach Norm (Dolby, ITU) */
+static volatile long bass_begrenzt;         /* Frames, in denen der Begrenzer des Sub-Kanals gerade arbeitet (für die Lampe) */
 typedef struct { double b0, b1, b2, a1, a2; } BqK;
 typedef struct { double z1, z2; } BqZ;
 #define BASS_RING 65536
@@ -1033,6 +1035,7 @@ static struct {
   BqK hp, lp;
   BqZ hz[6][2], lz[2];
   float *ring[7]; int pos, d_sub, d_main;
+  double lfe_g, bg, bg_r;   /* LFE-Faktor; Begrenzer: aktuelle Verstärkung, Rückkehr je Frame */
 } BS;
 static void bq_rechnen(BqK *k, int hoch, double f, double rate) {
   double w = 2 * M_PI * f / rate, cw = cos(w), al = sin(w) / (2 * 0.7071067811865476), a0 = 1 + al;
@@ -1060,14 +1063,29 @@ static void bass_vorbereiten(int rate) {
   int d = (int)lround(fabs(bass_delay_ms) / 1000.0 * rate);
   if (d > BASS_RING - 1) d = BASS_RING - 1;
   BS.d_sub = bass_delay_ms > 0 ? d : 0; BS.d_main = bass_delay_ms < 0 ? d : 0;
+  BS.lfe_g = pow(10, bass_lfe_db / 20);
+  if (BS.bg <= 0 || BS.bg > 1) BS.bg = 1;
+  BS.bg_r = 1 - exp(-1.0 / (0.15 * rate));   /* Begrenzer lässt in ~150 ms wieder los */
 }
-/** x: Kanäle im Layout ohne eigenen Sub (Stereo 2, Quadro 4) bzw. 5.1 (6); y: ak Gerätekanäle */
-static void bass_frame(const double *x, double *y, int ak) {
+/** Sub-Kanal begrenzen: greift sofort (Bass ist langsam – ein Sample reicht), lässt weich los. Kein Clipping am Ausgang. */
+static inline double sub_begrenzen(double s) {
+  const double decke = 0.891;   /* −1 dBFS */
+  double a = fabs(s) * BS.bg;
+  if (a > decke) BS.bg = decke / fabs(s);
+  else BS.bg += (1 - BS.bg) * BS.bg_r;
+  if (BS.bg < 0.999) bass_begrenzt++;
+  return s * BS.bg;
+}
+/** x: Kanäle im Layout ohne eigenen Sub (Stereo 2, Quadro 4) bzw. 5.1 (6); lfe: LFE der Quelle (bei 5.1-Layout: x[3]); y: ak Gerätekanäle.
+ *  Der Bass der Hauptkanäle geht 1:1 zum Sub – so wie er aus den Lautsprechern käme (gleichphasiger Bass addiert sich auch im Raum).
+ *  Der LFE der Quelle kommt mit +10 dB dazu (Norm), danach ein Begrenzer nur für den Sub. */
+static void bass_frame(const double *x, double lfe, double *y, int ak) {
   int L = bass_layout, nm = L == 6 ? 5 : L, sub_i = L == 6 ? 3 : L;
   double m[6], summe = 0;
   for (int i = 0, j = 0; i < (L == 6 ? 6 : L); i++) { if (L == 6 && i == 3) continue; m[j] = x[i]; summe += x[i]; j++; }
-  double s = bq(&BS.lp, &BS.lz[1], bq(&BS.lp, &BS.lz[0], summe / sqrt((double)nm)));
-  if (L == 6) s += x[3];   /* LFE der Quelle: kommt schon tief gefiltert */
+  double s = bq(&BS.lp, &BS.lz[1], bq(&BS.lp, &BS.lz[0], summe));
+  s += (L == 6 ? x[3] : lfe) * BS.lfe_g;   /* LFE der Quelle: kommt schon tief gefiltert */
+  s = sub_begrenzen(s);
   if (bass_phase) s = -s;   /* Phase invertiert (180°) */
   int p = BS.pos;
   BS.ring[6][p] = (float)s;
@@ -1095,19 +1113,20 @@ static void umwandeln_bass(void *dst, const AusInfo *ai, float *const *src, int 
   for (int f = 0; f < frames; f++) {
     if (vol_ist != vol_ziel) { vol_ist += (vol_ziel - vol_ist) * k; if (fabs(vol_ist - vol_ziel) < 1e-7) vol_ist = vol_ziel; }
     double ff = fade_faktor(ai->rate);
-    double x[8] = {0}, y[8];
+    double x[8] = {0}, y[8], lfe = 0;
     if (src_kan == am) for (int c = 0; c < am; c++) x[c] = src[c][f];
     else if (src_kan == 1) { x[0] = x[1] = src[0][f]; }
     else if (src_kan == 2) { x[0] = src[0][f]; x[1] = src[1][f]; }
     else if (L == 2 || (L == 4 && src_kan > 4)) {
-      double fl = src[0][f], fr = src[1][f], fc = src_kan > 2 ? src[2][f] : 0, lfe = src_kan > 3 ? src[3][f] : 0;
+      double fl = src[0][f], fr = src[1][f], fc = src_kan > 2 ? src[2][f] : 0, lfe_q = src_kan > 3 ? src[3][f] : 0;
       double bl = src_kan > 4 ? src[4][f] : 0, br = src_kan > 5 ? src[5][f] : 0, sl = src_kan > 6 ? src[6][f] : 0, sr = src_kan > 7 ? src[7][f] : 0;
       if (L == 2) {
         double norm = 1.0 / (1.0 + 0.7071 * (src_kan > 2) + 0.7071 * (src_kan > 4) + 0.7071 * (src_kan > 6));
-        x[0] = (fl + 0.7071 * (fc + bl + sl) + 0.5 * lfe) * norm; x[1] = (fr + 0.7071 * (fc + br + sr) + 0.5 * lfe) * norm;
-      } else { x[0] = fl + 0.7071 * fc + 0.5 * lfe; x[1] = fr + 0.7071 * fc + 0.5 * lfe; x[2] = bl + sl; x[3] = br + sr; }
+        x[0] = (fl + 0.7071 * (fc + bl + sl)) * norm; x[1] = (fr + 0.7071 * (fc + br + sr)) * norm;
+        lfe = lfe_q * norm;
+      } else { x[0] = fl + 0.7071 * fc; x[1] = fr + 0.7071 * fc; x[2] = bl + sl; x[3] = br + sr; lfe = lfe_q; }
     } else for (int c = 0; c < am && c < src_kan; c++) x[c] = src[c][f];
-    bass_frame(x, y, ak);
+    bass_frame(x, lfe, y, ak);
     for (int c = 0; c < ak; c++) y[c] *= vol_ist * ff;
     if (KORR_AKTIV) korr_frame(y, ak);
     for (int c = 0; c < ak; c++) {
@@ -1727,8 +1746,9 @@ static void *ausgabe_thread(void *arg) {
         int64_t im = gespielt - (int64_t)a->dev_frame - (int64_t)a->stille;
         if (im < 0) im = 0;
         double pos = ((double)a->start_frame + (double)im) / (a->rate ? a->rate : 1);
-        melden("{\"e\":\"zeit\",\"id\":%s,\"pos\":%.4f,\"dauer\":%.4f,\"puffer\":%.2f}", js(j1, sizeof j1, a->id), pos, a->dauer,
-               q_rate && q_kan ? (double)(w_pos - r_pos) / q_kan / q_rate : 0.0);
+        long begr = bass_begrenzt; bass_begrenzt = 0;
+        melden("{\"e\":\"zeit\",\"id\":%s,\"pos\":%.4f,\"dauer\":%.4f,\"puffer\":%.2f,\"sub_begrenzt\":%d,\"klang_last\":%.3f}", js(j1, sizeof j1, a->id), pos, a->dauer,
+               q_rate && q_kan ? (double)(w_pos - r_pos) / q_kan / q_rate : 0.0, begr > 0 ? 1 : 0, klang_last_lesen());
       }
     }
   }
@@ -1798,6 +1818,7 @@ static void ausfuehren(Befehl *b) {
     bass_hz = wz(b, "hz", 80); bass_delay_ms = wz(b, "delay", 0);
     bass_layout = lay == 4 || lay == 6 ? lay : 2;
     bass_phase = wz(b, "phase", 0) != 0;
+    bass_lfe_db = wz(b, "lfe", 10);
     if (an != bass_an) raum_versucht = 0;
     bass_an = an; bass_gen++;
     pthread_cond_broadcast(&G_aus);

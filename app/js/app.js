@@ -25,6 +25,7 @@ import { dateifelderBeobachten } from './dateifeld.js';
 import { feinschliffBeobachten } from './feinschliff.js';
 import { clientUpdateBeobachten } from './update_hinweis.js';
 import { nativ, ausgabeWeg } from './nativ.js';
+import { ultraWache } from './ultra.js';
 import { android, androidRufen, androidVersion } from './android.js';
 
 // Windows-Client passend zur Server-Version: Installer aus dem GitHub-Release derselben Version (Name wie vom Build-Skript)
@@ -114,6 +115,7 @@ class App {
     // Direktzugang im Heimnetz: sofort prüfen, ob die Direktadresse antwortet (höchstens 1,5 s)
     netzweg.einrichten(this.ich.direkt);
     const player = new Player(this);
+    ultraWache(player);   // Ultra: Rückfall auf HQ bei Überlast
     // app.player zeigt im Fernmodus das gesteuerte Gerät und schickt Bedienbefehle dorthin (siehe fernsteuerung.js)
     this.player = fernSicht(player);
     this.fern = new Fernsteuerung(this, player);

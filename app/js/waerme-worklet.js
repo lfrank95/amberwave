@@ -353,6 +353,7 @@ class AwRoehre extends AudioWorkletProcessor {
     if (typeof d.symm === 'number') this.ziel.symm = Math.max(0, Math.min(1, d.symm));
     if (typeof d.roehre === 'string' && ROEHREN[d.roehre] && ROEHREN[d.roehre] !== this.T) {
       this.T = ROEHREN[d.roehre]; this.rpCache.clear();
+      this.ziel.rk = rkAusBias(this.T, this.ziel.bias);   // Ruhepunkt mit dem Kathodenwiderstand der neuen Röhre
       for (let c = 0; c < this.kanal.length; c++) if (this.kanal[c]) this.kanalStufen(this.kanal[c], c);
     }
     const T = this.T, kz = this.kurve(this.ziel);

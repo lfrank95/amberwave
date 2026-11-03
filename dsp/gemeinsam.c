@@ -151,8 +151,66 @@ AwFx *aw_fx_neu(const char *art, double sr, uint32_t seed) {
   }
   return fx;
 }
+double exemplar_faktor(int ex, int idx, double basis, double streu) {
+  if (ex <= 1) return basis;
+  uint32_t a = (uint32_t)(ex * 7919 + idx * 104729);
+  aw_zufall(&a);
+  return 1 + (aw_zufall(&a) * 2 - 1) * streu;
+}
+
+/* ---------- Innenleben: Netzteil, Übersprechen, Brumm (hinter dem Gerät, sehr leise) ---------- */
+
+static void innen_setzen(AwFx *fx, const AwWert *w, int n) {
+  double v; const char *t;
+  if (wert_zahl(w, n, "exemplar", &v)) fx->exemplar = (int)klemmen(v, 1, 4);
+  if ((t = wert_text(w, n, "netzteil"))) fx->netz = !strcmp(t, "gemeinsam") ? 2 : !strcmp(t, "getrennt") ? 1 : 0;
+  if (wert_zahl(w, n, "uebersprechen", &v)) fx->ueber = v <= -120 || v >= 0 ? 0 : pow(10, klemmen(v, -100, -30) / 20);
+  if (wert_zahl(w, n, "brumm", &v)) fx->brumm = v != 0;
+  if (wert_zahl(w, n, "netzfrequenz", &v)) fx->brumm_hz = v == 60 ? 60 : 50;
+}
+
+static void innen_block(AwFx *fx, float *const *aus, int kan, int n) {
+  const double sr = fx->sr;
+  int st = kan >= 2 && aus[0] && aus[1];
+  if (fx->netz) {
+    // Netzteil gibt unter Last minimal nach: −0,25 dB bei Dauerpegel −6 dBFS; gemeinsam zieht jeder Kanal beide herunter
+    const double ka = 1 - exp(-1 / (sr * 0.02)), kr = 1 - exp(-1 / (sr * 0.25)), k = 0.0057;
+    for (int i = 0; i < n; i++) {
+      double e[2];
+      for (int c = 0; c < (st ? 2 : 1); c++) { double a = fabs(aus[c][i]); fx->netz_env[c] += (a > fx->netz_env[c] ? ka : kr) * (a - fx->netz_env[c]); e[c] = fx->netz_env[c]; }
+      if (!st) { aus[0][i] = (float)(aus[0][i] * (1 - k * min_d(2, e[0]))); continue; }
+      double gl = fx->netz == 2 ? 0.5 * (e[0] + e[1]) : e[0], gr = fx->netz == 2 ? gl : e[1];
+      aus[0][i] = (float)(aus[0][i] * (1 - k * min_d(2, gl)));
+      aus[1][i] = (float)(aus[1][i] * (1 - k * min_d(2, gr)));
+    }
+  }
+  if (fx->ueber > 0 && st) {
+    // kapazitives Übersprechen: Hochpass 1. Ordnung bei 10 kHz – steigt mit 6 dB/Okt. zu den Höhen
+    double a = exp(-2 * M_PI * 10000 / sr), g = fx->ueber * M_SQRT2;
+    for (int i = 0; i < n; i++) {
+      double l = aus[0][i], r = aus[1][i];
+      fx->ueber_z[0] = a * (fx->ueber_z[0] + l - fx->ueber_x[0]); fx->ueber_x[0] = l;
+      fx->ueber_z[1] = a * (fx->ueber_z[1] + r - fx->ueber_x[1]); fx->ueber_x[1] = r;
+      aus[0][i] = (float)(l + g * fx->ueber_z[1]);
+      aus[1][i] = (float)(r + g * fx->ueber_z[0]);
+    }
+  }
+  if (fx->brumm) {
+    // Netzbrumm: Grundton und Gleichrichter-Oberwelle, −88 dBFS im Leerlauf, unter Last bis −80 dBFS
+    double f = fx->brumm_hz > 0 ? fx->brumm_hz : 50, inc = 2 * M_PI * f / sr, kr = 1 - exp(-1 / (sr * 0.3));
+    for (int i = 0; i < n; i++) {
+      double a = st ? 0.5 * (fabs(aus[0][i]) + fabs(aus[1][i])) : fabs(aus[0][i]);
+      fx->brumm_env += kr * (a - fx->brumm_env);
+      double p = fx->brumm_ph, b = (sin(p) + 0.6 * sin(2 * p + 0.4) + 0.25 * sin(3 * p + 1.1)) * 4e-5 * (1 + 1.5 * min_d(1, fx->brumm_env));
+      fx->brumm_ph = p + inc > 2 * M_PI ? p + inc - 2 * M_PI : p + inc;
+      for (int c = 0; c < kan; c++) if (aus[c]) aus[c][i] = (float)(aus[c][i] + (c & 1 ? 0.92 : 1) * b);
+    }
+  }
+}
+
 void aw_fx_setzen(AwFx *fx, const AwWert *w, int n) {
   if (!fx) return;
+  if (fx->mit_sp) innen_setzen(fx, w, n);
   fx->setzen(fx, w, n);
   if (fx->mit_sp) sp_setzen(fx, w, n);
 }
@@ -161,7 +219,11 @@ void aw_fx_steuern(AwFx *fx, const char *was, int an) {
   if (!strcmp(was, "messen")) { fx->messen = !!an; faerb_leeren(fx->messer); fx->messer->neu = 0; }
   else if (!strcmp(was, "delta")) fx->delta_ziel = an ? 1 : 0;
 }
-void aw_fx_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) { if (fx && n > 0) sp_block(fx, ein, aus, kan, n); }
+void aw_fx_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) {
+  if (!fx || n <= 0) return;
+  sp_block(fx, ein, aus, kan, n);
+  if (fx->netz || fx->ueber > 0 || fx->brumm) innen_block(fx, aus, kan, n);
+}
 int aw_fx_faerbung(AwFx *fx, float w[2]) {
   if (!fx || !fx->messer->neu) return 0;
   w[0] = fx->messer->wert[0]; w[1] = fx->messer->wert[1];

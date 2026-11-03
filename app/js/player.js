@@ -1,4 +1,5 @@
 // Player: Warteschlange, Wiedergabe (Original oder live umgewandelt), Media Session, Hörverlauf.
+import { geraetFelder } from './innenleben.js';
 import { api } from './api.js';
 import { toast, kuenstlerText } from './ui.js';
 import { LueckenlosMotor } from './lueckenlos.js';
@@ -688,9 +689,10 @@ export class Player extends EventTarget {
   /** Rack-Zustand übernehmen (Gesamt-Preset oder A/B) – alles sofort hörbar und pro Gerät gemerkt */
   async rackAnwenden(z) {
     if (!z || typeof z !== 'object') return;
-    if (z.waerme) this.waermeSetzen(z.waerme);
-    if (z.trafo) this.trafoSetzen(z.trafo);
-    if (z.band) this.bandSetzen(z.band);
+    // Exemplar, Netzteil, Übersprechen, Brumm, Alter, Einpegeln gehören dem Gerät, nicht dem Preset
+    if (z.waerme) this.waermeSetzen({ ...z.waerme, ...geraetFelder(this.einst.waerme) });
+    if (z.trafo) this.trafoSetzen({ ...z.trafo, ...geraetFelder(this.einst.trafo) });
+    if (z.band) this.bandSetzen({ ...z.band, ...geraetFelder(this.einst.band) });
     if (z.eq) this.eqSetzen(z.eq);
     if (z.reihe) this.reiheSetzen(z.reihe);
     const sp = z.space;

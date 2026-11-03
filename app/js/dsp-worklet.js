@@ -66,6 +66,20 @@ class AwDsp extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
+    const t0 = Date.now();
+    const r = this.rechnen(inputs, outputs);
+    // Rechenlast (Anteil der Echtzeit) etwa jede Sekunde melden – Grundlage für den Rückfall Ultra → HQ.
+    // Date.now() hat nur ms-Auflösung, über ~375 Blöcke gemittelt reicht das.
+    this.lastZeit = (this.lastZeit || 0) + (Date.now() - t0);
+    this.lastBloecke = (this.lastBloecke || 0) + 1;
+    if (this.lastBloecke >= 375) {
+      this.port.postMessage({ last: this.lastZeit / (this.lastBloecke * 128 / sampleRate * 1000) });
+      this.lastZeit = 0; this.lastBloecke = 0;
+    }
+    return r;
+  }
+
+  rechnen(inputs, outputs) {
     const ex = W.ex;
     if (this.ende) { if (this.fx) { ex.aw_w_frei(this.fx); this.fx = 0; } return false; }
     const ein = inputs[0], aus = outputs[0];

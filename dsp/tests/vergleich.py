@@ -19,14 +19,17 @@ ABLAEUFE = {
     'hq': "0 set drive 4\n0 set bias 0.3\n0 set hq 1\n0 set mix 1\n0 messen 1\n300 set drive 12\n500 set vert 0.2\n650 delta 1\n850 delta 0\n950 set bias 0.05\n",
     'roehre': "0 set drive 3\n0 set bias 0.2\n0 set ton 0.5\n0 set mix 0.9\n0 set roehre au7\n0 messen 1\n200 set roehre at7\n350 set gegentakt 1\n350 set symm 0.8\n500 set symm 0.3\n600 delta 1\n750 delta 0\n800 set roehre sn7\n900 set gegentakt 0\n1000 set roehre ax7\n",
     'roehre_hq': "0 set drive 4\n0 set bias 0.3\n0 set hq 1\n0 set mix 1\n0 set roehre at7\n0 messen 1\n250 set gegentakt 1\n250 set symm 0.85\n400 set roehre au7\n550 set symm 0.4\n650 delta 1\n800 delta 0\n900 set roehre sn7\n950 set gegentakt 0\n",
+    'ultra': "0 set drive 6\n0 set bias 0.2\n0 set q 2\n0 set mix 1\n0 set stufen kathodenfolger\n0 set anodenlast drossel\n0 set erholung lang\n0 set alter 0.6\n0 set ausgangsuebertrager 1\n0 set exemplar 3\n0 set netzteil gemeinsam\n0 set uebersprechen -62\n0 set brumm 1\n300 set anodenlast uebertrager\n500 set gegentakt 1\n700 set q 1\n",
   },
   'iron': {
     'std': "0 set drive 2\n0 set kern stahl\n0 set quelle studio\n0 set glanz 0.6\n0 set mix 1\n0 messen 1\n300 set drive 6\n400 set kern eisen\n500 set vert 0.2\n600 delta 1\n800 delta 0\n900 set auto 0\n1000 set mix 0.6\n",
     'hq': "0 set drive 3\n0 set kern nickel\n0 set quelle roehre\n0 set hq 1\n0 messen 1\n300 set drive 9\n450 set vert 0.85\n600 delta 1\n800 delta 0\n900 set kern stahl\n",
+    'ultra': "0 set drive 4\n0 set kern mumetall\n0 set q 2\n0 set last offen\n0 set uebersetzung 4\n0 set remanenz 0.9\n0 set wirbelstrom 1\n0 set exemplar 2\n300 set kern amorph\n500 set last 600ohm\n",
   },
   'silk': {
     'std': "0 set drive 1.5\n0 set ips 15\n0 set bias 0.5\n0 set band sm900\n0 set norm nab\n0 set mix 1\n0 messen 1\n300 set drive 4\n400 set ips 7.5\n500 set vert 0.8\n600 delta 1\n800 delta 0\n900 set band sm468\n1000 set kopf 0\n",
     'hq': "0 set drive 2\n0 set ips 15\n0 set hq 1\n0 set gleichlauf 0.5\n0 set rauschen 1\n0 set unperfekt 1\n0 messen 1\n200 set mix 0.6\n300 set drive 5\n400 set norm ccir\n500 set vert 0.3\n600 delta 1\n800 delta 0\n900 set bias 0.2\n1000 set ips 30\n",
+    'ultra': "0 set drive 3\n0 set q 2\n0 set maschine b77\n0 set einmesspegel 355\n0 set kopfwahl sync\n0 set vormag -1\n0 set selbstloeschung 1\n0 set nab_bass 1\n0 set kopiereffekt -50\n0 set exemplar 4\n0 set gleichlauf 0.5\n400 set ips 7.5\n600 set maschine atr102\n",
   },
   'eq': {
     'std': "0 set k 1.02,-1.9,0.89,-1.9,0.91,0.98,-1.5,0.6,-1.5,0.58\n0 set gain 0.9\n300 set k 1.1,-1.7,0.7,-1.72,0.79,1,0,0,0,0,0.95,-1.2,0.5,-1.21,0.46\n300 set gain 1.2\n700 set k 1,0,0,0,0\n",
@@ -61,6 +64,7 @@ arten = sys.argv[1:] or [a for a in ABLAEUFE if not ('wasm' in MODUS and a == 'e
 fehler = 0
 for art in arten:
     for name, ablauf in ABLAEUFE[art].items():
+        if name == 'ultra' and 'js' in MODUS: continue   # Ultra und Innenleben gibt es nur im C-Kern (Browser: WebAssembly)
         for sr in (44100, 48000, 96000, 192000):
             fehler += not lauf(art, sr, 2, name, ablauf)
         if name == 'std':

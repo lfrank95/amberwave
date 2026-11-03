@@ -71,7 +71,7 @@ static const Roehre ROEHREN[ROEHREN_N] = {
 static const Roehre *roehre_suchen(const char *n) { for (int i = 0; i < ROEHREN_N; i++) if (!strcmp(ROEHREN[i].name, n)) return &ROEHREN[i]; return NULL; }
 static const double S_CK = 100e-6, S_RG = 220e3, S_RS = 10e3, S_CC = 330e-9, S_RB = 4700, S_CB = 47e-6;
 
-typedef struct { double ip, dip, ig, dig; const Roehre *T; } Kor;
+typedef struct { double ip, dip, ig, dig; const Roehre *T; double cc, tol; int iter; } Kor;
 
 static void koren_ip(Kor *K, double Vgk, double Vpk) {
   if (Vpk < 1e-3) Vpk = 1e-3;
@@ -153,9 +153,12 @@ typedef struct {
   Adaa adaa; double adaa_y;
   Stufe st[2];                       /* Röhrenstufen (HQ): 0 = Eintakt bzw. erste Röhre, 1 = zweite Röhre im Gegentakt */
   double *delta_runter; double d_dc_x, d_dc_y, d_ton;
+  double ot_phi, ot_lp;               /* Ausgangsübertrager (Ultra) */
 } Kanal;
 
-typedef struct { double drive, bias, ton, mix, vert, s_boost, rk, ton_k, ausgleich, ausgleich_s, hq_ausgleich, hq_ausgleich_s, symm; int auto_, hq, pp; } Werte;
+typedef struct { double drive, bias, ton, mix, vert, s_boost, rk, ton_k, ausgleich, ausgleich_s, hq_ausgleich, hq_ausgleich_s, symm; int auto_, hq, pp;
+  /* Innenleben (nur Ultra): Kathodenfolger, Anodenlast, Erholung des Koppelkondensators, Röhrenalter, Ausgangsübertrager */
+  int ultra, kf, last, erholung, ot; double alter; } Werte;
 
 typedef struct { long rk, vb; Ruhe r; } CacheEintrag;
 
@@ -174,6 +177,8 @@ typedef struct {
   float *ms_ein[2]; int ms_kap;
   Kor K;
   const Roehre *T;
+  Roehre Tm;          /* die Röhre, wie sie in der Schaltung sitzt (Alter, Anodenlast) */
+  double tol_basis[4][2];
 } Glow;
 
 /** Gegentakt (HQ): zwei gleiche Stufen, die zweite mit −u; Ausgang ½·(r1 − m·r2). m = Symmetrie: bei 1 heben sich die geraden Anteile auf, bei 0 bleibt eine Röhre */
@@ -182,14 +187,32 @@ static Kurve kurve_von(const Glow *g, const Werte *z) { Kurve k = { g->T->ap, g-
 static Ruhe glow_ruhe(Glow *g, double Rk, double Vb0) {
   long krk = lround(Rk), kvb = lround(Vb0 * 10);
   for (int i = 0; i < g->n_cache; i++) if (g->cache[i].rk == krk && g->cache[i].vb == kvb) return g->cache[i].r;
-  Ruhe r = ruhepunkt(g->T, Rk, Vb0);
+  Ruhe r = ruhepunkt(&g->Tm, Rk, Vb0);
   if (g->n_cache > 64) g->n_cache = 0;
   g->cache[g->n_cache].rk = krk; g->cache[g->n_cache].vb = kvb; g->cache[g->n_cache].r = r;
   g->n_cache++;
   return r;
 }
 
+#define KF_G 0.97
 static void kanal_stufen(Glow *g, Kanal *z, int c);
+
+/** Röhre in der Schaltung: Alter (weniger Emission, etwas weniger µ) und Anodenlast (Drossel/Übertrager: gleiche Ruhe,
+ *  steilere Wechselstrom-Lastgerade) – ohne Ultra genau die Röhre aus der Tabelle. 1 = hat sich geändert */
+static int tm_bauen(Glow *g, const Werte *z) {
+  Roehre m = *g->T;
+  if (z->ultra) {
+    m.kg1 *= 1 + 0.6 * z->alter; m.mu *= 1 - 0.08 * z->alter;
+    if (z->last == 1 || z->last == 2) {
+      Ruhe r0 = ruhepunkt(&m, rk_aus_bias(g->T, 0.12), m.vb0);   /* fester Bezug: Charakter-Knopf verschiebt die Last nicht */
+      double Iq = (m.vb0 - r0.Vp) / (m.ra + S_RB), Rn = m.ra * (z->last == 1 ? 4 : 2.5);
+      m.vb0 = r0.Vp + (Rn + S_RB) * Iq; m.ra = Rn;
+    }
+  }
+  int neu = m.mu != g->Tm.mu || m.kg1 != g->Tm.kg1 || m.ra != g->Tm.ra || m.vb0 != g->Tm.vb0 || strcmp(m.name, g->Tm.name) != 0;
+  g->Tm = m; g->K.T = &g->Tm;
+  return neu;
+}
 
 static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
   Glow *g = (Glow *)fx;
@@ -204,20 +227,35 @@ static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
   if (wert_zahl(w, n, "hq", &v)) z->hq = v != 0;
   if (wert_zahl(w, n, "gegentakt", &v)) z->pp = v != 0;
   if (wert_zahl(w, n, "symm", &v)) z->symm = klemmen(v, 0, 1);
-  const char *rt = wert_text(w, n, "roehre");
-  if (rt && roehre_suchen(rt) && roehre_suchen(rt) != g->T) {
-    g->T = roehre_suchen(rt); g->K.T = g->T; g->n_cache = 0;
-    for (int c = 0; c < 8; c++) if (g->kanal[c]) kanal_stufen(g, g->kanal[c], c);
+  if (wert_zahl(w, n, "q", &v)) { z->hq = v >= 1; z->ultra = v >= 2; }
+  const char *tx;
+  if ((tx = wert_text(w, n, "stufen"))) z->kf = !strcmp(tx, "kathodenfolger");
+  if ((tx = wert_text(w, n, "anodenlast"))) z->last = !strcmp(tx, "drossel") ? 1 : !strcmp(tx, "uebertrager") ? 2 : 0;
+  if ((tx = wert_text(w, n, "erholung"))) z->erholung = !strcmp(tx, "kurz") ? 0 : !strcmp(tx, "lang") ? 2 : 1;
+  if (wert_zahl(w, n, "alter", &v)) z->alter = klemmen(v, 0, 1);
+  if (wert_zahl(w, n, "ausgangsuebertrager", &v)) z->ot = v != 0;
+  for (int i = 0; i < 2; i++) {
+    g->tol_bias[i] = exemplar_faktor(fx->exemplar, 20 + i, g->tol_basis[0][i], 0.03);
+    g->tol_drive[i] = exemplar_faktor(fx->exemplar, 22 + i, g->tol_basis[1][i], 0.035);
+    g->tol_ton[i] = exemplar_faktor(fx->exemplar, 24 + i, g->tol_basis[2][i], 0.04);
+    g->tol_vb[i] = exemplar_faktor(fx->exemplar, 26 + i, g->tol_basis[3][i], 0.02);
   }
-  const Roehre *T = g->T;
+  const char *rt = wert_text(w, n, "roehre");
+  int stufen_neu = 0;
+  if (rt && roehre_suchen(rt) && roehre_suchen(rt) != g->T) { g->T = roehre_suchen(rt); stufen_neu = 1; }
+  z->rk = rk_aus_bias(g->T, z->bias);
+  if (tm_bauen(g, z)) { g->n_cache = 0; stufen_neu = 1; }
+  if (stufen_neu) for (int c = 0; c < 8; c++) if (g->kanal[c]) kanal_stufen(g, g->kanal[c], c);
+  g->K.cc = !z->ultra ? S_CC : z->erholung == 0 ? 100e-9 : z->erholung == 2 ? 1e-6 : S_CC;
+  g->K.tol = z->ultra ? 0.002 : 0.03; g->K.iter = z->ultra ? 12 : 8;
+  const Roehre *T = &g->Tm;
   Kurve kz = kurve_von(g, z);
   g->ausgleich = z->auto_ ? statischer_ausgleich(&kz, z->drive, z->bias) : 1;
   z->s_boost = seiten_boost(z->vert);
   g->ausgleich_s = z->auto_ ? statischer_ausgleich(&kz, z->drive * z->s_boost, z->bias) : 1;
-  z->rk = rk_aus_bias(T, z->bias);
   Ruhe rp = glow_ruhe(g, z->rk, T->vb0);
   double dr = z->auto_ ? z->drive * T->v_voll : T->v_voll;
-  double pg = z->pp ? 0.5 * (1 + z->symm) : 1;   /* Gegentakt: Kleinsignal-Verstärkung ½·(1 + m) */
+  double pg = (z->pp ? 0.5 * (1 + z->symm) : 1) * (z->ultra && z->kf ? KF_G : 1);   /* Gegentakt: ½·(1 + m); Kathodenfolger 0,97 */
   g->hq_ausgleich = 1 / (rp.gain * dr * pg);
   g->hq_ausgleich_s = 1 / (rp.gain * dr * pg * (z->auto_ ? z->s_boost : 1));
   double t = z->ton;
@@ -236,7 +274,7 @@ static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
 
 static void kanal_stufen(Glow *g, Kanal *z, int c) {
   int t = c & 1;
-  Ruhe r1 = glow_ruhe(g, g->ziel.rk * g->tol_bias[t], g->T->vb0 * g->tol_vb[t]);
+  Ruhe r1 = glow_ruhe(g, g->ziel.rk * g->tol_bias[t], g->Tm.vb0 * g->tol_vb[t]);
   Ruhe rr[2] = { r1, r1 };
   for (int i = 0; i < 2; i++) { Ruhe *p = &rr[i]; Stufe *s = &z->st[i]; s->Vk = p->Vk; s->Vp = p->Vp; s->Vp_alt = p->Vp; s->Vc = -p->Vg; s->Vb = p->Vb; s->Vg = p->Vg; s->vpq = p->Vp; }
 }
@@ -253,13 +291,29 @@ static Kanal *glow_kanal(Glow *g, int c) {
   return z;
 }
 
+/** Kathodenfolger hinter der Stufe: folgt fast 1:1; steigt die Anode Richtung Versorgung, zieht sein Gitter Strom und rundet ab */
+static inline double kathodenfolger(double r, double luft) {
+  if (r >= 0) return KF_G * r;
+  double L = max_d(5, luft);
+  return -KF_G * L * th(-r / L);
+}
+/** Ausgangsübertrager (Ultra): Kern wie bei Iron, explizit (Bass-Ecke ≈ 14 Hz, sättigt sanft im Tiefbass), Streuung 28 kHz */
+static inline double ausgangsuebertrager(Kanal *z, double v, double wdt, double lpk) {
+  const double rho = 0.6, bs2 = 4.0;
+  double q = min_d(0.96, z->ot_phi * z->ot_phi / bs2), H = z->ot_phi / (1 - q);
+  double y = v - rho * H;
+  z->ot_phi += wdt * y;
+  z->ot_lp += lpk * (y - z->ot_lp);
+  return z->ot_lp;
+}
+
 /** ein Takt (8×) der Röhrenstufe */
 static double roehren_takt(Kor *K, Stufe *z, double u, double Rk, double Vb0, double dt) {
   double Vg = z->Vg, Vk = z->Vk, Vp = z->Vp, Vb = z->Vb;
   double Vs = u - z->Vc;
   Vg = Vs * (S_RG / (S_RG + S_RS));
   if (Vg - Vk > K->T->vth - 12 * K->T->w) {
-    for (int it = 0; it < 4; it++) {
+    for (int it = 0; it < K->iter / 2; it++) {
       gitterstrom(K, Vg - Vk);
       double f = (Vs - Vg) / S_RS - Vg / S_RG - K->ig;
       double dstep = f / (-1 / S_RS - 1 / S_RG - K->dig);
@@ -267,16 +321,16 @@ static double roehren_takt(Kor *K, Stufe *z, double u, double Rk, double Vb0, do
       if (fabs(dstep) < 2e-4) break;
     }
   }
-  z->Vc += dt * ((Vs - Vg) / S_RS) / S_CC;
+  z->Vc += dt * ((Vs - Vg) / S_RS) / K->cc;
   double Vgk = Vg - Vk;
   double VpNeu = 2 * Vp - z->Vp_alt; z->Vp_alt = Vp; Vp = VpNeu;
   if (Vp < Vk + 1) Vp = Vk + 1; else if (Vp > Vb) Vp = Vb;
-  for (int it = 0; it < 8; it++) {
+  for (int it = 0; it < K->iter; it++) {
     koren_ip(K, Vgk, Vp - Vk);
     double dstep = (Vp - Vb + K->T->ra * K->ip) / (1 + K->T->ra * K->dip);
     Vp -= dstep;
     if (Vp < Vk + 1) Vp = Vk + 1; else if (Vp > Vb) Vp = Vb;
-    if (fabs(dstep) < 0.03) break;
+    if (fabs(dstep) < K->tol) break;
   }
   double Ip = (Vb - Vp) / K->T->ra;
   z->Vk = Vk + dt * (Ip - Vk / Rk) / S_CK;
@@ -311,8 +365,10 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
   double boost = z0->s_boost, dBoost = (z1->s_boost - boost) / n;
   double tonK = z0->ton_k, dTon = (z1->ton_k - tonK) / n;
   double rkA = z0->rk, dRk = (z1->rk - rkA) / n;
-  const Roehre *T = g->T;
+  const Roehre *T = &g->Tm;
   Kurve kz = kurve_von(g, z1);
+  int kf = z1->ultra && z1->kf, ot = z1->ultra && z1->ot;
+  double otW = 2 * M_PI * 24 / sr, otL = 1 - exp(-2 * M_PI * min_d(28000, sr * 0.45) / sr);
   double s0a = ruhe_s(&kz, z0->bias), s0b = ruhe_s(&kz, z1->bias), dS0 = (s0b - s0a) / n;
   double dcR = 1 - 2 * M_PI * 4 / sr;
   double dt = g->dt_os;
@@ -350,6 +406,7 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
         if (tk < 0.999) tk = 1 - pow(1 - tk, g->tol_ton[t1]);
       }
       double ag = seite ? ausgS + dAusgS * i : ausg + dAusg * i;
+      if (hq && z1->auto_) ag /= g->tol_drive[t1];   /* jeder Kanal auf Verstärkung 1 eingemessen: Streuung wirkt im Klirr, nicht im Pegel */
       double mx = (mix + dMix * i) * (!ms ? 1 : seite ? min_d(1, 2 * vt) : min_d(1, 2 * (1 - vt)));
       double ein_i = x[i];
       trk[tp] = ein_i;
@@ -384,11 +441,13 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
           int dp = z->hb_d_pos;
           double r1 = roehren_takt(&g->K, &z->st[0], gerade, Rk, Vb0, dt);
           if (z1->pp) r1 = 0.5 * (r1 - z1->symm * roehren_takt(&g->K, &z->st[1], -gerade, Rk, Vb0, dt));
+          if (kf) r1 = kathodenfolger(r1, 0.85 * (z->st[0].Vb - z->st[0].vpq));
           hd[dp] = r1; dp = dp == HB_L - 1 ? 0 : dp + 1;
           double sum = 0;
           for (int t = 0; t < HB_L; t++) { int q2 = dp - 1 - t; if (q2 < 0) q2 += HB_L; sum += HB[t] * hd[q2]; }
           double r2 = roehren_takt(&g->K, &z->st[0], ungerade, Rk, Vb0, dt);
           if (z1->pp) r2 = 0.5 * (r2 - z1->symm * roehren_takt(&g->K, &z->st[1], -ungerade, Rk, Vb0, dt));
+          if (kf) r2 = kathodenfolger(r2, 0.85 * (z->st[0].Vb - z->st[0].vpq));
           hd[dp] = r2; dp = dp == HB_L - 1 ? 0 : dp + 1;
           z->hb_d_pos = dp;
           v = sum;
@@ -404,6 +463,7 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
       int b2 = (rp == 0 ? TAPS - 1 : rp - 1) + TAPS;
       double ausgang = skalar(g->fir_r, runter + b2 - TAPS + 1, TAPS);
       double v = ausgang * ag;
+      if (ot) v = ausgangsuebertrager(z, v, otW, otL);
       double w = v - dcX + dcR * dcY; dcX = v; dcY = w;
       ton += tk * (w - ton);
       double rest = 0;
@@ -454,11 +514,12 @@ AwFx *glow_neu(double sr) {
   g->poly = polyphase(g->fir, g->os, g->ph);
   g->fir_r = rueckwaerts(g->fir, g->taps);
   g->hb = halbband();
-  g->T = &ROEHREN[0]; g->K.T = g->T;
+  g->T = &ROEHREN[0]; g->Tm = ROEHREN[0]; g->K.T = &g->Tm;
   g->fx.latenz = g->verz;
   g->dt_os = 1 / (sr * g->os * 2);
   double tb[2] = {1.03, 0.975}, td[2] = {1.035, 0.968}, tt[2] = {0.96, 1.04}, tv[2] = {1.02, 0.985};
-  for (int i = 0; i < 2; i++) { g->tol_bias[i] = tb[i]; g->tol_drive[i] = td[i]; g->tol_ton[i] = tt[i]; g->tol_vb[i] = tv[i]; }
+  for (int i = 0; i < 2; i++) { g->tol_bias[i] = g->tol_basis[0][i] = tb[i]; g->tol_drive[i] = g->tol_basis[1][i] = td[i]; g->tol_ton[i] = g->tol_basis[2][i] = tt[i]; g->tol_vb[i] = g->tol_basis[3][i] = tv[i]; }
+  g->Tm = *g->T; g->K.cc = S_CC; g->K.tol = 0.03; g->K.iter = 8;
   g->drift_ph1 = 0.7; g->drift_ph2 = 2.1; g->drift_walk = 0; g->drift_wert[0] = g->drift_wert[1] = 0;
   Werte z = { .drive = 2, .bias = 0.12, .ton = 0.4, .mix = 0.8, .auto_ = 1, .vert = 0.5, .hq = 0, .pp = 0, .symm = 0.9 };
   g->ziel = z;

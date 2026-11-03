@@ -18,6 +18,8 @@ import { raumklangMenueOeffnen } from './raumklangmenue.js';
 import { titelFarbe } from './nativ.js';
 import { t, tn, zahl, sprache } from './i18n.js';
 import { spPopup, spPopupZu, spAktiv } from './schwerpunkt.js';
+import { INNEN, QUALITAET, GERAET_FELDER, innenPresetFelder } from './innenleben.js';
+import { ultraFragen, aktuelleLast, lastText, geraetSetzen } from './ultra.js';
 
 // ---------- Kleinigkeiten ----------
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -121,11 +123,19 @@ const OPTIONEN = {
 const SCHALTER = { silk: [{ k: 'kopf', t: t('Kopfbump') }, { k: 'rauschen', t: t('Rauschen'), nurHq: true }] };
 
 // Felder, die ein eigenes Geräte-Preset speichert (ohne an/aus und HQ – die gehören dem Rack)
+// Klangbestimmendes aus dem Innenleben gehört dazu; Exemplar, Netzteil, Übersprechen, Brumm, Alter und Einpegeln bleiben beim Gerät
 const PRESET_FELDER = {
-  glow: ['roehre', 'schaltung', 'symm', 'drive', 'charakter', 'ton', 'mix', 'vert'],
-  iron: ['kern', 'quelle', 'drive', 'glanz', 'mix', 'vert'],
-  silk: ['drive', 'ips', 'bias', 'gleichlauf', 'kopf', 'mix', 'vert', 'sorte', 'norm', 'rauschen'],
+  glow: ['roehre', 'schaltung', 'symm', 'drive', 'charakter', 'ton', 'mix', 'vert', ...innenPresetFelder('glow')],
+  iron: ['kern', 'quelle', 'drive', 'glanz', 'mix', 'vert', ...innenPresetFelder('iron')],
+  silk: ['drive', 'ips', 'bias', 'gleichlauf', 'kopf', 'mix', 'vert', 'sorte', 'norm', 'rauschen', ...innenPresetFelder('silk')],
 };
+// Typenschild: Seriennummer je Exemplar
+const SN = { glow: 'SN 1962-04', iron: 'SN 1971-20', silk: 'SN 1978-11' };
+const SCHRAUBE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5l7-7M15.5 15.5l-7-7"/></svg>';
+const trimSvg = (n) => `<svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="14" fill="#2b241c" stroke="#7d6b55" stroke-width="2"/><circle cx="17" cy="17" r="9" fill="#c4b49b"/><path d="M11 17h12" stroke="#3a2f25" stroke-width="2.4" stroke-linecap="round" transform="rotate(${(-135 + n * 270).toFixed(0)} 17 17)"/></svg>`;
+/** Kurzfassung eines Tipps: der erste Satz (mindestens ~40 Zeichen, sonst bis zum zweiten) */
+const ersterSatz = (x) => { const re = /[.!?](\s|$)/g; let m; while ((m = re.exec(x))) { if (m.index >= 40) return x.slice(0, m.index + 1); } return x; };
+const qVon = (o) => (o?.q ?? (o?.hq ? 1 : 0));
 const FEIN_FELDER = ['intensitaet', 'pegel', 'effekte', 'breite', 'center', 'trennung', 'lfe', 'rear'];
 const SPACE_KURZ = { dezent: t('etwas Raum'), raum: t('großer Raum'), halle: t('dunkler Hall'), live: t('Konzert') };
 
@@ -234,10 +244,11 @@ async function eigenesAnwenden(p, art, werte) {
     if (RAUMKLANG_PRESETS[werte.preset]) await spaceAlgoSetzen(p, werte.preset);
   } else if (art === 'rack') await p.rackAnwenden(werte);
 }
+const ohneGeraet = (o) => { const x = { ...o }; for (const k of GERAET_FELDER) delete x[k]; return x; };
 /** Für den Vergleich ganzer Racks: normalisiert und ohne Nebensachen */
 function rackVergleich(z) {
   return {
-    reihe: reiheNormal(z.reihe), waerme: waermeNormal(z.waerme), trafo: trafoNormal(z.trafo), band: bandNormal(z.band),
+    reihe: reiheNormal(z.reihe), waerme: ohneGeraet(waermeNormal(z.waerme)), trafo: ohneGeraet(trafoNormal(z.trafo)), band: ohneGeraet(bandNormal(z.band)),
     eq: (() => { const e = eqNormal(z.eq); return { an: e.an, b: e.baender.map((b) => pick(b, ['typ', 'an', 'f', 'g', 'q'])) }; })(),
     space: { preset: z.space?.preset || 'aus', ir: z.space?.ir || 'auto', fein: pick({ ...FEIN_STANDARD, ...(z.space?.fein || {}) }, FEIN_FELDER) },
   };
@@ -413,7 +424,8 @@ export class RackAnsicht {
         <div class="fx-kopf-reihe">
           ${zurueck}
           <div class="fx-titel"><h2>${t('Effektrack')}</h2>
-            <button type="button" class="fx-gesamt" data-fx="gesamt" aria-haspopup="dialog" title="${t('Gesamt-Preset: Reihenfolge, an/aus und alle Werte')}">${this.breit ? `<em>${t('GESAMT')}</em>` : ''}<b data-gesamt-name></b>${icon('runter', 13)}</button></div>
+            <button type="button" class="fx-gesamt" data-fx="gesamt" aria-haspopup="dialog" title="${t('Gesamt-Preset: Reihenfolge, an/aus und alle Werte')}">${this.breit ? `<em>${t('GESAMT')}</em>` : ''}<b data-gesamt-name></b>${icon('runter', 13)}</button>
+            <span class="fx-einpegeln" data-einpegeln hidden title="${h(t('Einpegeln: wie im Studio wird jeder Titel vor den Geräten auf 0 VU (−18 LUFS) gebracht und danach genau zurück – Ansteuerung wirkt bei jeder Musik gleich, die Lautheit bleibt. Abschalten je Gerät im Innenleben.'))}"><em>${t('EINPEGELN')}</em><span class="fx-vu-mini" aria-hidden="true"><i></i></span><b data-ep-wert></b><span data-ep-db></span></span></div>
           <button type="button" class="fx-bypass" data-fx="bypass" aria-pressed="${!!p.bypass}" title="${t('Alle Effekte umgehen (zum Vergleichen, wird nicht gemerkt)')}">BYPASS</button>
           <div class="fx-ab" role="group" aria-label="${t('Vergleich A/B')}" title="${t('A/B: zwei Stände vergleichen, z. B. zwei Presets – B ist anfangs eine Kopie von A, dann in B ein anderes Preset wählen und hin und her schalten')}">
             <button type="button" data-fx="ab" data-v="A" aria-pressed="${this.rack.ab.aktiv === 'A'}">A</button><button type="button" data-fx="ab" data-v="B" aria-pressed="${this.rack.ab.aktiv === 'B'}">B</button></div>
@@ -449,6 +461,7 @@ export class RackAnsicht {
         </div>
         <div class="fx-koerper"><div class="fx-innen"><div class="fx-inhalt">${this.inhaltHtml(art)}</div></div></div>
       </div>
+      ${SN[art] ? `<button type="button" class="fx-sn" data-fx="sn" title="${h(t('Exemplar {n} von 4 – jedes klingt minimal anders (Bauteilstreuung, ab HQ). Klicken: anderes Exemplar', { n: geraetObj(p, art).exemplar || 1 }))}">${SN[art]}${geraetObj(p, art).exemplar || 1}</button>` : ''}
       <span class="fx-ohr" aria-hidden="true"><i></i><i></i></span>
     </section>`;
   }
@@ -456,8 +469,60 @@ export class RackAnsicht {
   leisteHtml(art, extra = '') {
     const g = geraet(art), o = geraetObj(this.p, art);
     return `<div class="fx-leiste"><button type="button" class="fx-feld fx-preset" data-fx="preset" aria-haspopup="dialog"><span data-preset-name></span>${icon('runter', 14)}</button>
-      ${g.hq ? `<button type="button" class="fx-hq" data-fx="hq" aria-pressed="${!!o.hq}" title="High Quality: ${g.hqText}">HQ</button>` : ''}${g.hq ? `<button type="button" class="fx-hq fx-delta" data-fx="delta" aria-pressed="${this.p.raumklang.deltaArt === art}" title="${t('Delta: nur hören, was {name} am Klang verändert (immer nur ein Gerät, wird nicht gemerkt)', { name: g.name })}">Δ</button>` : ''}${g.hq ? `<button type="button" class="fx-hq fx-sp" data-fx="sp" aria-haspopup="dialog" aria-pressed="${spAktiv(o.sp)}" title="${t('Schwerpunkt: wo {name} sättigt (EQ davor, Gegenteil danach)', { name: g.name })}"><svg width="18" height="12" viewBox="0 0 18 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 9C4 9 5 2 8 2s3 7 5 7 3-3 4-3"/></svg></button>` : ''}${extra}
+      ${g.hq ? this.qHtml(o) : ''}${g.hq ? `<button type="button" class="fx-hq fx-delta" data-fx="delta" aria-pressed="${this.p.raumklang.deltaArt === art}" title="${t('Delta: nur hören, was {name} am Klang verändert (immer nur ein Gerät, wird nicht gemerkt)', { name: g.name })}">Δ</button>` : ''}${g.hq ? `<button type="button" class="fx-hq fx-sp" data-fx="sp" aria-haspopup="dialog" aria-pressed="${spAktiv(o.sp)}" title="${t('Schwerpunkt: wo {name} sättigt (EQ davor, Gegenteil danach)', { name: g.name })}"><svg width="18" height="12" viewBox="0 0 18 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 9C4 9 5 2 8 2s3 7 5 7 3-3 4-3"/></svg></button>` : ''}${extra}
       <div class="fx-gab" role="group" aria-label="A/B ${g.name}" title="${t('A/B nur für {name}: B ist anfangs eine Kopie, dann ein anderes Preset wählen und umschalten', { name: g.name })}">${['A', 'B'].map((v) => `<button type="button" data-fx="gab" data-v="${v}" aria-pressed="${this.rack.abG(art).aktiv === v}" class="${this.rack.abG(art)[v] ? 'voll' : ''}">${v}</button>`).join('')}</div></div>`;
+  }
+
+  /** Qualität: STD · HQ · ULTRA, Klick schaltet weiter, Blase beim Darüberfahren */
+  qHtml(o) {
+    const q = qVon(o), x = QUALITAET[q];
+    return `<button type="button" class="fx-q3 q${q}" data-fx="hq" data-q="${q}" aria-label="${h(t('Qualität: {q} – klicken schaltet weiter', { q: x.name }))}"><b>${x.kurz}</b><i aria-hidden="true"><s></s><s></s><s></s></i></button>`;
+  }
+
+  qBlase(knopf) {
+    this.qBlaseZu();
+    const sec = knopf.closest('.fx-mod'), q = qVon(geraetObj(this.p, sec?.dataset.art));
+    const b = document.createElement('div');
+    b.className = 'fx-q-blase';
+    b.setAttribute('role', 'tooltip');
+    b.innerHTML = `<h5>${t('Qualität')}</h5>${QUALITAET.map((x) => `<div class="${x.k === q ? 'an' : ''}"><b>${x.kurz}</b><span>${h(x.text)}</span></div>`).join('')}
+      <small>${h(t('Klicken schaltet weiter · Rechenlast hier: {last}', { last: lastText(aktuelleLast()) }))}</small>`;
+    document.body.appendChild(b);
+    const r = knopf.getBoundingClientRect(), w = b.offsetWidth;
+    b.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left - 10))}px`;
+    b.style.top = `${r.bottom + 10}px`;
+    b.style.setProperty('--pfeil', `${Math.max(14, r.left + r.width / 2 - Math.max(8, Math.min(innerWidth - w - 8, r.left - 10)) - 6)}px`);
+    this._blase = b;
+  }
+  qBlaseZu() { clearTimeout(this._blaseT); this._blase?.remove(); this._blase = null; }
+
+  /** Innenleben eines Geräts neu zeichnen (aufgeklappt bleibt aufgeklappt) */
+  innenNeu(art) {
+    const sec = this.el.querySelector(`.fx-mod[data-art="${art}"]`);
+    const lasche = sec?.querySelector('.fx-lasche'), pcb = sec?.querySelector('.fx-pcb');
+    if (!lasche || !pcb) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = this.innenHtml(art);
+    lasche.replaceWith(tmp.children[0]);
+    pcb.replaceWith(tmp.children[0]);
+  }
+
+  /** Innenleben: Lasche unter dem Gerät, aufgeklappt eine Platine mit den Bauteilen hinter der Frontplatte */
+  innenHtml(art) {
+    const o = geraetObj(this.p, art), q = qVon(o), auf = this.innenAuf?.has(art);
+    const felder = INNEN[art].map((f) => {
+      const v = o[f.k] ?? f.std;
+      const sperre = q < f.q ? (f.q === 2 ? t('nur mit Ultra') : t('ab HQ')) : f.k === 'nab_bass' && o.norm === 'ccir' ? t('nur bei NAB') : '';
+      const chip = f.q === 2 ? '<span class="fx-chip">ULTRA</span>' : f.q === 1 ? '<span class="fx-chip hq">HQ</span>' : '';
+      let ctl;
+      if (f.art === 'sch') ctl = `<button type="button" class="fx-sch" data-fx="innen-w" data-k="${f.k}" data-v="${v ? 'false' : 'true'}" aria-pressed="${!!v}"><i></i>${v ? t('an') : t('aus')}</button>`;
+      else if (f.art === 'trim') ctl = `<label class="fx-trim">${trimSvg((v - f.min) / (f.max - f.min))}<input type="range" data-innen-trim="${f.k}" min="${f.min}" max="${f.max}" step="${f.step}" value="${v}" aria-label="${h(f.n)}"><b>${h(f.fmt(v))}</b></label>`;
+      else ctl = `<div class="fx-seg" role="group" aria-label="${h(f.n)}">${f.werte.map(([w, tx]) => `<button type="button" data-fx="innen-w" data-k="${f.k}" data-v="${h(JSON.stringify(w))}" aria-pressed="${w === v}">${h(f.k === 'exemplar' && w === v ? `${tx} · ${SN[art]}${w}` : tx)}</button>`).join('')}</div>`;
+      return `<div class="fx-ig${f.breit || (f.werte && f.werte.length > 3) ? ' breit' : ''}${sperre ? ' gesperrt' : ''}" title="${h(f.tipp)}" ${sperre ? `data-sperre="${h(sperre)}"` : ''}>
+        <span class="fx-ig-k">${h(f.n)}${f.zusatz ? ` <span class="fx-ig-z">${h(f.zusatz)}</span>` : ''} ${chip}<button type="button" class="fx-ig-i" data-fx="innen-tipp" aria-label="${h(t('Erklärung: {n}', { n: f.n }))}">i</button></span>${ctl}<p data-kurz="${h(ersterSatz(f.tipp))}" data-lang="${h(f.tipp)}">${h(ersterSatz(f.tipp))}</p></div>`;
+    }).join('');
+    return `<div class="fx-lasche"><button type="button" data-fx="innen" aria-expanded="${!!auf}" title="${h(t('Innenleben: Einmessung, Bauteile, Netzteil, Exemplar – wie hinter der Frontplatte'))}">${SCHRAUBE}<span>${t('Innenleben')}</span><em>${auf ? '▴' : '▾'}</em></button></div>
+      <div class="fx-pcb" data-innen="${art}" ${auf ? '' : 'hidden'}><div class="fx-pcb-kopf"><b>${t('Innenleben · {name}', { name: geraet(art).name })}</b><small>${q < 2 ? t('Mit ULTRA markierte Teile wirken nur in Ultra – einstellen geht trotzdem.') : t('Ultra: alles wirkt.')}</small></div>${felder}</div>`;
   }
 
   reglerHtml(art) {
@@ -482,8 +547,8 @@ export class RackAnsicht {
       const k = l && l.kanaele === 6 ? ['L', 'R', 'C', 'LFE', 'LS', 'RS'] : l && l.kanaele === 4 ? ['L', 'R', 'LS', 'RS'] : ['L', 'R'];
       return digitalHtml(art, k, [[t('LAUTHEIT'), 'lufsm', 'LUFS'], [t('SPITZE'), 'spitze', 'dBFS'], [t('ZIEL'), 'ziel', 'LUFS']]);
     }
-    if (art === 'glow') return `${this.leisteHtml(art)}${vusHtml(this.breit ? ROEHRE : '')}${this.optionenHtml(art)}${this.reglerHtml(art)}`;
-    if (art === 'iron' || art === 'silk') return `${this.leisteHtml(art)}${vusHtml(this.breit ? (art === 'iron' ? KERN : spulenHtml(p.einst.band.ips)) : '')}${this.optionenHtml(art)}${this.reglerHtml(art)}`;
+    if (art === 'glow') return `${this.leisteHtml(art)}${vusHtml(this.breit ? ROEHRE : '')}${this.optionenHtml(art)}${this.reglerHtml(art)}${this.innenHtml(art)}`;
+    if (art === 'iron' || art === 'silk') return `${this.leisteHtml(art)}${vusHtml(this.breit ? (art === 'iron' ? KERN : spulenHtml(p.einst.band.ips)) : '')}${this.optionenHtml(art)}${this.reglerHtml(art)}${this.innenHtml(art)}`;
     if (art === 'space') {
       const l = spaceLayout(p);
       const hinweis = l ? '' : `<p class="fx-sperre">${t('Dieses Gerät gibt nur Stereo aus – AmberSpace wirkt an einem 5.1- oder Quadro-Ausgang. Einstellen geht trotzdem.')}</p>`;
@@ -636,7 +701,12 @@ export class RackAnsicht {
       sec.querySelector('[data-fx="delta"]')?.setAttribute('aria-pressed', String(p.raumklang.deltaArt === art));
       sec.querySelectorAll('[data-fx="gab"]').forEach((b) => { const st = this.rack.abG(art); b.setAttribute('aria-pressed', String(st.aktiv === b.dataset.v)); b.classList.toggle('voll', !!st[b.dataset.v]); });
       const hq = sec.querySelector('[data-fx="hq"]');
-      if (hq) hq.setAttribute('aria-pressed', String(!!geraetObj(p, art)?.hq));
+      if (hq) {
+        const q = qVon(geraetObj(p, art));
+        if (+hq.dataset.q !== q) { const tmp = document.createElement('div'); tmp.innerHTML = this.qHtml(geraetObj(p, art)); hq.replaceWith(tmp.firstElementChild); }
+      }
+      const sn = sec.querySelector('[data-fx="sn"]');
+      if (sn) sn.textContent = `${SN[art]}${geraetObj(p, art).exemplar || 1}`;
       const spk = sec.querySelector('[data-fx="sp"]');
       if (spk) spk.setAttribute('aria-pressed', String(spAktiv(geraetObj(p, art)?.sp)));
       sec.querySelectorAll('[data-knopf]').forEach((k) => this.knopfZeigen(k));
@@ -649,6 +719,23 @@ export class RackAnsicht {
     this.kette();
     this.abZeile();
     this.eqZeichnen();
+    this.einpegelnZeigen();
+  }
+
+  /** Einpegeln im Kopf: Lautheit des Titels → 0 VU, so viel rein und genau so viel wieder raus */
+  einpegelnZeigen() {
+    const el = this.el.querySelector('[data-einpegeln]');
+    if (!el) return;
+    const p = this.p, aktiv = ['glow', 'iron', 'silk'].filter((a) => anWert(p, a) && geraetObj(p, a)?.bezug !== false);
+    el.hidden = !aktiv.length || !!p.bypass;
+    if (el.hidden) return;
+    const lufs = p.raumklang.waermeLufs;
+    const wert = el.querySelector('[data-ep-wert]'), db = el.querySelector('[data-ep-db]');
+    if (lufs == null || !Number.isFinite(lufs)) { wert.textContent = t('Lautheit unbekannt'); db.textContent = ''; el.style.setProperty('--vu', '.5'); return; }
+    const d = clamp(-18 - lufs, -12, 12);
+    wert.textContent = t('{l} LUFS → 0 VU', { l: dez(lufs, 1) });
+    db.textContent = Math.abs(d) < 0.05 ? t('passt schon') : t('{a} dB rein, {b} dB raus', { a: vz(d, 1), b: vz(-d, 1) });
+    el.style.setProperty('--vu', String(clamp(0.57 + (lufs + 18) / 40, 0.05, 0.95)));
   }
 
   /** Zustand eines VST3-Moduls (Status, Knöpfe) nachführen */
@@ -717,9 +804,9 @@ export class RackAnsicht {
     }
     const name = this.rack.presetName(art);
     const o = geraetObj(p, art);
-    if (art === 'glow') return `${name} · ${WAERME_ROEHREN[o.roehre].name}${o.schaltung === 'gegentakt' ? ` ${t('Gegentakt')}` : ''}${o.hq ? ' · HQ' : ''} · ${t('Ansteuerung {n} %', { n: o.drive })}`;
-    if (art === 'iron') return `${name} · ${TRAFO_KERNE[o.kern].name} · ${TRAFO_QUELLEN[o.quelle].name}${o.hq ? ' · HQ' : ''}`;
-    if (art === 'silk') return `${name} · ${zahl(o.ips)} ips · ${BAND_SORTEN[o.sorte].name}${o.hq ? ' · HQ' : ''}`;
+    if (art === 'glow') return `${name} · ${WAERME_ROEHREN[o.roehre].name}${o.schaltung === 'gegentakt' ? ` ${t('Gegentakt')}` : ''}${['', ' · HQ', ' · Ultra'][qVon(o)]} · ${t('Ansteuerung {n} %', { n: o.drive })}`;
+    if (art === 'iron') return `${name} · ${TRAFO_KERNE[o.kern].name} · ${TRAFO_QUELLEN[o.quelle].name}${['', ' · HQ', ' · Ultra'][qVon(o)]}`;
+    if (art === 'silk') return `${name} · ${zahl(o.ips)} ips · ${BAND_SORTEN[o.sorte].name}${['', ' · HQ', ' · Ultra'][qVon(o)]}`;
     if (art === 'eq') return [o.modus === 'passiv' ? 'Analog' : '', ...o.baender.map((b, i) => `${EQ_KURZ[i]} ${vz(b.g, Math.abs(b.g) % 1 ? 1 : 0)}`)].filter(Boolean).join(' · ');
     if (art === 'space') {
       const st = staerkeErkennen(fein(p));
@@ -948,6 +1035,32 @@ export class RackAnsicht {
     el.addEventListener('dblclick', (e) => this.doppel(e));
     el.addEventListener('wheel', (e) => this.rad(e), { passive: false });
     el.addEventListener('keydown', (e) => this.taste(e));
+    // Innenleben: Trimmer (Schieber) – Wert sofort zeigen, gesetzt wird gebündelt
+    el.addEventListener('input', (e) => {
+      const r = e.target.closest('[data-innen-trim]');
+      if (!r) return;
+      const art = r.closest('.fx-mod')?.dataset.art, f = INNEN[art]?.find((x) => x.k === r.dataset.innenTrim);
+      if (!f) return;
+      const v = +r.value;
+      r.parentElement.querySelector('b').textContent = f.fmt(v);
+      r.parentElement.querySelector('svg path')?.setAttribute('transform', `rotate(${(-135 + (v - f.min) / (f.max - f.min) * 270).toFixed(0)} 17 17)`);
+      clearTimeout(this._trimT);
+      this._trimT = setTimeout(() => geraetSetzen(this.p, art, { ...geraetObj(this.p, art), [f.k]: v }), 120);
+    });
+    // Qualität: Blase beim Darüberfahren mit der Maus (Touch: Tippen schaltet direkt)
+    el.addEventListener('pointerover', (e) => {
+      const k = e.target.closest?.('.fx-q3');
+      if (!k || e.pointerType !== 'mouse' || this._blaseKnopf === k) return;
+      this._blaseKnopf = k;
+      clearTimeout(this._blaseT);
+      this._blaseT = setTimeout(() => { if (k.isConnected && k.matches(':hover')) this.qBlase(k); }, 380);
+    });
+    el.addEventListener('pointerout', (e) => {
+      const k = e.target.closest?.('.fx-q3');
+      if (!k || k.contains(e.relatedTarget)) return;
+      this._blaseKnopf = null;
+      this.qBlaseZu();
+    });
     this.bewegen = (e) => this.zugBewegen(e);
     this.loslassen = () => this.zugEnde();
     window.addEventListener('pointermove', this.bewegen, { passive: true });
@@ -999,9 +1112,41 @@ export class RackAnsicht {
     }
     if (was === 'vst-neu') { vstWaehler(a); return; }
     if (was === 'hq') {
+      this.qBlaseZu();
       const o = geraetObj(p, art);
-      if (art === 'glow') p.waermeSetzen({ ...o, hq: !o.hq }); else if (art === 'iron') p.trafoSetzen({ ...o, hq: !o.hq }); else p.bandSetzen({ ...o, hq: !o.hq });
+      let q = (qVon(o) + 1) % 3;
+      if (q === 2 && !await ultraFragen()) q = qVon(o);
+      if (q === qVon(geraetObj(p, art))) return;
+      geraetSetzen(p, art, { ...geraetObj(p, art), q, hq: q >= 1 });
       this.karteNeu(art);
+      return;
+    }
+    if (was === 'innen') {
+      (this.innenAuf ||= new Set());
+      if (this.innenAuf.has(art)) this.innenAuf.delete(art); else this.innenAuf.add(art);
+      const auf = this.innenAuf.has(art), pcb = sec.querySelector('[data-innen]');
+      if (pcb) pcb.hidden = !auf;
+      a.setAttribute('aria-expanded', String(auf));
+      a.querySelector('em').textContent = auf ? '▴' : '▾';
+      if (auf && pcb && !ruhig()) pcb.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
+      return;
+    }
+    if (was === 'innen-tipp') {
+      const ps = a.closest('.fx-ig')?.querySelector('p');
+      if (ps) { const lang = ps.textContent === ps.dataset.lang; ps.textContent = lang ? ps.dataset.kurz : ps.dataset.lang; a.setAttribute('aria-pressed', String(!lang)); }
+      return;
+    }
+    if (was === 'innen-w') {
+      let v; try { v = JSON.parse(a.dataset.v); } catch (err) { v = a.dataset.v; }
+      geraetSetzen(p, art, { ...geraetObj(p, art), [a.dataset.k]: v });
+      this.innenNeu(art);
+      return;
+    }
+    if (was === 'sn') {
+      const ex = ((geraetObj(p, art).exemplar || 1) % 4) + 1;
+      geraetSetzen(p, art, { ...geraetObj(p, art), exemplar: ex });
+      toast(t('{name}: Exemplar {n} · {sn}', { name: geraet(art).name, n: ex, sn: `${SN[art]}${ex}` }) + (qVon(geraetObj(p, art)) < 1 ? ` – ${t('wirkt ab HQ')}` : ''));
+      this.aktualisieren(); this.innenNeu(art);
       return;
     }
     if (was === 'sw') { const o = geraetObj(p, art); p.bandSetzen({ ...o, [a.dataset.sw]: !o[a.dataset.sw] }); a.setAttribute('aria-pressed', String(!o[a.dataset.sw])); return; }
@@ -1279,6 +1424,7 @@ export class RackAnsicht {
 
   schliessen() {
     spPopupZu();
+    this.qBlaseZu();
     if (this.zu) return;
     this.zu = true;
     if (this.modus === 'breit' || this.modus === 'karten') titelFarbe(null, 'rack');
