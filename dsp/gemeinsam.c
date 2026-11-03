@@ -173,15 +173,15 @@ static void innen_block(AwFx *fx, float *const *aus, int kan, int n) {
   const double sr = fx->sr;
   int st = kan >= 2 && aus[0] && aus[1];
   if (fx->netz) {
-    // Netzteil gibt unter Last minimal nach: −0,25 dB bei Dauerpegel −6 dBFS; gemeinsam zieht jeder Kanal beide herunter
-    const double ka = 1 - exp(-1 / (sr * 0.02)), kr = 1 - exp(-1 / (sr * 0.25)), k = 0.0057;
+    // Netzteil gibt unter Last nach: etwa −0,2 dB bei einem Dauerton mit −6 dBFS, höchstens −0,6 dB; gemeinsam zieht jeder Kanal beide herunter
+    const double ka = 1 - exp(-1 / (sr * 0.02)), kr = 1 - exp(-1 / (sr * 0.25)), k = 0.07;
     for (int i = 0; i < n; i++) {
       double e[2];
       for (int c = 0; c < (st ? 2 : 1); c++) { double a = fabs(aus[c][i]); fx->netz_env[c] += (a > fx->netz_env[c] ? ka : kr) * (a - fx->netz_env[c]); e[c] = fx->netz_env[c]; }
-      if (!st) { aus[0][i] = (float)(aus[0][i] * (1 - k * min_d(2, e[0]))); continue; }
+      if (!st) { aus[0][i] = (float)(aus[0][i] * (1 - k * min_d(1, e[0]))); continue; }
       double gl = fx->netz == 2 ? 0.5 * (e[0] + e[1]) : e[0], gr = fx->netz == 2 ? gl : e[1];
-      aus[0][i] = (float)(aus[0][i] * (1 - k * min_d(2, gl)));
-      aus[1][i] = (float)(aus[1][i] * (1 - k * min_d(2, gr)));
+      aus[0][i] = (float)(aus[0][i] * (1 - k * min_d(1, gl)));
+      aus[1][i] = (float)(aus[1][i] * (1 - k * min_d(1, gr)));
     }
   }
   if (fx->ueber > 0 && st) {

@@ -7,8 +7,8 @@ import { t, region } from './i18n.js';
 
 export const QUALITAET = [
   { k: 0, kurz: 'STD', name: t('Standard'), text: t('Klingt gut, kaum Rechenlast – auf jedem Gerät.') },
-  { k: 1, kurz: 'HQ', name: 'HQ', text: t('Klingt besser: Hysterese, Bauteilstreuung, Drift, mehr Oversampling.') },
-  { k: 2, kurz: 'ULTRA', name: 'Ultra', text: t('Bildet die Schaltung Bauteil für Bauteil nach – mit allem aus dem Innenleben.') },
+  { k: 1, kurz: 'HQ', name: 'HQ', text: t('Klingt besser: Hysterese, Bauteilstreuung, Drift, mehr Oversampling – hier sitzt die Rechenlast.') },
+  { k: 2, kurz: 'ULTRA', name: 'Ultra', text: t('Bildet die Schaltung Bauteil für Bauteil nach – mit allem aus dem Innenleben. Kostet nur wenig mehr als HQ.') },
 ];
 
 /** Netzfrequenz der Region (Brumm): 60 Hz in Nord- und Teilen Südamerikas, Korea, Taiwan, Philippinen, Saudi-Arabien */
@@ -18,7 +18,7 @@ export const netzfrequenz = () => (NETZ_60.has(String(region.land || '').toUpper
 const UEBER = (std) => ({ k: 'uebersprechen', n: t('Übersprechen'), art: 'stufen', werte: [['aus', t('aus')], [-80, '−80'], [-70, '−70'], [-62, '−62'], [-54, '−54 dB']], std, q: 0, preset: false,
   tipp: t('Ein Hauch des anderen Kanals, kapazitiv – steigt zu den Höhen hin. Angabe bei 10 kHz. Echte Geräte liegen bei −60 bis −80 dB.') });
 const NETZ = (std) => ({ k: 'netzteil', n: t('Netzteil'), art: 'seg', werte: [['getrennt', t('Getrennt')], ['gemeinsam', t('Gemeinsam')]], std, q: 0, preset: false,
-  tipp: t('Gemeinsam: beide Kanäle hängen an einem Netzteil – lauter Bass links lässt die Spannung auch rechts minimal nachgeben (unter 0,3 dB). Getrennt: jeder Kanal für sich.') });
+  tipp: t('Gemeinsam: beide Kanäle hängen an einem Netzteil – lauter Bass links lässt die Spannung auch rechts etwas nachgeben (ein paar Zehntel dB, wie ein sanftes Atmen). Getrennt: jeder Kanal für sich.') });
 const BRUMM = { k: 'brumm', n: t('Brumm'), art: 'sch', std: false, q: 0, preset: false,
   tipp: t('Netzbrumm mit Gleichrichter-Oberwelle, sehr leise (um −85 dBFS), unter Last etwas mehr. Standard: aus.') };
 const EXEMPLAR = { k: 'exemplar', n: t('Exemplar'), art: 'seg', werte: [[1, '1'], [2, '2'], [3, '3'], [4, '4']], std: 1, q: 1, preset: false,

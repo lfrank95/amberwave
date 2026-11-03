@@ -703,7 +703,7 @@ export class RackAnsicht {
       const hq = sec.querySelector('[data-fx="hq"]');
       if (hq) {
         const q = qVon(geraetObj(p, art));
-        if (+hq.dataset.q !== q) { const tmp = document.createElement('div'); tmp.innerHTML = this.qHtml(geraetObj(p, art)); hq.replaceWith(tmp.firstElementChild); }
+        if (+hq.dataset.q !== q) { const tmp = document.createElement('div'); tmp.innerHTML = this.qHtml(geraetObj(p, art)); hq.replaceWith(tmp.firstElementChild); this.innenNeu(art); }
       }
       const sn = sec.querySelector('[data-fx="sn"]');
       if (sn) sn.textContent = `${SN[art]}${geraetObj(p, art).exemplar || 1}`;

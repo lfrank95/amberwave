@@ -31,8 +31,8 @@ export async function ultraFragen() {
   const balken = l == null ? '' : `<div class="ultra-last"><span>${t('Rechenlast jetzt')}</span><i><b style="width:${Math.min(100, Math.round(l * 100))}%"></b></i><span>${Math.round(l * 100)} %</span></div>`;
   const r = await dialog({
     titel: t('Ultra-Qualität'),
-    inhalt: `<p>${h(t('Ultra bildet die Schaltung Bauteil für Bauteil nach – mit allem, was im Innenleben einstellbar ist. Das braucht deutlich mehr Rechenleistung als HQ.'))}</p>
-      <p>${h(t('Auf diesem Gerät könnte es hakeln. Merkt Amberwave Aussetzer, schaltet es von selbst auf HQ zurück und sagt Bescheid.'))}</p>${balken}
+    inhalt: `<p>${h(t('Ultra bildet die Schaltung Bauteil für Bauteil nach – mit allem, was im Innenleben einstellbar ist. Es rechnet etwa ein Zehntel mehr als HQ; HQ selbst ist schon ein Vielfaches von Standard.'))}</p>
+      <p>${h(t('Auf einem schwachen Gerät (Handy, älterer Laptop) kann das hakeln. Merkt Amberwave Aussetzer oder dauerhaft hohe Last, schaltet es von selbst auf HQ zurück und sagt Bescheid.'))}</p>${balken}
       <label class="ultra-frage"><input type="checkbox" name="nicht_fragen" checked> ${h(t('Auf diesem Gerät nicht mehr fragen'))}</label>`,
     knoepfe: [{ text: t('Abbrechen'), wert: 'abbrechen', art: 'zweit' }, { text: t('Ultra einschalten'), wert: 'ja', art: 'haupt' }],
   });

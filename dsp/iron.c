@@ -82,7 +82,16 @@ static Abgel ableiten(Iron *t) {
   a.w_ref = 2 * M_PI * k->fRef;
   a.drive_f = (a.last == 1 ? 1.15 : a.last == 2 ? 0.95 : 1) * (1 + 0.1 * (a.uebers - 1));
   a.ke = a.wirbel ? 0.06 : 0;
-  a.wb_k = a.wirbel ? 1 - exp(-2 * M_PI * min_d(60000, sr * 0.49) / sr) : 0;
+  if (a.wirbel) {
+    // Hautwirkung im Blech: ein Pol bei 60 kHz. Der liegt bei 44,1/48 kHz über Nyquist – deshalb wird der Koeffizient so gewählt,
+    // dass der Betrag bei 20 kHz bei jeder Abtastrate dem analogen Pol entspricht (−0,46 dB), statt ihn einfach abzuschneiden
+    double ziel = 1 / sqrt(1 + (20000.0 / 60000) * (20000.0 / 60000)), w = 2 * M_PI * 20000 / sr, lo = 0.05, hi = 1;
+    for (int it = 0; it < 40; it++) {
+      double k = 0.5 * (lo + hi), re = 1 - (1 - k) * cos(w), im = (1 - k) * sin(w), betrag = k / sqrt(re * re + im * im);
+      if (betrag < ziel) lo = k; else hi = k;
+    }
+    a.wb_k = 0.5 * (lo + hi);
+  } else a.wb_k = 0;
   // Last: 10 kΩ (Standard) neutral; 600 Ω dämpft die Höhen; offen (hochohmig) lässt die Streuresonanz stehen
   a.last_an = a.last == 1 || a.last == 2;
   if (a.last_an) {
