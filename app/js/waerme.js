@@ -18,12 +18,15 @@ import { qualitaet, innenNormal, innenParameter } from './innenleben.js';
 import { ansteuerungFaktor, ansteuerungUmrechnen } from './ansteuerung.js';
 const metaInhalt = (n) => (typeof document !== 'undefined' && document.querySelector(`meta[name="${n}"]`)?.content) || '';
 
+// Ansteuerung auf der Klirr-Skala, gemessen mit der ganzen Stufe bei −18 LUFS: Hauch ≈ 0,3 %, Warm ≈ 1,2 %, Glut ≈ 5 %
 export const WAERME_STUFEN = {
-  hauch: { name: t('Hauch'), kurz: t('kaum hörbar, etwas Glanz'), drive: ansteuerungUmrechnen('glow', 22), charakter: 35, ton: 20, mix: 60, vert: 50 },
-  warm: { name: 'Warm', kurz: t('rund und dicht'), drive: ansteuerungUmrechnen('glow', 45), charakter: 55, ton: 40, mix: 85, vert: 50 },
-  glut: { name: t('Glut'), kurz: t('kräftig, Spitzen schmelzen'), drive: ansteuerungUmrechnen('glow', 70), charakter: 75, ton: 60, mix: 100, vert: 50 },
+  hauch: { name: t('Hauch'), kurz: t('kaum hörbar, etwas Glanz'), drive: 45, charakter: 35, ton: 20, mix: 60, vert: 50 },
+  warm: { name: 'Warm', kurz: t('rund und dicht'), drive: 60, charakter: 55, ton: 40, mix: 85, vert: 50 },
+  glut: { name: t('Glut'), kurz: t('kräftig, Spitzen schmelzen'), drive: 80, charakter: 75, ton: 60, mix: 100, vert: 50 },
 };
 
+/** Ansteuerung der Stufen bis beta.19 (alte Skala): wer genau eine Stufe eingestellt hatte, bekommt die neu abgestimmte */
+const ALT_STUFEN = { hauch: 22, warm: 45, glut: 70 };
 const META = (() => { try { return JSON.parse(metaInhalt('aw-waerme') || '{}'); } catch (e) { return {}; } })();
 const VORGABE_STUFE = META.vorgabe || 'aus';
 
@@ -52,7 +55,7 @@ export function waermeNormal(w) {
     an: !!x.an,
     stufe: WAERME_STUFEN[x.stufe] ? x.stufe : (x.stufe === 'eigen' ? 'eigen' : 'warm'),
     // Ansteuerung auf der Klirr-Skala (ansteuerung.js); Werte von vor beta.19 (ohne skala) klingen nach dem Umrechnen gleich
-    drive: Math.round(clamp(w && w.skala !== 2 && w.drive != null ? ansteuerungUmrechnen('glow', w.drive) : x.drive, 0, 150)), skala: 2, charakter: Math.round(clamp(x.charakter, 0, 100)),
+    drive: Math.round(clamp(w && w.skala !== 2 && w.drive != null ? (WAERME_STUFEN[w.stufe] && Math.abs(w.drive - ALT_STUFEN[w.stufe]) <= 1 ? WAERME_STUFEN[w.stufe].drive : ansteuerungUmrechnen('glow', w.drive)) : x.drive, 0, 150)), skala: 2, charakter: Math.round(clamp(x.charakter, 0, 100)),
     ton: Math.round(clamp(x.ton, 0, 100)), mix: Math.round(clamp(x.mix, 0, 100)), vert: Math.round(clamp(x.vert ?? 50, 0, 100)),
     sp: spNormal(x.sp),   // Sättigungs-Schwerpunkt (schwerpunkt.js)
     auto: true,   // immer an (Gegenkopplung zur Ansteuerung)

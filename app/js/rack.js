@@ -67,7 +67,7 @@ function geraet(art) {
 const ANSTEUERUNG_TIPP = t('Wie heiß das Signal ins Gerät geht – danach wird genau so viel wieder zurückgenommen, lauter wird es nicht. Bei allen drei Geräten gleich geeicht: 25 % ≈ 0,3 %, 50 % ≈ 1 %, 75 % ≈ 3 %, 100 % ≈ 10 % Klirr bei lauten Stellen (gemessen bei −18 LUFS, dem Pegel nach dem Einpegeln). Bassreiche Musik treibt Iron und Silk etwas stärker.');
 const KNOEPFE = {
   glow: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v) => ansteuerungText('glow', v), tipp: ANSTEUERUNG_TIPP },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v, o) => ansteuerungText('glow', v, o), tipp: ANSTEUERUNG_TIPP },
     { k: 'charakter', n: t('Charakter'), min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'ton', n: t('Höhen'), min: 0, max: 100, step: 1, fmt: (v) => (v < 1 ? t('neutral') : t('samtig {n} %', { n: Math.round(v) })) },
     { k: 'symm', n: t('Symmetrie'), min: 0, max: 100, step: 1, nurGegentakt: true, fmt: PROZ },
@@ -75,13 +75,13 @@ const KNOEPFE = {
     { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT, tipp: VERT_TIPP },
   ],
   iron: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v) => ansteuerungText('iron', v), tipp: ANSTEUERUNG_TIPP },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v, o) => ansteuerungText('iron', v, o), tipp: ANSTEUERUNG_TIPP },
     { k: 'glanz', n: t('Glanz'), min: 0, max: 100, step: 1, bip: true, fmt: (v) => `${vz((v - 50) / 50, 1)} dB` },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'vert', n: t('Verteilung'), min: 0, max: 100, step: 1, bip: true, fmt: VERT, tipp: VERT_TIPP },
   ],
   silk: [
-    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v) => ansteuerungText('silk', v), tipp: ANSTEUERUNG_TIPP },
+    { k: 'drive', n: t('Ansteuerung'), min: 0, max: 150, step: 1, fmt: (v, o) => ansteuerungText('silk', v, o), tipp: ANSTEUERUNG_TIPP },
     { k: 'bias', n: 'Bias', min: 0, max: 100, step: 1, fmt: PROZ },
     { k: 'gleichlauf', n: t('Gleichlauf'), min: 0, max: 100, step: 1, nurHq: true, fmt: (v) => `${dez(v * 0.0025, 3)} %` },
     { k: 'mix', n: t('Anteil'), min: 0, max: 100, step: 1, fmt: PROZ },
@@ -317,9 +317,16 @@ ${raster ? `<path d="${raster}" fill="none" stroke="rgba(255,236,214,.4)" stroke
 <circle cx="28" cy="28" r="15" fill="#2a2019" stroke="rgba(255,236,214,.2)"/>
 <line x1="28" y1="28" x2="28" y2="16" stroke="#f6efe7" stroke-width="2.5" stroke-linecap="round" transform="rotate(${rot.toFixed(1)} 28 28)"/></svg>`;
 }
+/** Einstellung des Geräts für die Anzeige der Ansteuerung (Iron: Quelle „Auto“ aufgelöst wie in raumklang.js) */
+function anzeigeObj(p, art) {
+  const o = geraetObj(p, art);
+  if (art !== 'iron' || o?.quelle !== 'auto') return o;
+  const r = p.einst.reihe || [];
+  return { ...o, quelle: waermeWirksam(p.einst.waerme) && r.indexOf('glow') < r.indexOf('iron') ? 'roehre' : 'studio' };
+}
 function knopfHtml(p, art, key, farbe, aus = false) {
-  const d = knopfDef(p, art, key), v = knopfWert(p, art, key);
-  return `<div class="fx-knopf${aus ? ' gesperrt' : ''}" data-knopf="${key}" data-art="${art}" role="slider" tabindex="0" aria-label="${h(d.n)}" aria-valuetext="${h(d.fmt(v))}" title="${aus ? (d.nurGegentakt ? t('nur im Gegentakt') : t('nur mit HQ')) : h(d.tipp ? `${d.tipp}\n${t('Ziehen: ändern · Doppelklick: zurück aufs Preset')}` : t('Ziehen: ändern · Doppelklick: zurück aufs Preset'))}">${knopfSvg(d, v, farbe)}<span>${h(d.n)}</span><b>${h(d.fmt(v))}</b></div>`;
+  const d = knopfDef(p, art, key), v = knopfWert(p, art, key), tx = d.fmt(v, anzeigeObj(p, art));
+  return `<div class="fx-knopf${aus ? ' gesperrt' : ''}" data-knopf="${key}" data-art="${art}" role="slider" tabindex="0" aria-label="${h(d.n)}" aria-valuetext="${h(tx)}" title="${aus ? (d.nurGegentakt ? t('nur im Gegentakt') : t('nur mit HQ')) : h(d.tipp ? `${d.tipp}\n${t('Ziehen: ändern · Doppelklick: zurück aufs Preset')}` : t('Ziehen: ändern · Doppelklick: zurück aufs Preset'))}">${knopfSvg(d, v, farbe)}<span>${h(d.n)}</span><b>${h(tx)}</b></div>`;
 }
 
 // Färbungsmeter: logarithmische Skala 0,01 … 10 % Klirr, ab 3 % rot
@@ -832,13 +839,14 @@ export class RackAnsicht {
     if (!d) return;
     const v = knopfWert(p, art, key);
     const farbe = art === 'eq' ? EQ_FARBEN[+key.split('_')[0]] : '#ffb547';
-    const sig = `${v}|${farbe}|${d.min}|${d.max}`;
+    const tx = d.fmt(v, anzeigeObj(p, art));   // hängt auch an Röhre, Kern, Band, Bias, Anteil
+    const sig = `${v}|${farbe}|${d.min}|${d.max}|${tx}`;
     if (el._sig === sig) return;
     el._sig = sig;
     el.querySelector('svg').outerHTML = knopfSvg(d, v, farbe);
-    el.querySelector('b').textContent = d.fmt(v);
+    el.querySelector('b').textContent = tx;
     el.querySelector('span').textContent = d.n;
-    el.setAttribute('aria-valuetext', d.fmt(v));
+    el.setAttribute('aria-valuetext', tx);
   }
 
   // ---------- EQ-Analyzer ----------

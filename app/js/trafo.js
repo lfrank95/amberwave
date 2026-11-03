@@ -21,10 +21,13 @@ const VORGABE_STUFE = META.vorgabe || 'aus';
 const VORGABE_KERN = ['nickel', 'stahl', 'eisen', 'mumetall', 'amorph'].includes(META.kern) ? META.kern : 'stahl';
 export const TRAFO_BEZUG_LUFS = Number.isFinite(+META.bezug) ? +META.bezug : -18;
 
+// Ansteuerung auf der Klirr-Skala (Stahl, Studio, −18 LUFS): Hauch ≈ 0,3 %, Satt ≈ 1,2 %, Schwer ≈ 3 % – bis beta.19 lagen alle drei unter 0,1 %
+/** Ansteuerung der Stufen bis beta.19 (alte Skala) */
+const ALT_STUFEN = { hauch: 25, satt: 50, schwer: 75 };
 export const TRAFO_STUFEN = {
-  hauch: { name: t('Hauch'), kurz: t('nur ganz unten etwas dichter'), drive: ansteuerungUmrechnen('iron', 25), mix: 100 },
-  satt: { name: t('Satt'), kurz: t('fester Bass, dichte Mitten'), drive: ansteuerungUmrechnen('iron', 50), mix: 100 },
-  schwer: { name: t('Schwer'), kurz: t('heiß gefahren, Bass verdichtet'), drive: ansteuerungUmrechnen('iron', 75), mix: 100 },
+  hauch: { name: t('Hauch'), kurz: t('nur ganz unten etwas dichter'), drive: 30, mix: 100 },
+  satt: { name: t('Satt'), kurz: t('fester Bass, dichte Mitten'), drive: 60, mix: 100 },
+  schwer: { name: t('Schwer'), kurz: t('heiß gefahren, Bass verdichtet'), drive: 80, mix: 100 },
 };
 export const TRAFO_QUELLEN = {
   auto: { name: 'Auto', kurz: t('Röhre, wenn AmberGlow an ist, sonst Studio') },
@@ -53,7 +56,7 @@ export function trafoNormal(t) {
     stufe: TRAFO_STUFEN[x.stufe] ? x.stufe : 'eigen',
     kern: TRAFO_KERNE[x.kern] ? x.kern : 'stahl',
     quelle: TRAFO_QUELLEN[x.quelle] ? x.quelle : 'auto',
-    drive: Math.round(clamp(t && t.skala !== 2 && t.drive != null ? ansteuerungUmrechnen('iron', t.drive) : x.drive, 0, 150)),   // Klirr-Skala; alte Werte umgerechnet
+    drive: Math.round(clamp(t && t.skala !== 2 && t.drive != null ? (TRAFO_STUFEN[t.stufe] && Math.abs(t.drive - ALT_STUFEN[t.stufe]) <= 1 ? TRAFO_STUFEN[t.stufe].drive : ansteuerungUmrechnen('iron', t.drive)) : x.drive, 0, 150)),   // Klirr-Skala; alte Werte umgerechnet
     skala: 2,
     glanz: Math.round(clamp(x.glanz, 0, 100)),
     mix: Math.round(clamp(x.mix, 0, 100)),

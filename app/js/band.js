@@ -34,10 +34,14 @@ export const BAND_NORMEN = {
 const VORGABE_SORTE = BAND_SORTEN[META.sorte] ? META.sorte : 'sm900';
 const VORGABE_NORM = BAND_NORMEN[META.norm] ? META.norm : 'nab';
 
+// Ansteuerung auf der Klirr-Skala, gemessen mit der ganzen Stufe bei −18 LUFS: Fresh ≈ 0,5 %, Worn In ≈ 2 %, Old ≈ 4 %
+// (7,5 ips sättigt bei gleicher Stellung deutlich früher als 15 ips – deshalb liegen Worn In und Old niedriger)
+/** Ansteuerung der Stufen bis beta.19 (alte Skala) */
+const ALT_STUFEN = { fresh: 30, worn: 50, old: 62 };
 export const BAND_STUFEN = {
-  fresh: { name: 'Fresh', kurz: t('15 ips, neues Band'), drive: ansteuerungUmrechnen('silk', 30), ips: 15, bias: 55, gleichlauf: 8, kopf: true, mix: 100 },
-  worn: { name: 'Worn In', kurz: t('7,5 ips, eingespielt'), drive: ansteuerungUmrechnen('silk', 50), ips: 7.5, bias: 45, gleichlauf: 25, kopf: true, mix: 100 },
-  old: { name: 'Old', kurz: t('altes Band, lebt'), drive: ansteuerungUmrechnen('silk', 62), ips: 7.5, bias: 35, gleichlauf: 55, kopf: true, mix: 100 },
+  fresh: { name: 'Fresh', kurz: t('15 ips, neues Band'), drive: 40, ips: 15, bias: 55, gleichlauf: 8, kopf: true, mix: 100 },
+  worn: { name: 'Worn In', kurz: t('7,5 ips, eingespielt'), drive: 32, ips: 7.5, bias: 45, gleichlauf: 25, kopf: true, mix: 100 },
+  old: { name: 'Old', kurz: t('altes Band, lebt'), drive: 45, ips: 7.5, bias: 35, gleichlauf: 55, kopf: true, mix: 100 },
 };
 const STUFEN_FELDER = ['drive', 'ips', 'bias', 'gleichlauf', 'kopf', 'mix'];
 export const BAND_IPS = [7.5, 15, 30];
@@ -52,7 +56,7 @@ export function bandNormal(b) {
   return {
     an: !!x.an,
     stufe: BAND_STUFEN[x.stufe] ? x.stufe : 'eigen',
-    drive: Math.round(clamp(b && b.skala !== 2 && b.drive != null ? ansteuerungUmrechnen('silk', b.drive) : x.drive, 0, 150)),   // Klirr-Skala; alte Werte umgerechnet
+    drive: Math.round(clamp(b && b.skala !== 2 && b.drive != null ? (BAND_STUFEN[b.stufe] && Math.abs(b.drive - ALT_STUFEN[b.stufe]) <= 1 ? BAND_STUFEN[b.stufe].drive : ansteuerungUmrechnen('silk', b.drive)) : x.drive, 0, 150)),   // Klirr-Skala; alte Werte umgerechnet
     skala: 2,
     ips: BAND_IPS.includes(+x.ips) ? +x.ips : 15,
     bias: Math.round(clamp(x.bias, 0, 100)),

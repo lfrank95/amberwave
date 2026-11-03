@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
         w->name = z[i].k;
         char *e; double d = strtod(z[i].w, &e);
         if (strchr(z[i].w, ',')) { int k = 0; char *s = z[i].w; while (*s && k < 64) { listen[nw][k++] = strtod(s, &s); if (*s == ',') s++; } w->liste = listen[nw]; w->liste_n = k; }
+        else if (z[i].w[0] == '\'') w->text = z[i].w + 1;   /* 'text: als Text, auch wenn es wie eine Zahl aussieht (Bandsorte 456) */
         else if (*e == 0 && e != z[i].w) w->zahl = d;
         else w->text = z[i].w;
         nw++;

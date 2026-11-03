@@ -29,6 +29,26 @@ function interp(x, xs, ys) {
   return ys[ys.length - 1];
 }
 
+/* Korrektur für die Anzeige: wie viel mehr (> 1) oder weniger (< 1) Ansteuerung dieselbe Einstellung braucht, um auf denselben
+ * Klirr zu kommen wie die Eichung – gemessen wie oben (Std, −18 LUFS), je Röhre/Aufbau (Charakter 0 · 55 · 100 %), Kern/Quelle,
+ * Bandsorte/Geschwindigkeit (Bias 0 · 55 · 100 %). Die Anzeige rechnet damit auf den Faktor der Eichung um und × Anteil. */
+const KORR = {
+  glow: {"ax7|0": [2.75, 1.0, 0.617], "ax7|1": [2.815, 4.605, 5.892], "at7|0": [2.754, 1.526, 0.982], "at7|1": [2.896, 10.448, 16.663], "au7|0": [6.96, 3.275, 2.126], "au7|1": [7.305, 24.953, 39.681], "sn7|0": [14.218, 3.543, 2.206], "sn7|1": [20.138, 19.011, 24.881]},
+  iron: {"nickel|nieder": 2.096, "nickel|studio": 1.677, "nickel|roehre": 1.233, "stahl|nieder": 1.217, "stahl|studio": 1.0, "stahl|roehre": 0.768, "eisen|nieder": 0.64, "eisen|studio": 0.549, "eisen|roehre": 0.443, "mumetall|nieder": 1.779, "mumetall|studio": 1.429, "mumetall|roehre": 1.06, "amorph|nieder": 2.06, "amorph|studio": 1.649, "amorph|roehre": 1.212},
+  silk: {"sm900|7.5": [0.313, 0.478, 0.752], "sm900|15": [0.68, 1.0, 1.519], "sm900|30": [0.728, 1.052, 1.575], "456|7.5": [0.26, 0.398, 0.624], "456|15": [0.523, 0.772, 1.177], "456|30": [0.612, 0.885, 1.324], "sm468|7.5": [0.217, 0.331, 0.517], "sm468|15": [0.556, 0.815, 1.235], "sm468|30": [0.578, 0.836, 1.25]},
+};
+const DREI = [0, 55, 100];
+/** Standard gegenüber HQ (gemessen bei 50 %) */
+const STD = { glow: 0.96, iron: 0.8, silk: 0.92 };
+function korrektur(art, o) {
+  if (!o) return 1;
+  const K = KORR[art];
+  if (art === 'glow') { const r = K[`${o.roehre || 'ax7'}|${o.schaltung === 'gegentakt' ? 1 : 0}`]; return r ? Math.exp(interp(o.charakter ?? 55, DREI, r.map(ln))) : 1; }
+  if (art === 'iron') return K[`${o.kern || 'stahl'}|${o.quelle === 'nieder' || o.quelle === 'roehre' ? o.quelle : 'studio'}`] || 1;
+  const r = K[`${o.sorte || 'sm900'}|${o.ips === 7.5 ? '7.5' : o.ips === 30 ? 30 : 15}`];
+  return (r ? Math.exp(interp(o.bias ?? 55, DREI, r.map(ln))) : 1) * 250 / (o.einmesspegel || 250);   /* heißer eingemessen = weniger Ansteuerung nötig */
+}
+
 /** Stellung 0–150 → Faktor für den DSP-Kern */
 export function ansteuerungFaktor(art, pos) {
   const a = ANKER[art];
@@ -43,17 +63,19 @@ export function ansteuerungStellung(art, faktor) {
 export function ansteuerungUmrechnen(art, alt) {
   return Math.round(ansteuerungStellung(art, ALT[art](Math.max(0, Math.min(150, +alt || 0)))));
 }
-/** erwarteter Klirr (%) bei lauten Stellen (−18 LUFS nach Einpegeln) */
-export function ansteuerungKlirr(art, pos) {
-  const k = KURVE[art], f = ln(ansteuerungFaktor(art, pos));
-  return interp(f, k.map((x) => ln(x[0])), k.map((x) => x[1]));
+/** erwarteter Klirr (%) bei lauten Stellen (−18 LUFS nach Einpegeln); mit o (Einstellung des Geräts) inklusive Röhre, Kern,
+ *  Band, Bias/Charakter und Anteil */
+export function ansteuerungKlirr(art, pos, o = null) {
+  const k = KURVE[art], f = ln(ansteuerungFaktor(art, pos) / korrektur(art, o));
+  const std = o && !(o.q >= 1) && !o.hq ? STD[art] : 1;   /* geeicht in HQ; Standard klirrt bei gleicher Stellung etwas weniger */
+  return interp(f, k.map((x) => ln(x[0])), k.map((x) => x[1])) * std * (o && Number.isFinite(+o.mix) ? o.mix / 100 : 1);
 }
 /** in Worten */
 export function ansteuerungWort(klirr) {
   return klirr < 0.15 ? t('sauber') : klirr < 0.5 ? t('Hauch') : klirr < 1.7 ? t('warm') : klirr < 5 ? t('dicht') : klirr < 13 ? t('angezerrt') : t('heiß');
 }
 /** Anzeige unter dem Knopf: „warm · 1 %“ (erwarteter Klirr bei lauten Stellen) */
-export function ansteuerungText(art, pos) {
-  const k = ansteuerungKlirr(art, pos);
+export function ansteuerungText(art, pos, o = null) {
+  const k = ansteuerungKlirr(art, pos, o);
   return `${ansteuerungWort(k)} · ${k < 0.1 ? '<0,1' : zahl(k, k < 1 ? 1 : 0)} %`;
 }
