@@ -46,7 +46,7 @@ export const INNEN = {
   ],
   glow: [
     { k: 'stufen', n: t('Stufen'), art: 'seg', werte: [['triode', t('Triode')], ['kathodenfolger', t('+ Kathodenfolger')]], std: 'triode', q: 2, preset: true,
-      tipp: t('Kathodenfolger hinter der Röhre: folgt fast 1:1, kann aber kaum Strom ins Gitter liefern – steigt die Anode Richtung Versorgung, rundet er ab. Kräftiger, rauer (wie in vielen Gitarrenverstärkern).') },
+      tipp: t('Kathodenfolger hinter der Röhre, gleichspannungsgekoppelt (Rk 100 kΩ, 220 nF auf 220 kΩ Last) – als Schaltung gelöst: Er zieht schon in Ruhe etwas Gitterstrom und belastet die Anode davor. Beim Hochschwingen rundet das weich ab, beim schnellen Fallen reißt der Strom ab und die Kathode sackt nur so schnell nach, wie Rk und Last es zulassen. Kräftiger, rauer, mehr H2 – wie in vielen Gitarrenverstärkern. Kostet etwa dreimal so viel Rechenzeit wie die Triode allein.') },
     { k: 'anodenlast', n: t('Anodenlast'), art: 'seg', werte: [['widerstand', t('Widerstand')], ['drossel', t('Drossel')], ['uebertrager', t('Übertrager')]], std: 'widerstand', q: 2, preset: true,
       tipp: t('Widerstand: die übliche Stufe. Drossel: gleiche Ruhe, viel steilere Lastgerade – mehr Hub, deutlich weniger Klirr. Übertrager: dazwischen.') },
     { k: 'erholung', n: t('Erholung'), art: 'seg', werte: [['kurz', t('kurz')], ['mittel', t('mittel')], ['lang', t('lang')]], std: 'mittel', q: 2, preset: true,

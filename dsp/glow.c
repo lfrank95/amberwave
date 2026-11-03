@@ -71,7 +71,7 @@ static const Roehre ROEHREN[ROEHREN_N] = {
 static const Roehre *roehre_suchen(const char *n) { for (int i = 0; i < ROEHREN_N; i++) if (!strcmp(ROEHREN[i].name, n)) return &ROEHREN[i]; return NULL; }
 static const double S_CK = 100e-6, S_RG = 220e3, S_RS = 10e3, S_CC = 330e-9, S_RB = 4700, S_CB = 47e-6;
 
-typedef struct { double ip, dip, ig, dig; const Roehre *T; double cc, tol; int iter; } Kor;
+typedef struct { double ip, dip, ig, dig; const Roehre *T; double cc, tol; int iter; double kf_vg; } Kor;
 
 static void koren_ip(Kor *K, double Vgk, double Vpk) {
   if (Vpk < 1e-3) Vpk = 1e-3;
@@ -142,6 +142,8 @@ static double rk_aus_bias(const Roehre *T, double bias) {
 /* ---------- Zustand ---------- */
 
 typedef struct { double Vk, Vp, Vp_alt, Vc, Vb, Vg, vpq; } Stufe;
+/* Kathodenfolger (Ultra): Kathodenspannung und Spannung am Koppelkondensator zur Last */
+typedef struct { double Vk, q; } Kf;
 
 typedef struct {
   double *hoch; int hoch_pos;
@@ -152,19 +154,20 @@ typedef struct {
   double dc_x, dc_y, ton;
   Adaa adaa; double adaa_y;
   Stufe st[2];                       /* Röhrenstufen (HQ): 0 = Eintakt bzw. erste Röhre, 1 = zweite Röhre im Gegentakt */
+  Kf kf;                             /* Kathodenfolger hinter der Stufe (Ultra) */
   double *delta_runter; double d_dc_x, d_dc_y, d_ton;
   double ot_phi, ot_lp;               /* Ausgangsübertrager (Ultra) */
 } Kanal;
 
 typedef struct { double drive, bias, ton, mix, vert, s_boost, rk, ton_k, ausgleich, ausgleich_s, hq_ausgleich, hq_ausgleich_s, symm; int auto_, hq, pp;
   /* Innenleben (nur Ultra): Kathodenfolger, Anodenlast, Erholung des Koppelkondensators, Röhrenalter, Ausgangsübertrager */
-  int ultra, kf, last, erholung, ot; double alter; } Werte;
+  int ultra, kf, last, erholung, ot; double alter, kf_gain; } Werte;
 
 typedef struct { long rk, vb; Ruhe r; } CacheEintrag;
 
 typedef struct {
   AwFx fx;
-  int os, taps, ph, verz, trocken_l;
+  int os, taps, ph, verz, trocken_l, hb_verz;
   double *fir, *poly, *fir_r;
   const double *hb;
   Kanal *kanal[8];
@@ -194,8 +197,78 @@ static Ruhe glow_ruhe(Glow *g, double Rk, double Vb0) {
   return r;
 }
 
-#define KF_G 0.97
 static void kanal_stufen(Glow *g, Kanal *z, int c);
+
+/* ---------- Kathodenfolger (Ultra) ----------
+ * Dieselbe Röhre noch einmal, als Kathodenfolger hinter der Stufe: Gitter gleichspannungsgekoppelt an die Anode davor,
+ * Rk 100 kΩ nach Masse, Koppelkondensator 22 nF auf eine Last von 220 kΩ (klassische Schaltung vor einer Klangregelung).
+ * Je Takt wird die Kathodenspannung gelöst (Newton): Röhrenstrom = Strom durch Rk + Strom in die Last.
+ *  • Anode davor schwingt hoch → Gitter will über die Kathode → Gitterstrom belastet die Anode (über Ra) → weiche Rundung
+ *  • Anode schwingt schnell herunter → der Strom reißt ab (Cutoff), die Kathode kann nur so schnell fallen, wie Rk und die
+ *    Last den Koppelkondensator entladen → harte Kante auf dieser Halbwelle
+ * Beides kommt aus der Schaltung, nicht aus einer Kennlinie. */
+static const double KF_RK = 100e3, KF_RL = 220e3, KF_C = 220e-9;
+static double kf_strom(Kor *K, double Vg, double Vk, double Vb) { koren_ip(K, Vg - Vk, Vb - Vk); return K->ip; }
+/** Gitterspannung, die sich einstellt: Anode davor Vp über den Quellwiderstand Rq, Gitterstrom zieht sie herunter */
+static double kf_gitter(Kor *K, double Vp, double Vk, double Rq) {
+  double Vg = K->kf_vg > 0 && K->kf_vg <= Vp ? K->kf_vg : Vp;   /* Warmstart mit der letzten Lösung */
+  for (int it = 0; it < 12; it++) {
+    gitterstrom(K, Vg - Vk);
+    double f = Vg - Vp + K->ig * Rq, df = 1 + K->dig * Rq;
+    double d = f / df; Vg -= d;
+    if (Vg > Vp) Vg = Vp;
+    if (fabs(d) < 1e-7) break;
+  }
+  K->kf_vg = Vg;
+  return Vg;
+}
+/** Kathodenspannung lösen: Ip(Vg(Vk) − Vk, Vb − Vk) = Vk/Rk + Laststrom (b = 0: Kondensator offen, Ruhepunkt).
+ *  f ist monoton fallend, aber am Knie zwischen Cutoff und Gitterstrom extrem steil – darum Newton mit frischer Ableitung
+ *  in jedem Schritt, eingezäunt durch eine Bisektion (sonst meldet ein winziger Schritt Konvergenz, obwohl f ≠ 0). */
+static double kf_f(Kor *K, double Vp, double Vk, double Vb, double Rq, double q, double b, double dq, double h) {
+  return kf_strom(K, kf_gitter(K, Vp, Vk, Rq), Vk, Vb) - Vk / KF_RK - (Vk - q + dq * h) * b;
+}
+static double kf_loesen(Kor *K, double Vp, double Vk, double Vb, double Rq, double q, double b, double dq) {
+  double lo = 0, hi = Vb;
+  if (Vk < lo) Vk = lo; else if (Vk > hi) Vk = hi;
+  for (int it = 0; it < 30; it++) {
+    double f0 = kf_f(K, Vp, Vk, Vb, Rq, q, b, dq, 0);
+    if (fabs(f0) < 2e-8) break;                 /* 0,02 µA – weit unter dem, was 1 mV am Ausgang ausmacht */
+    if (f0 > 0) lo = Vk; else hi = Vk;
+    const double h = 1e-2;   /* Ableitung numerisch – analytisch ist sie am Knie zu grob */
+    double df = (kf_f(K, Vp, Vk + h, Vb, Rq, q, b, dq, h) - f0) / h;
+    double neu = df < -1e-12 ? Vk - f0 / df : 0.5 * (lo + hi);
+    if (!(neu > lo && neu < hi)) neu = 0.5 * (lo + hi);   /* Newton verlässt den Zaun → Bisektion */
+    if (fabs(neu - Vk) < 1e-4 && hi - lo < 1e-3) { Vk = neu; break; }
+    Vk = neu;
+  }
+  return Vk;
+}
+/** Quellwiderstand der Anode davor: Ra ∥ rp (rp = µ/gm am Ruhepunkt der Stufe) */
+static double kf_rq(Glow *g, const Ruhe *r) {
+  Ruhe rr = r ? *r : glow_ruhe(g, g->ziel.rk, g->Tm.vb0);
+  Kor K = g->K; koren_ip(&K, rr.Vg - rr.Vk, rr.Vp - rr.Vk);
+  double gm = K.dip > 1e-6 ? K.dip : 1e-6, rp = g->Tm.mu / gm;
+  return g->Tm.ra * rp / (g->Tm.ra + rp);
+}
+/** Ruhepunkt: Kondensator offen, Ip = Vk/Rk */
+static void kf_ruhe(Kor *K, Kf *z, double Vp, double Vb, double Rq) {
+  z->Vk = kf_loesen(K, Vp, Vp + 2, Vb, Rq, 0, 0, 0);
+  z->q = z->Vk;
+}
+/** Verstärkung am Ruhepunkt (Kondensator offen, ±0,1 V am Gitter) */
+static double kf_gain_von(Kor *K, const Kf *z, double Vp, double Vb, double Rq) {
+  double a = kf_loesen(K, Vp + 0.1, z->Vk, Vb, Rq, 0, 0, 0), b = kf_loesen(K, Vp - 0.1, z->Vk, Vb, Rq, 0, 0, 0);
+  return klemmen((a - b) / 0.2, 0.3, 1);
+}
+/** ein Takt: Anode davor (Vp, Quellwiderstand Rq) → Ausgangsspannung an der Last (um 0 in Ruhe) */
+static double kf_takt(Kor *K, Kf *z, double Vp, double Vb, double Rq, double dt) {
+  const double a = KF_C / dt, b = 1 / KF_RL, dq = b / (a + b);
+  double Vk = kf_loesen(K, Vp, z->Vk, Vb, Rq, z->q, b, dq);
+  double q = (a * z->q + Vk * b) / (a + b);
+  z->Vk = Vk; z->q = q;
+  return Vk - q;
+}
 
 /** Röhre in der Schaltung: Alter (weniger Emission, etwas weniger µ) und Anodenlast (Drossel/Übertrager: gleiche Ruhe,
  *  steilere Wechselstrom-Lastgerade) – ohne Ultra genau die Röhre aus der Tabelle. 1 = hat sich geändert */
@@ -255,7 +328,8 @@ static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
   g->ausgleich_s = z->auto_ ? statischer_ausgleich(&kz, z->drive * z->s_boost, z->bias) : 1;
   Ruhe rp = glow_ruhe(g, z->rk, T->vb0);
   double dr = z->auto_ ? z->drive * T->v_voll : T->v_voll;
-  double pg = (z->pp ? 0.5 * (1 + z->symm) : 1) * (z->ultra && z->kf ? KF_G : 1);   /* Gegentakt: ½·(1 + m); Kathodenfolger 0,97 */
+  if (z->ultra && z->kf) { Kf k0; double rq = kf_rq(g, &rp), vb = g->T->vb0; kf_ruhe(&g->K, &k0, rp.Vp, vb, rq); z->kf_gain = kf_gain_von(&g->K, &k0, rp.Vp, vb, rq); } else z->kf_gain = 1;   /* echte Versorgung, nicht die für die Drossel-Lastgerade angehobene */
+  double pg = (z->pp ? 0.5 * (1 + z->symm) : 1) * z->kf_gain;   /* Gegentakt: ½·(1 + m); Kathodenfolger ≈ 0,95 */
   g->hq_ausgleich = 1 / (rp.gain * dr * pg);
   g->hq_ausgleich_s = 1 / (rp.gain * dr * pg * (z->auto_ ? z->s_boost : 1));
   double t = z->ton;
@@ -264,7 +338,7 @@ static void glow_setzen(AwFx *fx, const AwWert *w, int n) {
   g->ton_k = t >= 0.1 ? k : 1 + (k - 1) * (t / 0.1);
   z->ton_k = g->ton_k;
   g->fx.initial = 1;
-  g->fx.latenz = g->verz + (z->hq ? HB_VERZ : 0);
+  g->fx.latenz = g->verz + (z->hq ? g->hb_verz : 0);
   if (!g->fx.gestartet) {
     // wie processorOptions im Konstruktor: Startwerte ohne Gleiten
     g->ist = g->ziel;
@@ -277,6 +351,7 @@ static void kanal_stufen(Glow *g, Kanal *z, int c) {
   Ruhe r1 = glow_ruhe(g, g->ziel.rk * g->tol_bias[t], g->Tm.vb0 * g->tol_vb[t]);
   Ruhe rr[2] = { r1, r1 };
   for (int i = 0; i < 2; i++) { Ruhe *p = &rr[i]; Stufe *s = &z->st[i]; s->Vk = p->Vk; s->Vp = p->Vp; s->Vp_alt = p->Vp; s->Vc = -p->Vg; s->Vb = p->Vb; s->Vg = p->Vg; s->vpq = p->Vp; }
+  kf_ruhe(&g->K, &z->kf, r1.Vp, g->T->vb0 * g->tol_vb[t], kf_rq(g, &r1));
 }
 
 static Kanal *glow_kanal(Glow *g, int c) {
@@ -291,12 +366,6 @@ static Kanal *glow_kanal(Glow *g, int c) {
   return z;
 }
 
-/** Kathodenfolger hinter der Stufe: folgt fast 1:1; steigt die Anode Richtung Versorgung, zieht sein Gitter Strom und rundet ab */
-static inline double kathodenfolger(double r, double luft) {
-  if (r >= 0) return KF_G * r;
-  double L = max_d(5, luft);
-  return -KF_G * L * th(-r / L);
-}
 /** Ausgangsübertrager (Ultra): Kern wie bei Iron, explizit (Bass-Ecke ≈ 14 Hz, sättigt sanft im Tiefbass), Streuung 28 kHz */
 static inline double ausgangsuebertrager(Kanal *z, double v, double wdt, double lpk) {
   const double rho = 0.6, bs2 = 4.0;
@@ -368,6 +437,8 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
   const Roehre *T = &g->Tm;
   Kurve kz = kurve_von(g, z1);
   int kf = z1->ultra && z1->kf, ot = z1->ultra && z1->ot;
+  double kfRq = kf ? kf_rq(g, NULL) : 0;
+  double kfVb = g->T->vb0;   /* Kathodenfolger an der echten Versorgung */
   double otW = 2 * M_PI * 24 / sr, otL = 1 - exp(-2 * M_PI * min_d(28000, sr * 0.45) / sr);
   double s0a = ruhe_s(&kz, z0->bias), s0b = ruhe_s(&kz, z1->bias), dS0 = (s0b - s0a) / n;
   double dcR = 1 - 2 * M_PI * 4 / sr;
@@ -410,7 +481,7 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
       double mx = (mix + dMix * i) * (!ms ? 1 : seite ? min_d(1, 2 * vt) : min_d(1, 2 * (1 - vt)));
       double ein_i = x[i];
       trk[tp] = ein_i;
-      int tq = tp - (hq ? VERZ + HB_VERZ : VERZ); if (tq < 0) tq += TL;
+      int tq = tp - (hq ? VERZ + g->hb_verz : VERZ); if (tq < 0) tq += TL;
       double trocken = trk[tq]; tp = tp == TL - 1 ? 0 : tp + 1;
       if (hq) {
         for (int sn = 0; sn < (z1->pp ? 2 : 1); sn++) {
@@ -421,6 +492,7 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
       }
       hoch[hp] = ein_i; hoch[hp + PH] = ein_i;
       int basis = hp + PH;
+      double ausgang = 0, rest_roh = 0;
       for (int k = 0; k < OS; k++) {
         double u = skalar(g->poly + k * PH, hoch + basis - PH + 1, PH);
         u *= OS * dr;
@@ -441,13 +513,13 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
           int dp = z->hb_d_pos;
           double r1 = roehren_takt(&g->K, &z->st[0], gerade, Rk, Vb0, dt);
           if (z1->pp) r1 = 0.5 * (r1 - z1->symm * roehren_takt(&g->K, &z->st[1], -gerade, Rk, Vb0, dt));
-          if (kf) r1 = kathodenfolger(r1, 0.85 * (z->st[0].Vb - z->st[0].vpq));
+          if (kf) r1 = -kf_takt(&g->K, &z->kf, z->st[0].vpq - r1, kfVb * g->tol_vb[t1], kfRq, dt);   /* Anode davor = vpq − r1 */
           hd[dp] = r1; dp = dp == HB_L - 1 ? 0 : dp + 1;
           double sum = 0;
           for (int t = 0; t < HB_L; t++) { int q2 = dp - 1 - t; if (q2 < 0) q2 += HB_L; sum += HB[t] * hd[q2]; }
           double r2 = roehren_takt(&g->K, &z->st[0], ungerade, Rk, Vb0, dt);
           if (z1->pp) r2 = 0.5 * (r2 - z1->symm * roehren_takt(&g->K, &z->st[1], -ungerade, Rk, Vb0, dt));
-          if (kf) r2 = kathodenfolger(r2, 0.85 * (z->st[0].Vb - z->st[0].vpq));
+          if (kf) r2 = -kf_takt(&g->K, &z->kf, z->st[0].vpq - r2, kfVb * g->tol_vb[t1], kfRq, dt);
           hd[dp] = r2; dp = dp == HB_L - 1 ? 0 : dp + 1;
           z->hb_d_pos = dp;
           v = sum;
@@ -457,18 +529,19 @@ static void glow_block(AwFx *fx, const float *const *ein, float *const *aus, int
           z->delta_runter[rp] = rr; z->delta_runter[rp + TAPS] = rr;
         }
         runter[rp] = v; runter[rp + TAPS] = v;
+        // Abwärtstasten am Takt der Phase 0 (Zeitpunkt n), nicht am letzten Takt des Blocks – sonst käme der nasse Weg
+        // (OS−1)/OS Sample zu früh und der Anteil-Regler kämmte die Höhen (−4 dB bei 20 kHz und 50 %)
+        if (k == 0) { ausgang = skalar(g->fir_r, runter + rp + 1, TAPS); if (dzA) rest_roh = skalar(g->fir_r, z->delta_runter + rp + 1, TAPS); }
         rp = rp == TAPS - 1 ? 0 : rp + 1;
       }
       hp = hp == PH - 1 ? 0 : hp + 1;
-      int b2 = (rp == 0 ? TAPS - 1 : rp - 1) + TAPS;
-      double ausgang = skalar(g->fir_r, runter + b2 - TAPS + 1, TAPS);
       double v = ausgang * ag;
       if (ot) v = ausgangsuebertrager(z, v, otW, otL);
       double w = v - dcX + dcR * dcY; dcX = v; dcY = w;
       ton += tk * (w - ton);
       double rest = 0;
       if (dzA) {
-        double r = skalar(g->fir_r, z->delta_runter + b2 - TAPS + 1, TAPS);
+        double r = rest_roh;
         r /= max_d(1e-6, drBasis * slB);
         double rw = r - z->d_dc_x + dcR * z->d_dc_y; z->d_dc_x = r; z->d_dc_y = rw;
         z->d_ton = z->d_ton + tk * (rw - z->d_ton);
@@ -509,7 +582,8 @@ AwFx *glow_neu(double sr) {
   g->taps = g->os == 1 ? 1 : 40 * g->os + 1;
   g->ph = (g->taps + g->os - 1) / g->os;
   g->verz = (g->taps - 1) / g->os;
-  g->trocken_l = g->verz + HB_VERZ + 1;
+  g->hb_verz = HB_MITTE / g->os;   /* inneres 2×: zwei Halbband-Filter, 12 Takte bei OS-Rate */
+  g->trocken_l = g->verz + g->hb_verz + 1;
   g->fir = fir_entwurf(g->os, g->taps, g->ph, 8);
   g->poly = polyphase(g->fir, g->os, g->ph);
   g->fir_r = rueckwaerts(g->fir, g->taps);

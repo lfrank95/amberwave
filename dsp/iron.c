@@ -251,18 +251,19 @@ static void iron_block(AwFx *fx, const float *const *ein, float *const *aus, int
         tp = tp == tLen - 1 ? 0 : tp + 1;
         hoch[hpP] = e; hoch[hpP + PH] = e;
         int basis = hpP + PH;
+        double vsum = 0, rsum = 0;
         for (int s = 0; s < OS; s++) {
           double u = skalar(t->poly + s * PH, hoch + basis - PH + 1, PH);
           double w = kern_takt(&kz, u * OS * dr);
           if (s == 0 && mA) { mA[i] = (float)(kz.kAbw * mx); mL[i] = (float)kz.kLin; }
           if (dzA) { z->delta_runter[rp] = -kz.kAbw; z->delta_runter[rp + TAPS] = -kz.kAbw; }
           runter[rp] = w; runter[rp + TAPS] = w;
+          if (s == 0) { vsum = skalar(t->fir_r, runter + rp + 1, TAPS); if (dzA) rsum = skalar(t->fir_r, z->delta_runter + rp + 1, TAPS); }   /* am Takt der Phase 0 (siehe glow.c) */
           rp = rp == TAPS - 1 ? 0 : rp + 1;
         }
         hpP = hpP == PH - 1 ? 0 : hpP + 1;
-        int b2 = (rp == 0 ? TAPS - 1 : rp - 1) + TAPS;
-        v = skalar(t->fir_r, runter + b2 - TAPS + 1, TAPS);
-        if (dzA) rest = skalar(t->fir_r, z->delta_runter + b2 - TAPS + 1, TAPS);
+        v = vsum;
+        if (dzA) rest = rsum;
       }
       if (auto_) v /= dr;
       if (z1->ke > 0) v *= keAusgl;

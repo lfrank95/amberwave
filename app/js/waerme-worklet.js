@@ -33,7 +33,7 @@ const VERZ = (TAPS - 1) / OS; // Verzögerung des nassen Wegs in Samples (Hoch- 
 // HQ: Gitterstrom und Sperrbereich haben Knie, deren hohe Obertöne bei heißer Ansteuerung selbst mit 4× noch zurückspiegeln
 // (15 kHz bei −3 dBFS in „Glut“: −67 dB). Darum läuft die Stufe in HQ mit weiteren 2× (intern 8×) über ein Halbband-Filter
 // (25 Taps, Kaiser β = 10: Durchlass bis 24 kHz flach, Sperre −97 dB). Laufzeit 24 Takte = genau 3 Samples.
-const HB_L = 25, HB_VERZ = 3, HB_MITTE = (HB_L - 1) / 2;
+const HB_L = 25, HB_MITTE = (HB_L - 1) / 2, HB_VERZ = HB_MITTE / OS; // inneres 2×: zwei Halbband-Filter, 12 Takte bei OS-Rate
 const HB = (() => {
   const m = (HB_L - 1) / 2, h = new Float64Array(HB_L), beta = 10;
   let summe = 0;
@@ -465,7 +465,8 @@ class AwRoehre extends AudioWorkletProcessor {
           dr *= tol.drive * dft * T.vVoll; Rk *= tol.bias;
           if (tk < 0.999) tk = 1 - Math.pow(1 - tk, tol.ton);
         }
-        const ag = seite ? ausgS + dAusgS * i : ausg + dAusg * i;
+        let ag = seite ? ausgS + dAusgS * i : ausg + dAusg * i;
+        if (hq && z1.auto) ag /= tol.drive;   // jeder Kanal auf Verstärkung 1 eingemessen: Streuung wirkt im Klirr, nicht im Pegel
         const mx = (mix + dMix * i) * (!ms ? 1 : seite ? Math.min(1, 2 * vt) : Math.min(1, 2 * (1 - vt)));
         const ein_i = x[i];
         // trockener Weg um die Verzögerung des nassen Wegs verspäten
@@ -485,6 +486,7 @@ class AwRoehre extends AudioWorkletProcessor {
         // Hochtasten (Polyphase): neuestes Sample an hp und hp+PH, gelesen wird rückwärts ab hp+PH ohne Umbruch
         hoch[hp] = ein_i; hoch[hp + PH] = ein_i;
         const basis = hp + PH;
+        let ausgang = 0, restRoh = 0;
         for (let k = 0; k < OS; k++) {
           let u = 0;
           for (let j = 0; j < PH; j++) u += fir[k + OS * j] * hoch[basis - j];
@@ -522,15 +524,16 @@ class AwRoehre extends AudioWorkletProcessor {
             rd[rp] = rr; rd[rp + TAPS] = rr;
           }
           runter[rp] = v; runter[rp + TAPS] = v;
+          // Abwärtstasten am Takt der Phase 0 (Zeitpunkt n), nicht am letzten Takt des Blocks – sonst käme der nasse Weg
+          // (OS−1)/OS Sample zu früh und der Anteil-Regler kämmte die Höhen (−4 dB bei 20 kHz und 50 %)
+          if (k === 0) {
+            const b2 = rp + TAPS;
+            for (let t = 0; t < TAPS; t++) ausgang += fir[t] * runter[b2 - t];
+            if (dzA) { const rd = z.deltaRunter; for (let t = 0; t < TAPS; t++) restRoh += fir[t] * rd[b2 - t]; }
+          }
           rp = rp === TAPS - 1 ? 0 : rp + 1;
         }
         hp = hp === PH - 1 ? 0 : hp + 1;
-        // Abwärtstasten: FIR über die letzten TAPS hochgetasteten Werte (neuester zuletzt geschrieben an rp−1)
-        let ausgang = 0;
-        {
-          const b2 = (rp === 0 ? TAPS - 1 : rp - 1) + TAPS;
-          for (let t = 0; t < TAPS; t++) ausgang += fir[t] * runter[b2 - t];
-        }
         // Pegelkorrektur, DC-Sperre (der Arbeitspunkt erzeugt signalabhängigen Gleichanteil) und Tonblende – nach dem Abwärtstasten
         const v = ausgang * ag;
         const w = v - dcX + dcR * dcY; dcX = v; dcY = w;
@@ -538,8 +541,7 @@ class AwRoehre extends AudioWorkletProcessor {
         let rest = 0;
         if (dzA) {
           // Delta: Rest auf Eingangspegel bringen (Kehrwert von Ansteuerung × Steigung) und durch dieselbe DC-Sperre und Tonblende
-          const rd = z.deltaRunter, b2 = (rp === 0 ? TAPS - 1 : rp - 1) + TAPS;
-          let r = 0; for (let t = 0; t < TAPS; t++) r += fir[t] * rd[b2 - t];
+          let r = restRoh;
           r /= Math.max(1e-6, drBasis * slB);
           const rw = r - (z.dDcX || 0) + dcR * (z.dDcY || 0); z.dDcX = r; z.dDcY = rw;
           z.dTon = (z.dTon || 0) + tk * (rw - (z.dTon || 0));

@@ -188,7 +188,7 @@ typedef struct {
 
 typedef struct {
   AwFx fx;
-  int os, taps, ph, verz;
+  int os, taps, ph, verz, hb_verz;
   double *fir, *poly, *fir_r;
   const double *hb;
   Ziel ziel;
@@ -300,7 +300,7 @@ static void silk_setzen(AwFx *fx, const AwWert *w, int n) {
   s->abg = ableiten(s, z);
   if (s->ist_da && s->ist.z.hq != z->hq) for (int c = 0; c < 16; c++) if (s->kanal[c]) { s->kanal[c]->ja.M = 0; s->kanal[c]->ja.Hv = 0; }
   fx->initial = 1;
-  fx->latenz = s->verz + HB_VERZ + (z->hq ? (int)floor(fx->sr * WF_VERZ_MS / 1000 + 0.5) : 0);
+  fx->latenz = s->verz + s->hb_verz + (z->hq ? (int)floor(fx->sr * WF_VERZ_MS / 1000 + 0.5) : 0);
   if (!fx->gestartet) { s->ist = ableiten(s, z); s->ist_da = 1; }
 }
 
@@ -311,7 +311,7 @@ static Kanal *silk_kanal(Silk *s, int c) {
   int wf = (int)ceil(sr * WF_VERZ_MS / 1000 * 2.5) + 4;
   z->hoch = calloc((size_t)s->ph * 2, sizeof(double));
   z->runter = calloc((size_t)s->taps * 2, sizeof(double));
-  z->trocken_l = s->verz + HB_VERZ + (int)ceil(sr * WF_VERZ_MS / 1000) + 2;
+  z->trocken_l = s->verz + s->hb_verz + (int)ceil(sr * WF_VERZ_MS / 1000) + 2;
   z->trocken = calloc((size_t)z->trocken_l, sizeof(double));
   z->wf = calloc((size_t)wf * 2, sizeof(double)); z->wft = calloc((size_t)wf * 2, sizeof(double)); z->wf_len = wf;
   z->delta_runter = calloc((size_t)s->taps * 2, sizeof(double));
@@ -357,7 +357,7 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
   double envA = 1 - exp(-1 / (sr * 0.003)), envR = 1 - exp(-1 / (sr * 0.08));
   double wfNominal = floor(sr * WF_VERZ_MS / 1000 + 0.5);
   // HQ: der trockene Weg läuft durch dieselbe modulierte Verzögerung (sonst kämmt Mix < 1 wie ein Flanger)
-  int trockenVerz = VERZ + HB_VERZ;
+  int trockenVerz = VERZ + S->hb_verz;
   int ms = kan == 2 && ein && ein[0] && ein[1];
   if (ms) {
     if (S->ms_kap < n) { for (int c = 0; c < 2; c++) { free(S->ms_ein[c]); S->ms_ein[c] = malloc(sizeof(float) * (size_t)n); } S->ms_kap = n; }
@@ -418,6 +418,7 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
       double vorband = ein_i + z1->pre_g * (ein_i - preLP);
       hoch[hp] = vorband; hoch[hp + PH] = vorband;
       int basis = hp + PH;
+      double band = 0, rest_roh = 0;
       for (int k = 0; k < OS; k++) {
         double u = skalar(S->poly + k * PH, hoch + basis - PH + 1, PH);
         u *= OS * dr;
@@ -458,11 +459,10 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
         }
         if (dzA) { double rr = 3 * langevin_t(u) - u; z->delta_runter[rp] = rr; z->delta_runter[rp + TAPS] = rr; }
         runter[rp] = v; runter[rp + TAPS] = v;
+        if (k == 0) { band = skalar(S->fir_r, runter + rp + 1, TAPS); if (dzA) rest_roh = skalar(S->fir_r, z->delta_runter + rp + 1, TAPS); }   /* am Takt der Phase 0 (siehe glow.c) */
         rp = rp == TAPS - 1 ? 0 : rp + 1;
       }
       hp = hp == PH - 1 ? 0 : hp + 1;
-      int b2 = (rp == 0 ? TAPS - 1 : rp - 1) + TAPS;
-      double band = skalar(S->fir_r, runter + b2 - TAPS + 1, TAPS);
       band *= ag;
       double ent = z1->post_b0 * band + z1->post_b1 * postX1 - z1->post_a1 * postY1; postX1 = band; postY1 = ent; band = ent;
       if (z1->nab_an) { double o = z1->pb0 * band + z1->pb1 * z->px1 - z1->pa1 * z->py1; z->px1 = band; z->py1 = o; band = o; }
@@ -499,7 +499,7 @@ static void silk_block(AwFx *fx, const float *const *ein, float *const *aus, int
       }
       double rest = 0;
       if (dzA) {
-        double r = skalar(S->fir_r, z->delta_runter + b2 - TAPS + 1, TAPS);
+        double r = rest_roh;
         r *= ag;
         double e2 = z1->post_b0 * r + z1->post_b1 * z->dpX - z1->post_a1 * z->dpY; z->dpX = r; z->dpY = e2; r = e2;
         if (z1->nab_an) { double o = z1->pb0 * r + z1->pb1 * z->dnx1 - z1->pa1 * z->dny1; z->dnx1 = r; z->dny1 = o; r = o; }
@@ -573,7 +573,8 @@ AwFx *silk_neu(double sr) {
   s->poly = polyphase(s->fir, s->os, s->ph);
   s->fir_r = rueckwaerts(s->fir, s->taps);
   s->hb = halbband();
-  s->fx.latenz = s->verz;
+  s->hb_verz = HB_MITTE / s->os;   /* inneres 2×: zwei Halbband-Filter, 12 Takte bei OS-Rate */
+  s->fx.latenz = s->verz + s->hb_verz;
   Ziel z = { .drive = 1, .ips = 15, .bias = 0.5, .gleichlauf = 0.3, .kopf = 1, .mix = 1, .vert = 0.5, .auto_ = 1, .hq = 0, .rauschen = 0, .ccir = 0, .band = &BAENDER[0], .unperfekt = 1, .nwb = 250, .ueberbias = 1.5 };
   s->ziel = z;
   double tb[2] = {1.03, 0.97}, td[2] = {1.035, 0.966}, th_[2] = {0.97, 1.03};

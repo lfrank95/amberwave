@@ -166,7 +166,7 @@ const JA = { a: 0.33, k: 0.03, c: 0.85, alpha: 0.008 };
 // zurück in den Hörbereich (15 kHz laut: Spiegel um −55 dB). Darum läuft sie in HQ mit weiteren 2× (intern 8×), über ein
 // Halbband-Filter (25 Taps, Kaiser β = 10: Durchlass bis 24 kHz flach, Sperre −97 dB). Laufzeit: 24 Takte = genau 3 Samples.
 const HB_L = 25;
-const HB_VERZ = 3; // zusätzliche Verzögerung bei Basisrate (HQ), der trockene Weg wird gleich verzögert
+const HB_VERZ = 12 / OS; // zusätzliche Verzögerung bei Basisrate durch das innere 2× (zwei Halbband-Filter), der trockene Weg wird gleich verzögert
 const HB = (() => {
   const i0 = (x) => { let s = 1, t = 1; for (let k = 1; k < 30; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; } return s; };
   const m = (HB_L - 1) / 2, h = new Float64Array(HB_L), beta = 10;
@@ -467,7 +467,7 @@ class AwBand extends AudioWorkletProcessor {
       const fcB = hq ? fcBasis * tol.hf : fcBasis;
       for (let i = 0; i < n; i++) {
         const vt = vert + dVert * i;
-        const dr = (drive + dDrive * i) * (hq ? tol.drive * dft : 1), ag = ausg + dAusg * i;
+        const dr = (drive + dDrive * i) * (hq ? tol.drive * dft : 1), ag = (ausg + dAusg * i) / (hq && z1.auto ? tol.drive : 1);   // eingemessen: Streuung im Klirr, nicht im Pegel
         const mx = (mix + dMix * i) * (!ms ? 1 : seite ? Math.min(1, 2 * vt) : Math.min(1, 2 * (1 - vt)));
         const ein_i = x[i];
         // trockener Weg verzögern (Ringpuffer, Länge tLen ≥ trockenVerz)
@@ -481,6 +481,7 @@ class AwBand extends AudioWorkletProcessor {
         // Hochtasten + Bandkurve + Abwärtstasten
         hoch[hp] = vorband; hoch[hp + PH] = vorband;
         const basis = hp + PH;
+        let band = 0, restRoh = 0;
         for (let k = 0; k < OS; k++) {
           let u = 0;
           for (let j = 0; j < PH; j++) u += fir[k + OS * j] * hoch[basis - j];
@@ -530,14 +531,14 @@ class AwBand extends AudioWorkletProcessor {
             rd[rp] = rr; rd[rp + TAPS] = rr;
           }
           runter[rp] = v; runter[rp + TAPS] = v;
+          if (k === 0) {   // am Takt der Phase 0 (siehe waerme-worklet.js)
+            const b2 = rp + TAPS;
+            for (let t = 0; t < TAPS; t++) band += fir[t] * runter[b2 - t];
+            if (dzA) { const rd = z.deltaRunter; for (let t = 0; t < TAPS; t++) restRoh += fir[t] * rd[b2 - t]; }
+          }
           rp = rp === TAPS - 1 ? 0 : rp + 1;
         }
         hp = hp === PH - 1 ? 0 : hp + 1;
-        let band = 0;
-        {
-          const b2 = (rp === 0 ? TAPS - 1 : rp - 1) + TAPS;
-          for (let t = 0; t < TAPS; t++) band += fir[t] * runter[b2 - t];
-        }
         band *= ag;
         // Wiedergabe-Entzerrung (Umkehrung)
         const ent = post.b0 * band + post.b1 * postX1 - post.a1 * postY1; postX1 = band; postY1 = ent; band = ent;
@@ -564,8 +565,7 @@ class AwBand extends AudioWorkletProcessor {
         let rest = 0;
         if (dzA) {
           // Delta: Rest auf Eingangspegel, dann dieselbe Wiedergabe-Entzerrung, Höhenverlust, Kopfbump und DC-Sperre wie das Band
-          const rd = z.deltaRunter, b2 = (rp === 0 ? TAPS - 1 : rp - 1) + TAPS;
-          let r = 0; for (let t = 0; t < TAPS; t++) r += fir[t] * rd[b2 - t];
+          let r = restRoh;
           r *= ag;
           const d = z.delta ||= { pX: 0, pY: 0, hf: 0, k1: 0, k2: 0, s1: 0, s2: 0, dX: 0, dY: 0 };
           const e2 = post.b0 * r + post.b1 * d.pX - post.a1 * d.pY; d.pX = r; d.pY = e2; r = e2;

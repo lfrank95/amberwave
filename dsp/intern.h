@@ -76,7 +76,7 @@ double *fir_entwurf(int os, int taps, int ph, double beta);
 /** Halbband-Filter (25 Taps, Kaiser β = 10) für das innere 2× im HQ-Modus */
 const double *halbband(void);
 #define HB_L 25
-#define HB_VERZ 3
+/* Verzögerung des inneren 2× (zwei Halbband-Filter) in Basis-Samples: HB_MITTE / OS – je Gerät berechnet (hb_verz) */
 #define HB_MITTE 12
 
 /** tanh als Padé-Näherung (wie th() in den Worklets) */

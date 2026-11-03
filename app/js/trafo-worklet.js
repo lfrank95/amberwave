@@ -265,6 +265,7 @@ class AwTrafo extends AudioWorkletProcessor {
           tp = tp === tLen - 1 ? 0 : tp + 1;
           hoch[hpP] = e; hoch[hpP + PH] = e;
           const basis = hpP + PH;
+          let vsum = 0, rsum = 0;
           for (let s = 0; s < OS; s++) {
             let u = 0;
             for (let j = 0; j < PH; j++) u += fir[s + OS * j] * hoch[basis - j];
@@ -272,13 +273,16 @@ class AwTrafo extends AudioWorkletProcessor {
             if (s === 0 && mA) { mA[i] = kAbw * mx; mL[i] = kLin; }
             if (dzA) { const rd = z.deltaRunter ||= new Float64Array(TAPS * 2); rd[rp] = -kAbw; rd[rp + TAPS] = -kAbw; }
             runter[rp] = w; runter[rp + TAPS] = w;
+            if (s === 0) {   // am Takt der Phase 0 (siehe waerme-worklet.js)
+              const b2 = rp + TAPS;
+              for (let t = 0; t < TAPS; t++) vsum += fir[t] * runter[b2 - t];
+              if (dzA) { const rd = z.deltaRunter; for (let t = 0; t < TAPS; t++) rsum += fir[t] * rd[b2 - t]; }
+            }
             rp = rp === TAPS - 1 ? 0 : rp + 1;
           }
           hpP = hpP === PH - 1 ? 0 : hpP + 1;
-          v = 0;
-          const b2 = (rp === 0 ? TAPS - 1 : rp - 1) + TAPS;
-          for (let t = 0; t < TAPS; t++) v += fir[t] * runter[b2 - t];
-          if (dzA) { const rd = z.deltaRunter; rest = 0; for (let t = 0; t < TAPS; t++) rest += fir[t] * rd[b2 - t]; }
+          v = vsum;
+          if (dzA) rest = rsum;
         }
         if (auto) v /= dr;
         // Kuhschwanz oben, transponierte DF2
