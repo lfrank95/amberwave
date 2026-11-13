@@ -187,15 +187,7 @@ function umzug_umschluesseln(string $alterSchluessel): int
         return 0;
     }
     require_once __DIR__ . '/crypto.php';
-    $alt = hash('sha256', $alterSchluessel, true);
-    $entschluesseln = static function (string $v) use ($alt): ?string {
-        $d = base64_decode($v, true);
-        if ($d === false || strlen($d) < 17) {
-            return null;
-        }
-        $k = openssl_decrypt(substr($d, 16), 'aes-256-cbc', $alt, OPENSSL_RAW_DATA, substr($d, 0, 16));
-        return $k === false ? null : $k;
-    };
+    $entschluesseln = static fn(string $v): ?string => entschluessle_mit($v, $alterSchluessel);
     $n = 0;
     foreach (db_alle("SELECT schluessel, wert_verschluesselt FROM einstellungen WHERE wert_verschluesselt <> '' AND wert_verschluesselt NOT LIKE 'p:%'") as $z) {
         $klar = $entschluesseln((string) $z['wert_verschluesselt']);

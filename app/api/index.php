@@ -261,6 +261,10 @@ $routen = [
     }],
     ['GET', '/direkt/token', function () {
         $u = api_user();
+        // einen neuen Schlüssel gibt es nur mit der Anmeldung selbst – nicht mit dem alten Schlüssel (der verlängerte sich sonst endlos)
+        if (!empty($GLOBALS['api_direkt'])) {
+            throw new ApiFehler(t('Nicht angemeldet.'), 401);
+        }
         $url = direkt_url();
         return $url === '' ? ['url' => null] : ['url' => $url] + direkt_token($u);
     }],

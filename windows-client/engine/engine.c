@@ -394,6 +394,11 @@ static int titel_oeffnen(Titel *t, char *fehler, size_t fn) {
     t->bits = t->wav->bitsPerSample;
     t->frames_gesamt = t->wav->totalPCMFrameCount;
     t->frame_pos = 0;
+    // die Kette rechnet mit höchstens 8 Kanälen (Puffer fester Größe) – alles andere ablehnen, nicht überlaufen
+    if (t->kanaele < 1 || t->kanaele > 8 || t->rate < 8000 || t->rate > 768000 || t->bits < 8 || t->bits > 64) {
+      snprintf(fehler, fn, "WAV/AIFF: Format wird nicht unterstützt (%d Kanäle, %d Hz, %d Bit)", t->kanaele, t->rate, t->bits);
+      return -1;
+    }
     if (t->start > 0) titel_spulen(t, (uint64_t)(t->start * t->rate));
     return 0;
   }
@@ -411,6 +416,10 @@ static int titel_oeffnen(Titel *t, char *fehler, size_t fn) {
   t->bits = t->flac->bitsPerSample;
   t->frames_gesamt = t->flac->totalPCMFrameCount;
   t->frame_pos = 0;
+  if (t->kanaele < 1 || t->kanaele > 8 || t->rate < 8000 || t->rate > 768000) {
+    snprintf(fehler, fn, "FLAC: Format wird nicht unterstützt (%d Kanäle, %d Hz)", t->kanaele, t->rate);
+    return -1;
+  }
   if (t->start > 0) {
     uint64_t f = (uint64_t)(t->start * t->rate);
     if (t->frames_gesamt && f >= t->frames_gesamt) f = t->frames_gesamt ? t->frames_gesamt - 1 : 0;
@@ -840,6 +849,7 @@ static void umwandeln_float(void *dst, const AusInfo *ai, float *const *src, int
     if (KORR_AKTIV) korr_frame(x, ak);
     for (int c = 0; c < ak; c++) {
       double v0 = x[c];
+      if (!(v0 == v0)) v0 = 0;   // NaN aus der Kette darf nie als Vollausschlag am Gerät ankommen
       switch (ai->fmt) {
         case FMT_F32: ((float *)dst)[(size_t)f * ak + c] = (float)v0; break;
         case FMT_S32: { double v = floor(v0 * 2147483648.0 + 0.5); ((int32_t *)dst)[(size_t)f * ak + c] = v > 2147483647.0 ? 2147483647 : v < -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v; break; }
@@ -1131,6 +1141,7 @@ static void umwandeln_bass(void *dst, const AusInfo *ai, float *const *src, int 
     if (KORR_AKTIV) korr_frame(y, ak);
     for (int c = 0; c < ak; c++) {
       double v0 = y[c];
+      if (!(v0 == v0)) v0 = 0;
       switch (ai->fmt) {
         case FMT_F32: ((float *)dst)[(size_t)f * ak + c] = (float)v0; break;
         case FMT_S32: { double v = floor(v0 * 2147483648.0 + 0.5); ((int32_t *)dst)[(size_t)f * ak + c] = v > 2147483647.0 ? 2147483647 : v < -2147483648.0 ? (int32_t)-2147483647 - 1 : (int32_t)v; break; }

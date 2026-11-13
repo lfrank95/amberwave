@@ -91,6 +91,7 @@ function api_user(bool $admin = false): array
         csrf_token();
         session_write_close();
     }
+    $GLOBALS['api_angemeldet'] = true;
     return $user;
 }
 

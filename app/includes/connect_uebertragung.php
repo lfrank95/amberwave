@@ -141,7 +141,7 @@ function connect_umwandeln(string $pfad, int $track, string $q, array $d): strin
             default => '-c:a flac -sample_fmt s16 -ar ' . ((int) ($d['abtastrate'] ?? 44100) % 48000 === 0 ? '48000' : '44100'),
         };
         $tmp = $ziel . '.' . getmypid() . '.tmp.' . CONNECT_ENDUNG[$q];
-        $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -nostdin -hide_banner -loglevel error -y -i ' . aw_arg($pfad)
+        $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -nostdin -hide_banner -loglevel error -y -protocol_whitelist file,pipe -i ' . aw_arg($pfad)
             . ' -map 0:a:0 -map_metadata 0 ' . $codec . ' ' . aw_arg($tmp) . aw_ohne_fehler();
         exec($cmd, $o, $rc);
         if ($rc !== 0 || !is_file($tmp) || filesize($tmp) < 1000) {

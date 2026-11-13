@@ -345,10 +345,16 @@ function connect_adressen_saeubern(array $ad): array
         return $h !== '' && (str_ends_with($h, '.local') || (filter_var($h, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($h, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false));
     };
     $offen = static fn($u) => $u !== null && connect_adresse_oeffentlich($u) ? $u : null;
+    // Direktadresse: ein Name, der ins Heimnetz zeigen darf – aber keine nackte IP, kein localhost (wir rufen diese Adressen
+    // selbst auf; eine Gegenstelle soll uns nicht auf eigene Dienste oder das Routernetz schicken können)
+    $name = static function ($u) use ($host) {
+        $h = $u === null ? '' : $host($u);
+        return $h !== '' && $h !== 'localhost' && str_contains($h, '.') && !filter_var(trim($h, '[]'), FILTER_VALIDATE_IP) ? $u : null;
+    };
     return array_filter([
         'lan' => array_values(array_filter(array_map($url, array_slice((array) ($ad['lan'] ?? []), 0, 6)), $privat)),
-        'direkt' => $url($ad['direkt'] ?? null),
-        'oeffentlich' => $url($ad['oeffentlich'] ?? null),
+        'direkt' => $name($url($ad['direkt'] ?? null)),
+        'oeffentlich' => (static fn($u) => $u !== null && ($privat($u) || connect_adresse_oeffentlich($u)) ? $u : null)($url($ad['oeffentlich'] ?? null)),
         'tunnel' => $offen($url($ad['tunnel'] ?? null)),
         'netz' => is_string($ad['netz'] ?? null) && filter_var($ad['netz'], FILTER_VALIDATE_IP) ? $ad['netz'] : null,
     ]);
@@ -1057,10 +1063,15 @@ function connect_koppeln_empfangen(): array
     }
     try {
         $e = json_decode((string) stream_get_contents($fp), true);
-        if (!is_array($e) || (int) ($e['bis'] ?? 0) < time() || (int) ($e['versuche'] ?? 0) >= 5) {
+        if (!is_array($e) || (int) ($e['bis'] ?? 0) < time()) {
             throw new ApiFehler(t('Kein Code aktiv – auf dem anderen Server einen neuen anzeigen lassen.'), 404);
         }
         $schritt = (string) api_wert('schritt', '');
+        // Die Grenze gilt für neue Versuche („start“). Wer seinen Versuch schon begonnen hat, darf ihn noch bestätigen –
+        // sonst sperrte der fünfte (richtige) Versuch sich selbst aus.
+        if ($schritt !== 'bestaetigen' && (int) ($e['versuche'] ?? 0) >= 5) {
+            throw new ApiFehler(t('Kein Code aktiv – auf dem anderen Server einen neuen anzeigen lassen.'), 404);
+        }
         $pkB = hex2bin((string) api_wert('schluessel', '')) ?: '';
         if (strlen($pkB) !== 32 || hash_equals(bin2hex($pkB), bin2hex(ausweis_oeffentlich()))) {
             throw new ApiFehler(t('Ungültige Anfrage.'), 400);

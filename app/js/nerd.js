@@ -242,8 +242,8 @@ export class NerdAnsicht {
   protokollHtml() {
     const a = this.player.audio?.anlaufLetzt;
     if (!a?.asio || !a.protokoll?.length) return '';
-    return `<h4>${t('Letzte Umstellung (ASIO)')}</h4><ol class="nerd-protokoll">${a.protokoll.map((x) => `<li><span>${x.ms} ms</span>${h(x.t)}</li>`).join('')}
-      <li><span>${a.ms} ms</span>${a.zeitueber ? t('kein stabiler Takt – trotzdem los') : t('bereit')}${a.aufschlag ? `, ${t('dann {ms} ms Pause', { ms: a.aufschlag })}` : ''}</li></ol>`;
+    return `<h4>${t('Letzte Umstellung (ASIO)')}</h4><ol class="nerd-protokoll">${a.protokoll.map((x) => `<li><span>${Number(x.ms) || 0} ms</span>${h(x.t)}</li>`).join('')}
+      <li><span>${Number(a.ms) || 0} ms</span>${a.zeitueber ? t('kein stabiler Takt – trotzdem los') : t('bereit')}${a.aufschlag ? `, ${t('dann {ms} ms Pause', { ms: a.aufschlag })}` : ''}</li></ol>`;
   }
 
   /** Windows Client: wie die Engine das Gerät geöffnet hat */
@@ -268,7 +268,7 @@ export class NerdAnsicht {
     const hires = fmt && (fmt.x.bittiefe > 16 || fmt.x.abtastrate > 48000);
     const stationen = [];
     // 1. Datei
-    stationen.push({ titel: t('Datei'), wert: fmt ? `${fmt.name} ${hires ? '<span class="nerd-marke">Hi-Res</span>' : ''}` : '–',
+    stationen.push({ titel: t('Datei'), wert: fmt ? `${h(fmt.name)} ${hires ? '<span class="nerd-marke">Hi-Res</span>' : ''}` : '–',
       info: fmt ? `${fmt.aufl} · ${fmt.x.kanaele === 1 ? 'Mono' : fmt.x.kanaele === 2 ? 'Stereo' : t('{n} Kanäle', { n: fmt.x.kanaele })}${f ? ` · ${Math.round(f.bitrate / 1000)} kbit/s` : ''}` : '', art: 'datei' });
     // 2. Übertragung
     const original = m.art === 'original';
@@ -285,11 +285,11 @@ export class NerdAnsicht {
     // 4. Klang
     // in der eingestellten Reihenfolge, nur was wirklich im Weg ist (alles umgangen: nichts)
     const rkK = p.raumklang;
-    const kette = rkK?.angeschlossen ? (p.einst.reihe || []).filter((a) => rkK.stufeWirksam(a)).map((a) => ({ glow: 'Glow', iron: 'Iron', silk: 'Silk', eq: 'EQ' })[a] || vstRack.finde(a)?.name) : [];
+    const kette = rkK?.angeschlossen ? (p.einst.reihe || []).filter((a) => rkK.stufeWirksam(a)).map((a) => ({ glow: 'Glow', iron: 'Iron', silk: 'Silk', eq: 'EQ' })[a] || h(vstRack.finde(a)?.name || '')) : [];
     const rk = rkK?.aktiv;
     if (rk) kette.push(`Space ${h(RAUMKLANG_PRESETS[rkK.preset]?.name || '')}`);
     stationen.push({ titel: t('Klang'), wert: kette.length ? kette.join(' → ') : p.bypass ? t('alles umgangen') : t('unverändert'),
-      info: [rk ? `Stereo → ${rkK.layout?.name || ''}` : '', eqWirksam(p.einst.eq) && kette.includes('EQ') ? h(eqKurzText(p.einst.eq)) : ''].filter(Boolean).join(' · ') || (kette.length ? t('Effektkette') : t('keine Effekte')), art: kette.length ? 'angepasst' : 'gut' });
+      info: [rk ? `Stereo → ${h(rkK.layout?.name || '')}` : '', eqWirksam(p.einst.eq) && kette.includes('EQ') ? h(eqKurzText(p.einst.eq)) : ''].filter(Boolean).join(' · ') || (kette.length ? t('Effektkette') : t('keine Effekte')), art: kette.length ? 'angepasst' : 'gut' });
     // 5. Ausgabe
     if (p.nativ) {
       const af = p.audio.format;
@@ -297,7 +297,7 @@ export class NerdAnsicht {
       const umr = af && (af.umgerechnet || (!af.exklusiv && gr && Math.abs(gr - af.rate) > 1));
       const runter = af && af.aus_kanaele < af.kanaele;
       stationen.push({ titel: t('Ausgabe'), wert: af ? `${ausgabeWeg(af)}${p.audio.bitgenau ? ' · bitgenau' : ''}` : '–',
-        info: af ? [h(af.geraet || ''), `${af.aus_format || ''} / ${k(gr / 1000, gr % 1000 ? 1 : 0)} kHz`, umr ? (af.umgerechnet ? t('feste Rate: {a} → {b} kHz umgerechnet', { a: k(af.rate / 1000, 1), b: k(gr / 1000, 1) }) : t('Windows rechnet {a} → {b} kHz um', { a: k(af.rate / 1000, 1), b: k(gr / 1000, 1) })) : '', runter ? t('auf {n} Kanäle gemischt', { n: af.aus_kanaele }) : '', af.asio && af.latenz > 0 ? t('Treiber-Latenz {ms} ms', { ms: k(af.latenz / (gr || af.rate) * 1000, 1) }) : '', anlaufText(p.audio.anlauf)].filter(Boolean).join(' · ') : t('Engine startet …'),
+        info: af ? [h(af.geraet || ''), `${h(af.aus_format || '')} / ${k(gr / 1000, gr % 1000 ? 1 : 0)} kHz`, umr ? (af.umgerechnet ? t('feste Rate: {a} → {b} kHz umgerechnet', { a: k(af.rate / 1000, 1), b: k(gr / 1000, 1) }) : t('Windows rechnet {a} → {b} kHz um', { a: k(af.rate / 1000, 1), b: k(gr / 1000, 1) })) : '', runter ? t('auf {n} Kanäle gemischt', { n: af.aus_kanaele }) : '', af.asio && af.latenz > 0 ? t('Treiber-Latenz {ms} ms', { ms: k(af.latenz / (gr || af.rate) * 1000, 1) }) : '', anlaufText(p.audio.anlauf)].filter(Boolean).join(' · ') : t('Engine startet …'),
         art: umr || runter ? 'veraendert' : 'gut' });
     } else {
     const rate = fmt?.x?.abtastrate || 0;

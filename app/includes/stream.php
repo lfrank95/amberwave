@@ -286,7 +286,7 @@ function umwandeln_senden(string $pfad, array $ziel, float $start, ?float $gain 
     if ($start > 0) {
         $teile[] = '-ss ' . number_format($start, 3, '.', '');
     }
-    $teile[] = '-i ' . aw_arg($pfad);
+    $teile[] = '-protocol_whitelist file,pipe -i ' . aw_arg($pfad);
     $teile[] = '-map 0:a:0 -vn -sn -dn -map_metadata -1 -ac 2';
     if ($gain !== null) {
         // Lautheitsangleich (EBU R128) vor dem Kodieren – Opus/AAC rechnen intern mit Fließkomma, nichts wird abgeschnitten
@@ -465,7 +465,7 @@ function flac_strom_senden(string $pfad, array $d, float $start): void
     if ($start > 0) {
         $teile[] = '-ss ' . number_format($start, 3, '.', '');
     }
-    $teile[] = '-i ' . aw_arg($pfad);
+    $teile[] = '-protocol_whitelist file,pipe -i ' . aw_arg($pfad);
     $teile[] = '-map 0:a:0 -vn -sn -dn -map_metadata -1';
     $teile[] = ($hohe_rate ? '-ar 88200 ' : '') . '-c:a flac -compression_level 1' . ((int) $d['bittiefe'] > 16 || $hohe_rate ? ' -sample_fmt s32' : '');
     $teile[] = '-f flac pipe:1';
@@ -487,7 +487,7 @@ function lueckenlos_titel_senden(string $pfad, array $d, float $start): void
     if ($start > 0) {
         $teile[] = '-ss ' . number_format($start, 3, '.', '');
     }
-    $teile[] = '-i ' . aw_arg($pfad);
+    $teile[] = '-protocol_whitelist file,pipe -i ' . aw_arg($pfad);
     $teile[] = '-map 0:a:0 -vn -sn -dn -map_metadata -1';
     if ($kopieren) {
         $teile[] = '-c:a copy';
@@ -533,7 +533,7 @@ function lueckenlos_kette_senden(array $user, string $ids_text, string $q, float
         [$pfad, $d] = stream_datei($id);
         $l = stream_genaue_laenge($pfad, $d);
         $dauern[] = number_format($l['samples'] / max(1, $l['rate']), 6, '.', '');
-        $eingaben[] = '-threads 1 ' . ($i === 0 && $start > 0 ? '-ss ' . number_format($start, 3, '.', '') . ' ' : '') . '-i ' . aw_arg($pfad);
+        $eingaben[] = '-threads 1 ' . ($i === 0 && $start > 0 ? '-ss ' . number_format($start, 3, '.', '') . ' ' : '') . '-protocol_whitelist file,pipe -i ' . aw_arg($pfad);
     }
     // Lautheitsangleich je Titel (dB, gleiche Reihenfolge wie ids) – wechselt sample-genau an der Titelgrenze
     $gains = $gains_text !== '' ? explode(',', $gains_text) : [];

@@ -30,7 +30,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.v }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
       - id: v
         run: echo "v=$(grep -oE "'version' => '[^']+'" app/includes/config.php | head -1 | sed -E "s/.*'([^']+)'$/\1/")" >> "$GITHUB_OUTPUT"
       - name: Werkzeuge
@@ -53,7 +53,7 @@ jobs:
           echo "::notice title=Amberwave-Paket::$QUELLE als $AIO:$KANAL, $(du -h "$RUNNER_TEMP/amberwave-aio.tar.zst" | cut -f1)"
       - name: Image bauen
         run: sudo AW_KANAL="$KANAL" AW_PAKET="$AW_PAKET" bash os/bauen.sh "$RUNNER_TEMP/os" && ls -la "$RUNNER_TEMP/os"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: amberwave-os-img
           path: ${{ runner.temp }}/os/amberwave-os-${{ steps.v.outputs.v }}.img
@@ -67,13 +67,13 @@ jobs:
     permissions:
       contents: write   # Bildschirmfotos in den Zweig ci-bilder
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
       - name: KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules >/dev/null
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
           sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf >/dev/null
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           name: amberwave-os-img
           path: ${{ runner.temp }}/img
@@ -90,13 +90,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
       - name: KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules >/dev/null
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
           sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 qemu-utils ovmf mtools >/dev/null
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           name: amberwave-os-img
           path: ${{ runner.temp }}/img
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
       - name: llvm-mingw
         env:
           GH_TOKEN: ${{ github.token }}
@@ -117,7 +117,7 @@ jobs:
           echo "LLVM_MINGW=$(ls -d "$RUNNER_TEMP"/llvm-mingw-*)" >> "$GITHUB_ENV"
           pip install --quiet fonttools brotli
       - run: BROTLI_SHIM= bash os/ersteller/bauen.sh "$RUNNER_TEMP/ersteller"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: usb-creator
           path: ${{ runner.temp }}/ersteller/*.exe
@@ -130,12 +130,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           name: amberwave-os-img
           path: ${{ runner.temp }}/img
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           name: usb-creator
           path: ${{ runner.temp }}/ersteller
@@ -228,16 +228,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           path: ${{ runner.temp }}/a
           merge-multiple: true
       - name: Ans Release hängen
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.release }}
         run: |
           cd "$RUNNER_TEMP/a"
           ls -la
           for f in amberwave-os-*.img Amberwave-USB-Creator-*.exe; do sha256sum "$f" > "$f.sha256"; done
-          gh release upload "${{ github.event.release.tag_name || inputs.release }}" amberwave-os-*.img* Amberwave-USB-Creator-*.exe* --clobber -R "${{ github.repository }}"
+          gh release upload "$TAG" amberwave-os-*.img* Amberwave-USB-Creator-*.exe* --clobber -R "${{ github.repository }}"
           echo "::notice title=Release::Amberwave OS und USB-Ersteller angehängt"

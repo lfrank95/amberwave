@@ -27,37 +27,78 @@ function mb_user_agent(): string
     return $ua !== '' ? (string) preg_replace('/[^\x20-\x7E]/', '', $ua) : amberwave_user_agent(true);
 }
 
+/** Liegt ein Host (Name oder IP) im eigenen Netz bzw. auf diesem Rechner? (privat, Loopback, Link-Local, reserviert) */
+function http_host_intern(string $host): bool
+{
+    $host = trim(strtolower($host), '[]');
+    if ($host === '' || $host === 'localhost' || str_ends_with($host, '.localhost') || str_ends_with($host, '.local')) {
+        return true;
+    }
+    $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (@gethostbynamel($host) ?: []);
+    foreach ($ips as $ip) {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Weiterleitung nur zu http(s) – und nicht von einer Adresse im Internet in das eigene Netz hinein */
+function http_weiterleitung_erlaubt(string $start_host, string $ziel): bool
+{
+    if (!preg_match('#^https?://#i', $ziel)) {
+        return false;
+    }
+    $h = (string) parse_url($ziel, PHP_URL_HOST);
+    return $h !== '' && (!http_host_intern($h) || http_host_intern($start_host));
+}
+
 /** Einfacher HTTP-Abruf mit curl. Liefert ['status' => int, 'body' => string, 'typ' => string]. */
 function http_holen(string $url, array $kopf = [], int $timeout = 20, int $max_bytes = 25 * 1024 * 1024): array
 {
     if (!preg_match('#^https?://#i', $url)) {
         throw new MbFehler(t('Ungültige Adresse.'));
     }
-    $ch = curl_init($url);
-    $puffer = '';
-    curl_setopt_array($ch, [
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 5,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_HTTPHEADER => $kopf,
-        CURLOPT_USERAGENT => dienst_von($url) === 'MusicBrainz' ? mb_user_agent() : amberwave_user_agent(),
-        CURLOPT_ENCODING => '',
-        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-        CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-        CURLOPT_WRITEFUNCTION => static function ($c, string $teil) use (&$puffer, $max_bytes): int {
-            if (strlen($puffer) + strlen($teil) > $max_bytes) {
-                return 0; // zu groß -> abbrechen
+    // Weiterleitungen selbst verfolgen (höchstens 5): ein fremder Dienst darf uns nicht per Weiterleitung auf Adressen im
+    // eigenen Netz oder auf diesen Rechner schicken, und Kopfzeilen (API-Schlüssel) gehen nicht an einen anderen Host mit
+    $ziel = $url;
+    $start_host = strtolower((string) parse_url($url, PHP_URL_HOST));
+    for ($sprung = 0; ; $sprung++) {
+        $ch = curl_init($ziel);
+        $puffer = '';
+        $gleicher_host = strtolower((string) parse_url($ziel, PHP_URL_HOST)) === $start_host;
+        curl_setopt_array($ch, [
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_HTTPHEADER => $gleicher_host ? $kopf : [],
+            CURLOPT_USERAGENT => dienst_von($ziel) === 'MusicBrainz' ? mb_user_agent() : amberwave_user_agent(),
+            CURLOPT_ENCODING => '',
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_WRITEFUNCTION => static function ($c, string $teil) use (&$puffer, $max_bytes): int {
+                if (strlen($puffer) + strlen($teil) > $max_bytes) {
+                    return 0; // zu groß -> abbrechen
+                }
+                $puffer .= $teil;
+                return strlen($teil);
+            },
+        ]);
+        $ok = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $typ = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        $weiter = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+        $fehler = curl_error($ch);
+        curl_close($ch);
+        if ($ok !== false && $status >= 300 && $status < 400 && $weiter !== '' && $sprung < 5) {
+            if (!http_weiterleitung_erlaubt($start_host, $weiter)) {
+                dienst_zaehlen($url, 0);
+                throw new MbFehler(t('Ungültige Adresse.'));
             }
-            $puffer .= $teil;
-            return strlen($teil);
-        },
-    ]);
-    $ok = curl_exec($ch);
-    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $typ = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
-    $fehler = curl_error($ch);
-    curl_close($ch);
+            $ziel = $weiter;
+            continue;
+        }
+        break;
+    }
     dienst_zaehlen($url, $ok === false ? 0 : $status);
     if ($ok === false && $status === 0) {
         throw new MbFehler(t('Keine Verbindung: {fehler}', ['fehler' => $fehler ?: t('unbekannter Fehler')]));

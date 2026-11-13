@@ -1297,5 +1297,7 @@
  "danach automatisch abgleichen und einsortieren": "then matched and sorted automatically",
  "beim Downloadclient": "at the download client",
  "Release": "Release",
- "Titel insgesamt": "Tracks"
+ "Titel insgesamt": "Tracks",
+ "Dein Anmelde-Passwort": "Your login password",
+ "(nur nötig, wenn die Rolle Admin vergeben wird)": "(only needed when assigning the Admin role)"
 }

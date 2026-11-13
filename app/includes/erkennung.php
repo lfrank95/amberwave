@@ -99,7 +99,7 @@ function erk_befehl(string $pfad): array
     if (erk_werkzeug() === 'fpcalc') {
         return ['fpcalc', '-plain', '-length', '120', $pfad];
     }
-    return [konfig()['stream']['ffmpeg'], '-nostdin', '-v', 'error', '-threads', '1', '-i', $pfad, '-map', '0:a:0', '-t', '120',
+    return [konfig()['stream']['ffmpeg'], '-nostdin', '-v', 'error', '-threads', '1', '-protocol_whitelist', 'file,pipe', '-i', $pfad, '-map', '0:a:0', '-t', '120',
         '-ac', '2', '-f', 'chromaprint', '-fp_format', 'base64', '-'];
 }
 

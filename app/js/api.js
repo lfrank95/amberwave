@@ -54,6 +54,7 @@ async function anfrage(methode, pfad, daten, optionen = {}, normal = false) {
   }
   if (methode !== 'GET' && !basis) kopf['X-CSRF-Token'] = csrf; // direkt: der Schlüssel in der Kopfzeile ersetzt das CSRF-Token
   let antwort;
+  const los = Date.now();
   try {
     antwort = basis
       ? await fetch(basis + '/api/v1' + pfad, { method: methode, headers: kopf, body: koerper, credentials: 'omit', mode: 'cors', signal: optionen.signal })
@@ -61,7 +62,12 @@ async function anfrage(methode, pfad, daten, optionen = {}, normal = false) {
   } catch (e) {
     if (e.name === 'AbortError') throw e;
     // Direktadresse weg (Haus verlassen, WLAN aus): sofort über den normalen Weg wiederholen
-    if (basis) { netzweg.ausfall(); return anfrage(methode, pfad, daten, optionen, true); }
+    if (basis) {
+      netzweg.ausfall();
+      // Ein POST, der erst nach Sekunden scheitert, kann den Server schon erreicht haben – den nicht ein zweites Mal schicken
+      // (sonst z. B. zwei Playlists). Scheitert er sofort (Adresse weg), ist er nie angekommen: dann wiederholen.
+      if (methode !== 'POST' || Date.now() - los < 3000) return anfrage(methode, pfad, daten, optionen, true);
+    }
     throw new ApiFehler(t('Server nicht erreichbar. Bitte Verbindung prüfen.'), 0);
   }
   // Schlüssel abgelaufen oder Gerät abgemeldet: einmal normal versuchen (dort entscheidet das Login-Cookie)

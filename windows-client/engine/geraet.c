@@ -97,6 +97,11 @@ Geraet *ger_oeffnen(const char *geraet, int exklusiv, int rate, int kanaele, int
   // feste Rate: Gerät in dieser Rate und möglichst hoher Auflösung öffnen
   g->a = aus_oeffnen(geraet, exklusiv, g->direkt ? rate : fest, kanaele, g->direkt ? bits : 32, &g->echt, fehler, fn);
   if (!g->a) { free(g); return NULL; }
+  // die Engine mischt auf höchstens 8 Kanäle; ein Gerät, das mehr verlangt (z. B. 7.1.4 im gemeinsamen Modus), sauber ablehnen
+  if (g->echt.kanaele < 1 || g->echt.kanaele > 8) {
+    snprintf(fehler, fn, "Das Gerät verlangt %d Kanäle – unterstützt werden bis zu 8 (in Windows eine Lautsprecher-Anordnung bis 7.1 wählen oder den exklusiven Modus nutzen)", g->echt.kanaele);
+    aus_schliessen(g->a); free(g); return NULL;
+  }
   if (g->direkt) { g->info = g->echt; *info = g->info; return g; }
   g->kan = g->echt.kanaele > 8 ? 8 : g->echt.kanaele;
   g->fb_dev = fmt_bytes(g->echt.fmt);

@@ -111,6 +111,15 @@ static void zweiter_schritt(const wchar_t *ordner) {
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE vorher, PWSTR cmd, int zeigen) {
   (void)inst; (void)vorher; (void)zeigen;
+  {
+    // Installer liegen im Download-Ordner – dort kann jeder eine DLL danebenlegen. Nachgeladene DLLs darum nur aus System32,
+    // und der Arbeitsordner zählt bei der Suche nicht mit.
+    typedef BOOL (WINAPI *DllOrdnerFn)(DWORD);
+    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+    DllOrdnerFn f = k32 ? (DllOrdnerFn)(void *)GetProcAddress(k32, "SetDefaultDllDirectories") : NULL;
+    if (f) f(0x00000800 /* LOAD_LIBRARY_SEARCH_SYSTEM32 */);
+    SetDllDirectoryW(L"");
+  }
   wchar_t selbst[MAX_PATH * 2];
   GetModuleFileNameW(NULL, selbst, MAX_PATH * 2);
   int argc = 0;

@@ -27,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 150
     env:
+      # Eingaben nur über Umgebungsvariablen in die Skripte (nie direkt in den Befehlstext einsetzen)
+      TITEL: ${{ inputs.titel }}
+      KOPIEN: ${{ inputs.kopien }}
       DB_HOST: 127.0.0.1
       DB_PORT: '3306'
       DB_NAME: amberwave
@@ -46,7 +49,7 @@ jobs:
       LISTENBRAINZ_URL: http://127.0.0.1:9
       ACOUSTID_URL: http://127.0.0.1:9/v2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
         with:
           fetch-depth: 0
 
@@ -63,7 +66,7 @@ jobs:
             mariadb:11.4 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=512M
           for i in $(seq 60); do docker exec db healthcheck.sh --connect --innodb_initialized && break; sleep 2; done
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962   # v2
         with:
           php-version: '8.3'
           extensions: pdo_mysql, zip, gd
@@ -76,7 +79,7 @@ jobs:
           mkdir -p $PFAD_CACHE $PFAD_MUSIK $PFAD_BACKUPS lasttest
 
       - name: Generate library
-        run: python3 tests/lasttest/erzeugen.py $PFAD_MUSIK ${{ inputs.titel }} | tee lasttest/bibliothek.txt
+        run: python3 tests/lasttest/erzeugen.py "$PFAD_MUSIK" "$TITEL" | tee lasttest/bibliothek.txt
 
       - name: Install schema and admin
         working-directory: app
@@ -89,7 +92,7 @@ jobs:
         working-directory: app
         run: |
           s=$(date +%s); php -d memory_limit=1G scripts/scan.php voll > ../lasttest/scan.log 2>&1 || (tail -20 ../lasttest/scan.log; exit 1)
-          d=$(( $(date +%s) - s )); echo "Erster Scan, ${{ inputs.titel }} Dateien: ${d} s ($(( ${{ inputs.titel }} / (d > 0 ? d : 1) )) Dateien/s)" | tee -a ../lasttest/zeiten.txt
+          d=$(( $(date +%s) - s )); echo "Erster Scan, $TITEL Dateien: ${d} s ($(( TITEL / (d > 0 ? d : 1) )) Dateien/s)" | tee -a ../lasttest/zeiten.txt
           s=$(date +%s); php -d memory_limit=1G scripts/scan.php neu > ../lasttest/scan2.log 2>&1
           echo "Zweiter Scan (nichts geändert): $(( $(date +%s) - s )) s" | tee -a ../lasttest/zeiten.txt
 
@@ -109,7 +112,7 @@ jobs:
 
       - name: Multiply database rows
         working-directory: app
-        run: php ../tests/lasttest/klonen.php ${{ inputs.kopien }} | tee -a ../lasttest/klonen.txt
+        run: php ../tests/lasttest/klonen.php "$KOPIEN" | tee -a ../lasttest/klonen.txt
 
       - name: Measure (multiplied)
         run: SQL_PROFIL=$PWD/lasttest/sql.log python3 tests/lasttest/messen.py http://127.0.0.1:8080 lasttest/messung_gross.txt
@@ -141,7 +144,7 @@ jobs:
           done
           [ -f lasttest/scan.log ] && echo "::notice title=scan-log::$(tail -15 lasttest/scan.log | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')" || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         if: always()
         with:
           name: lasttest

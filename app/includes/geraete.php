@@ -103,15 +103,24 @@ function geraet_aktiv(int $userId, int $geraetId): bool
     return true;
 }
 
-/** Remember-Me darf nur ein nicht abgemeldetes Gerät wieder anmelden. */
-function geraet_remember_erlaubt(int $userId): bool
+/**
+ * Gerät, zu dem ein Merk-Token gehört: Geräte-ID (oder null, wenn dieser Browser noch kein Gerät hat) – false = ablehnen.
+ * Abgelehnt wird: Geräte-Cookie fehlt, Gerät abgemeldet, oder das Token gehört zu einem anderen Gerät als diesem Browser.
+ */
+function geraet_fuer_remember(int $userId, ?int $tokenGeraet): int|false|null
 {
     $hash = geraet_cookie_hash(false);
     if ($hash === null) {
-        return true;
+        return false;
     }
-    $z = db_zeile('SELECT beendet_am FROM nutzer_geraete WHERE user_id = :u AND geraet_hash = :h', ['u' => $userId, 'h' => $hash]);
-    return !$z || $z['beendet_am'] === null;
+    $z = db_zeile('SELECT id, beendet_am FROM nutzer_geraete WHERE user_id = :u AND geraet_hash = :h', ['u' => $userId, 'h' => $hash]);
+    if ($z && $z['beendet_am'] !== null) {
+        return false;
+    }
+    if ($tokenGeraet !== null && (!$z || (int) $z['id'] !== $tokenGeraet)) {
+        return false;
+    }
+    return $z ? (int) $z['id'] : null;
 }
 
 function geraete_aktive(int $userId): array
@@ -123,6 +132,7 @@ function geraet_beenden_intern(int $geraetId, string $grund): void
 {
     db_tun('UPDATE nutzer_geraete SET beendet_am = NOW(), ende_grund = :g WHERE id = :id AND beendet_am IS NULL', ['g' => $grund, 'id' => $geraetId]);
     db_tun('UPDATE api_tokens SET widerrufen_am = NOW() WHERE geraet_id = :id AND widerrufen_am IS NULL', ['id' => $geraetId]);
+    db_tun('DELETE FROM remember_tokens WHERE geraet_id = :id', ['id' => $geraetId]);
 }
 
 function geraet_beenden(int $userId, int $geraetId): bool

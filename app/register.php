@@ -13,7 +13,8 @@ $fertig_text = t('Danke! Deine Registrierung ist eingegangen. Sobald der Adminis
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($w as $k => $_) {
-        $w[$k] = trim((string) ($_POST[$k] ?? ''));
+        // ohne Steuerzeichen und Zeilenumbrüche: die Namen stehen später in E-Mails und Protokollen
+        $w[$k] = trim((string) preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) ($_POST[$k] ?? '')));
     }
     $pw = (string) ($_POST['passwort'] ?? '');
     $pw2 = (string) ($_POST['passwort_wiederholen'] ?? '');

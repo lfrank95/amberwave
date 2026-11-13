@@ -51,6 +51,8 @@ static Tabelle tabelle_rechnen(int rate_ein, int rate_aus) {
   t.T = (int)((N + t.L - 1) / t.L);
   if (t.T < 8) t.T = 8;
   N = (long)t.T * t.L;
+  // krumme Raten (44101 → 48000) ergäben Tabellen mit Hunderten Megabyte: dann lieber gar nicht umrechnen
+  if (rate_ein < 1000 || rate_aus < 1000 || N > 4000000L) return t;
   t.tab = calloc((size_t)N, sizeof(double));
   double mitte = (N - 1) / 2.0, i0b = i0(beta), w = fc / fs_proto;
   double *h = malloc(sizeof(double) * (size_t)N);

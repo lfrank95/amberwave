@@ -84,7 +84,8 @@ class Vst {
   liste() {
     return { plugins: this.stand.plugins, fehler: Object.entries(this.stand.dateien).filter(([, d]) => d.fehler).map(([pfad, d]) => ({ pfad, text: tm(d.fehler) })), zeit: this.stand.zeit, scannt: this.scannt, ordner: this.ordner() };
   }
-  ordner() { return [...standardOrdner(), ...(this.einstLesen()?.ordner || [])]; }
+  // zusätzliche Ordner nur von festen Laufwerken (kein Netzwerkpfad): von dort wird Programmcode geladen
+  ordner() { return [...standardOrdner(), ...(this.einstLesen()?.ordner || []).filter((o) => typeof o === 'string' && /^[a-z]:[\\/]/i.test(o))]; }
   speichern() { try { fs.writeFileSync(this.datei, JSON.stringify(this.stand)); } catch (e) { log.schreiben('FEHLER', `Pluginliste nicht gespeichert: ${e.message}`); } }
 
   /** neu suchen; unveränderte Dateien (Größe/Zeit) werden nicht noch einmal geladen, außer komplett=true */

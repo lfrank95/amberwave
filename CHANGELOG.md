@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.9.1-beta.21 – Security and robustness pass
+A review of the whole code base (server, web app, Windows client and engine, Amberwave OS, build pipeline). No feature changes – what you may notice is listed first.
+
+**What you may notice**
+- **Admins confirm with their own password** when they set another account's password, create an admin account or promote an account to admin. An open admin session alone is no longer enough for that.
+- **"Stay signed in" belongs to a device.** Signing a device out (device list, device limit, password reset) now also ends its remember-me token; before, the token could sign the device back in if the device cookie was missing. A browser that lost its device cookie has to sign in once more.
+- **Windows client: extra VST folders need a confirmation in a client window**, and only folders on local drives are accepted (no network paths). Plug-ins are programs – the web page alone can no longer add a folder to load them from.
+- **Windows client: output devices with more than 8 channels** (e.g. 7.1.4 in shared mode) are refused with a clear message instead of corrupting memory. Pick a layout up to 7.1 in Windows or use exclusive mode.
+- **Amberwave OS: the Wi-Fi password is wiped from the USB stick** once the installation has stored it on the disk. A stick used for a second device starts with the setup hotspot there.
+- Impulse responses: 40 of your own per account (admins unlimited); files that cannot be read as WAV are rejected before they are stored.
+
+**Windows client and audio engine**
+- The page may only send playback and sound-chain commands to the engine; every field is checked. Output device, correction, channel EQ, bass management, test tone and the VST bridge are set by the client itself. Tracks are only loaded from the configured server.
+- ASIO: only drivers that Windows lists as ASIO drivers are loaded – not any COM class whose ID someone sends.
+- WAV/AIFF files claiming more than 8 channels or an absurd sample rate are rejected (fixed-size buffers; such a file could overflow them). The same limit applies to the server-side renderer.
+- NaN from the sound chain can no longer reach the device as full-scale noise; filters with nonsensical values (Q 0, NaN) pass the signal through instead of ringing forever; delay lines and impulse responses have an upper size limit; odd sample-rate pairs no longer build resampler tables of hundreds of megabytes.
+- The command reader no longer reads past the end of a line on a cut-off `\u` escape.
+- Links that leave the app are only opened in the browser if they are http(s). The page gets no camera, microphone, location or notification permission in the client.
+- Installer and uninstaller: DLLs loaded later come from System32 only (an installer sits in the Downloads folder, where anyone can drop a DLL next to it).
+
+**Windows server**
+- **Updates are checked against the SHA-256 from the GitHub release** before the installer is started (the Windows client already did this). No checksum or a wrong one: nothing is installed.
+- nginx rules for protected folders and file types now ignore case – on Windows `/Includes/…` is the same folder as `/includes/…`.
+
+**Server**
+- Images: the dimensions are read from the header before an image is opened – a tiny, heavily compressed image with huge dimensions could take the PHP process down. Applies to covers, artist images and profile pictures.
+- Direct access: a new key is only issued for a real sign-in, not for the old key (it renewed itself forever). The home-network address is only learned from requests of a signed-in account – before, any device in the home network could bend the direct-access DNS record and the remembered Connect address with a made-up Host header.
+- Connect: the fifth (correct) pairing attempt no longer locked itself out; a paired server can no longer hand us loopback or bare-IP addresses as its "direct" or "public" address.
+- Outgoing requests follow redirects themselves: never from the internet into the own network, and API keys are not passed on to another host.
+- ffmpeg only reads local files when it is given a file from the library (a prepared playlist file in the library could make it fetch other things).
+- Downloads: symbolic links inside a download are not imported.
+- Stored secrets (SMTP password, API keys) are now encrypted with AES-GCM, so a modified value is detected. Existing values stay readable and are converted the next time they are saved; the migration package handles both.
+- Remember-me rotation: several requests arriving at once with the old cookie no longer sign each other out. Playlists: adding and reordering run in a transaction. Names in registrations no longer accept control characters or line breaks.
+
+**Web app**
+- Link targets that come from data (queue, remote control, paired server) are restricted to paths inside the app and escaped.
+- Signing out removes the page shell kept for offline start, and that shell no longer contains account data or the CSRF token. The check "another account signs in on this device – remove the previous account's offline music and queue" no longer depends on a value that signing out deletes.
+- The service worker only pre-caches the app's own interface files.
+- Player: a pending "jump to position" of an earlier track can no longer land on the next one; a radio refill that arrives late is not appended to a different radio; switching tracks while the format is still being looked up no longer starts the old track; loading errors no longer surface as unhandled rejections.
+- A POST over the direct address that fails after several seconds is not sent a second time over the normal address (it may already have arrived).
+- Signal-path view: names coming from the engine and from plug-ins are escaped.
+
+**Amberwave OS**
+- The setup page only accepts requests from itself (a web page on the internet could otherwise have triggered the installation – which erases disks – through a browser in the home network).
+- Root no longer writes through files in the folder that belongs to the app container (update status, device key).
+
+**Build pipeline**
+- All GitHub Actions are pinned to commit hashes; workflow inputs reach scripts as environment variables only; the checks workflow runs with read-only permissions.
+- Windows server package: PHP and MariaDB downloads are verified against the publisher's SHA-256.
+- Homepage upload: the SFTP host key is verified if the secret `IONOS_SFTP_HOSTKEY` is set (a warning is shown otherwise).
+- Docker: the start scripts that run as root no longer belong to the web-server user. Android: the test switch for WebView debugging only works while USB debugging is on.
+
 ## 0.9.1-beta.20 – Drive in dB, spread that shifts the drive
 - **Drive in dB, like the input control on real gear.** 0 dB is each unit's working point – where it starts to colour loud passages audibly – and it is calibrated to the same point on all three units (measured at −18 LUFS, the level gain staging brings every track to). Every dB above or below is a real dB of gain into the unit, from −24 to +24 dB; +6 dB means twice as hot. Exactly as much is taken back afterwards, so it never gets louder. Before, the percentages meant something different on every unit: the working point sat at about 40 % on Glow, 60 % on Silk and 120 % on Iron. Your settings, device presets and rack presets are converted so they sound the same (e.g. Iron 120 % becomes −1 dB); only Glow above about 140 % is capped at +24 dB.
 - **The built-in stages now live up to their names.** Iron's *Hint*, *Full* and *Heavy* all stayed below 0.1 % distortion – practically inaudible. Now, measured with the whole stage at −18 LUFS: Glow *Hint* −2 dB (≈ 0.3 %, unchanged), *Warm* +4 dB (≈ 1 %), *Ember* +12 dB (≈ 5 %); Iron *Hint* −3.5 dB (≈ 0.3 %), *Full* +1.5 dB (≈ 1 %), *Heavy* +4 dB (≈ 3 %); Silk *Fresh* −2 dB (≈ 0.5 %), *Worn In* −4 dB (≈ 2 %), *Old* −1 dB (≈ 4 % – 7.5 ips saturates much earlier). If you had exactly one of these stages set, you get the newly tuned one; anything you set yourself keeps its sound. The rack presets *Warm* and *Analog* change with them.

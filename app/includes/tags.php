@@ -198,7 +198,7 @@ function eingebettetes_bild(string $pfad): ?array
         } catch (Throwable $e) {
         }
     }
-    $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -i ' . aw_arg($pfad) . ' -an -map 0:v:0 -frames:v 1 -c:v copy -f image2pipe pipe:1' . aw_ohne_fehler();
+    $cmd = aw_arg(konfig()['stream']['ffmpeg']) . ' -v error -protocol_whitelist file,pipe -i ' . aw_arg($pfad) . ' -an -map 0:v:0 -frames:v 1 -c:v copy -f image2pipe pipe:1' . aw_ohne_fehler();
     $daten = shell_exec($cmd);
     if (!is_string($daten) || strlen($daten) < 100) {
         return null;

@@ -121,6 +121,7 @@ static const float *const *ir_suche(const char *id, int *kan, int *n, void *u) {
 static int b64_wert(int c) { return c >= 'A' && c <= 'Z' ? c - 'A' : c >= 'a' && c <= 'z' ? c - 'a' + 26 : c >= '0' && c <= '9' ? c - '0' + 52 : c == '+' ? 62 : c == '/' ? 63 : -1; }
 static float *b64_floats(const char *t, int n) {
   float *f = calloc((size_t)n, sizeof(float));
+  if (!f) return NULL;
   unsigned char *b = (unsigned char *)f; size_t max = (size_t)n * 4, o = 0;
   unsigned v = 0; int bits = 0;
   for (const char *p = t; *p && o < max; p++) {
@@ -132,8 +133,9 @@ static float *b64_floats(const char *t, int n) {
 }
 
 void klang_raum_ir(const char *id, int kan, int n, double r, const char *d0, const char *d1) {
-  if (!id || n <= 0 || !d0) return;
+  if (!id || n <= 0 || n > 48000 * 60 || !d0) return;   /* Impulsantwort: höchstens eine Minute bei 48 kHz */
   float *a = b64_floats(d0, n), *b = kan > 1 && d1 ? b64_floats(d1, n) : NULL;
+  if (!a || (kan > 1 && d1 && !b)) { free(a); free(b); return; }
   pthread_mutex_lock(&K);
   int i = ir_naechst; ir_naechst = (ir_naechst + 1) % MAX_IR;
   /* nicht die, die gerade läuft (die Faltung hat ihre Spektren schon – die Daten braucht sie nicht mehr) */
@@ -150,7 +152,7 @@ void klang_raum(const char *text, double r, int kan) {
   pthread_mutex_lock(&K);
   AwRaum *alt = raum;
   raum = neu;
-  raum_kan = neu && !aw_raum_trivial(neu) ? (kan > 0 ? kan : 6) : 0;
+  raum_kan = neu && !aw_raum_trivial(neu) ? (kan > 0 ? (kan > MAX_K ? MAX_K : kan) : 6) : 0;
   pthread_mutex_unlock(&K);
   aw_raum_frei(alt);
 }

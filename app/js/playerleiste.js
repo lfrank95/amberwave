@@ -2,7 +2,7 @@
 import { laufschrift } from './laufschrift.js';
 import { api } from './api.js';
 import { nativ, ausgabeWeg, istAsio, titelFarbe } from './nativ.js';
-import { h, icon, dauer, kuenstlerLinks, kuenstlerText, menue, initialen } from './ui.js';
+import { h, linkPfad, icon, dauer, kuenstlerLinks, kuenstlerText, menue, initialen } from './ui.js';
 import { t, tn, zahl, locale } from './i18n.js';
 import { QUALITAETEN, LAUTHEIT_ZIELE } from './player.js';
 import { RAUMKLANG_PRESETS, ausgabeKanaele, layoutFuer } from './raumklang.js';
@@ -504,7 +504,7 @@ export class PlayerLeiste {
       }
     });
     if (!t) return;
-    inhalt.querySelectorAll(`.track[data-track-id="${t.id}"]`).forEach((z) => {
+    inhalt.querySelectorAll(`.track[data-track-id="${CSS.escape(String(t.id))}"]`).forEach((z) => {
       z.classList.add('spielt');
       z.classList.toggle('pausiert', !this.player.spielt);
       const nr = z.querySelector('.track-nr > span');
@@ -988,7 +988,7 @@ export class PlayerLeiste {
     this.kiste?.neu();
     const grund = this.player.radioGrund(trk);
     const radio = this.player.quelleKontext?.art === 'radio';
-    $('[data-quelle]').innerHTML = radio ? h(grund || t('aus deiner Sammlung')) : trk.album ? `<a href="${trk.album.pfad || `/alben/${trk.album.id}`}" data-link>${h(trk.album.titel)}</a>` : '';
+    $('[data-quelle]').innerHTML = radio ? h(grund || t('aus deiner Sammlung')) : trk.album ? `<a href="${linkPfad(trk.album.pfad, `/alben/${encodeURIComponent(trk.album.id)}`)}" data-link>${h(trk.album.titel)}</a>` : '';
     $('[data-quelle-k]').textContent = '';
     $('[data-quelle-art]').textContent = radio ? (this.player.quelleKontext.titel || t('Mein Radio')) : t('Läuft gerade');
     this.jetztAktualisieren();

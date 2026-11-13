@@ -1388,11 +1388,12 @@ function dl_importieren(array $d): array
     if (is_dir($quelle)) {
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($quelle, FilesystemIterator::SKIP_DOTS));
         foreach ($it as $f) {
-            if ($f->isFile() && dl_mitnehmen($f->getPathname())) {
+            // keine symbolischen Links: ein Download darf nicht auf Dateien außerhalb seines Ordners zeigen
+            if ($f->isFile() && !$f->isLink() && dl_mitnehmen($f->getPathname())) {
                 $dateien[] = substr($f->getPathname(), strlen($quelle) + 1);
             }
         }
-    } elseif (dl_mitnehmen($quelle)) {
+    } elseif (!is_link($quelle) && dl_mitnehmen($quelle)) {
         $dateien[] = basename($quelle);
         $quelle = dirname($quelle);
     }
@@ -1506,7 +1507,7 @@ function dl_originale_aufraeumen(int $max = 10): int
         $groessen = [];
         if (is_dir($quelle)) {
             foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($quelle, FilesystemIterator::SKIP_DOTS)) as $f) {
-                if ($f->isFile() && in_array(strtolower($f->getExtension()), $typen, true)) {
+                if ($f->isFile() && !$f->isLink() && in_array(strtolower($f->getExtension()), $typen, true)) {
                     $groessen[] = (int) $f->getSize();
                 }
             }

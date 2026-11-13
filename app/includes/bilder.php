@@ -18,6 +18,22 @@ function bild_ordner(string $art): string
 }
 
 /**
+ * Bilddaten öffnen – aber nur, wenn die Maße aus dem Kopf des Bildes zu verkraften sind. Ein winziges, stark gepacktes
+ * Bild mit riesigen Maßen (Dekompressionsbombe) bräuchte beim Öffnen sonst Gigabytes und risse den PHP-Prozess mit.
+ */
+function bild_oeffnen(string $daten, int $maxPixel = 40000000): GdImage|false
+{
+    if (strlen($daten) < 100 || !function_exists('imagecreatefromstring')) {
+        return false;
+    }
+    $i = @getimagesizefromstring($daten);
+    if (!is_array($i) || (int) $i[0] < 1 || (int) $i[1] < 1 || (int) $i[0] * (int) $i[1] > $maxPixel) {
+        return false;
+    }
+    return @imagecreatefromstring($daten);
+}
+
+/**
  * Bilddaten speichern und Vorschaubilder erzeugen. Liefert den Schlüssel (für die Datenbank) oder null.
  * $praefix z. B. "e12" für Edition 12.
  */
@@ -26,7 +42,7 @@ function bild_speichern(string $art, string $praefix, string $daten): ?string
     if (strlen($daten) < 100 || !function_exists('imagecreatefromstring')) {
         return null;
     }
-    $quelle = @imagecreatefromstring($daten);
+    $quelle = bild_oeffnen($daten);
     if (!$quelle) {
         return null;
     }
@@ -70,7 +86,7 @@ function profilbild_speichern(int $userId, string $daten): ?string
     if (strlen($daten) < 100 || !function_exists('imagecreatefromstring')) {
         return null;
     }
-    $q = @imagecreatefromstring($daten);
+    $q = bild_oeffnen($daten);
     if (!$q) {
         return null;
     }

@@ -157,6 +157,8 @@ static void biquad_koeff(Knoten *k, double sr) {
     a0 = (A + 1) - (A - 1) * cw + 2 * aS * sA; a1 = 2 * ((A - 1) - (A + 1) * cw); a2 = (A + 1) - (A - 1) * cw - 2 * aS * sA;
   }
   k->b[0] = b0 / a0; k->b[1] = b1 / a0; k->b[2] = b2 / a0; k->a[1] = a1 / a0; k->a[2] = a2 / a0;
+  /* unsinnige Werte (Güte 0, NaN) ergäben einen Filter, der für immer NaN ausgibt: dann lieber durchlassen */
+  if (!isfinite(k->b[0]) || !isfinite(k->b[1]) || !isfinite(k->b[2]) || !isfinite(k->a[1]) || !isfinite(k->a[2])) { k->b[0] = 1; k->b[1] = k->b[2] = k->a[1] = k->a[2] = 0; }
 }
 
 /* ---------- Aufbau aus dem Text ---------- */
@@ -215,10 +217,13 @@ AwRaum *aw_raum_neu(const char *text, double sr, AwIrSuche ir_suche, void *u, ch
       } else if (!strcmp(typ, "iir")) {
         k->typ = T_IIR; k->nff = liste_von(zeile, "ff", k->ff, 20); k->nfb = liste_von(zeile, "fb", k->fb, 20);
         double a0 = k->nfb ? k->fb[0] : 1;
+        if (!isfinite(a0) || fabs(a0) < 1e-12) a0 = 1;
         for (int i = 0; i < k->nff; i++) k->ff[i] /= a0;
         for (int i = 0; i < k->nfb; i++) k->fb[i] /= a0;
       } else if (!strcmp(typ, "delay")) {
         k->typ = T_DELAY; k->maxd = zahl_von(zeile, "max", 1); param_init(&k->p, zahl_von(zeile, "v", 0));
+        if (!(k->maxd > 0)) k->maxd = 0;      /* auch NaN */
+        if (k->maxd > 10) k->maxd = 10;       /* Web Audio erlaubt bis 180 s; Space braucht Millisekunden */
         k->dlen = (int)ceil(k->maxd * sr) + 2 * Q + 4;
         for (int c = 0; c < MAXK; c++) k->dpuf[c] = calloc((size_t)k->dlen, sizeof(float));
       } else if (!strcmp(typ, "conv")) {
@@ -363,7 +368,7 @@ static void quantum(AwRaum *r, float *const *ein, int ein_kan) {
         k->aus_kan[0] = kan;
         for (int i = 0; i < Q; i++) {
           double d = param_wert(&k->p, T0 + i * dT);
-          if (d < 0) d = 0;
+          if (!(d > 0)) d = 0;                /* auch NaN */
           if (d > k->maxd) d = k->maxd;
           double lp = k->dpos - d * r->sr;
           while (lp < 0) lp += k->dlen;

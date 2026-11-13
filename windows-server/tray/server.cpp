@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <winhttp.h>
 #include <urlmon.h>
+#include <wincrypt.h>
 
 using std::wstring;
 
@@ -260,10 +261,11 @@ static void nginxKonfig()
         "    index index.php;\r\n"
         "    client_max_body_size 64m;\r\n"
         "    location ~ (^|/)\\. { return 404; }\r\n"
-        "    location ~ \\.(env|sql|gz|log|bak|md|zip|sh|dist|lock|json\\.tmp)$ { return 404; }\r\n"
-        "    location ~ ^/(includes|migrations|scripts|bin|klang|i18n)(/|$) { return 403; }\r\n"
+        // ~* : Windows unterscheidet bei Dateinamen nicht zwischen Groß und Klein – /Includes/… wäre sonst offen
+        "    location ~* \\.(env|sql|gz|log|bak|md|zip|sh|dist|lock|json\\.tmp)$ { return 404; }\r\n"
+        "    location ~* ^/(includes|migrations|scripts|bin|klang|i18n)(/|$) { return 403; }\r\n"
         "    location ^~ /api/v1/ { rewrite ^/api/v1/(.*)$ /api/index.php?pfad=$1 last; }\r\n"
-        "    location ~ \\.php$ { try_files $uri =404; include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass php; }\r\n"
+        "    location ~* \\.php$ { try_files $uri =404; include fastcgi_params; fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; fastcgi_pass php; }\r\n"
         "    location ~ \\.(css|js)$ { add_header Cache-Control \"no-cache\"; try_files $uri =404; }\r\n"
         "    location = /sw.js { add_header Cache-Control \"no-cache\"; add_header Service-Worker-Allowed \"/\"; }\r\n"
         "    location / { try_files $uri /index.php?$args; }\r\n";
@@ -460,6 +462,7 @@ static void autostartSetzen(bool an)
 // Dann Hinweis im Infobereich und Menüpunkt „Update installieren“: Installer laden, Server sauber beenden, Installer starten.
 static std::mutex g_updSperre;
 static wstring g_updVersion, g_updUrl;
+static std::string g_updSumme;   // SHA-256 des Installers laut GitHub (hex, klein)
 
 static std::string httpHolen(const wchar_t *host, const wchar_t *pfad)
 {
@@ -502,7 +505,7 @@ static void updatePruefen()
 {
     if (ini(L"update_hinweis", L"1") == L"0") return;
     std::string j = httpHolen(L"api.github.com", L"/repos/lfrank95/amberwave/releases?per_page=15");
-    std::string eigene = utf8(AW_VERSION), best, url;
+    std::string eigene = utf8(AW_VERSION), best, url, summe;
     bool vorab = eigene.find('-') != std::string::npos;
     size_t p = 0;
     // einfache Suche im JSON: je Release tag_name, prerelease, draft und die Download-Adressen der Anhänge
@@ -519,7 +522,17 @@ static void updatePruefen()
         while (a != std::string::npos) {
             size_t ua = a + 24, ue = block.find('"', ua); std::string u = block.substr(ua, ue - ua);
             if (u.size() >= name.size() && u.compare(u.size() - name.size(), name.size(), name) == 0) {
-                if (versionVergleich(v, eigene) > 0 && (best.empty() || versionVergleich(v, best) > 0)) { best = v; url = u; }
+                if (versionVergleich(v, eigene) > 0 && (best.empty() || versionVergleich(v, best) > 0)) {
+                    best = v; url = u; summe.clear();
+                    // Prüfsumme dieses Anhangs: "digest":"sha256:…" steht in seinem Eintrag vor der Download-Adresse
+                    size_t vor = block.rfind("\"browser_download_url\":\"", a ? a - 1 : 0), d = block.rfind("\"digest\":\"sha256:", a);
+                    if (a == 0) vor = std::string::npos;
+                    if (d != std::string::npos && (vor == std::string::npos || d > vor) && d + 17 + 64 <= block.size()) {
+                        std::string hx = block.substr(d + 17, 64); bool ok = true;
+                        for (char &ch : hx) { ch = (char)tolower((unsigned char)ch); if (!isxdigit((unsigned char)ch)) ok = false; }
+                        if (ok && block[d + 17 + 64] == '"') summe = hx;
+                    }
+                }
                 break;
             }
             a = block.find("\"browser_download_url\":\"https://github.com/lfrank95/amberwave/releases/download/", ue);
@@ -527,7 +540,7 @@ static void updatePruefen()
     }
     if (best.empty()) return;
     bool neu;
-    { std::lock_guard<std::mutex> l(g_updSperre); neu = g_updVersion != breit(best); g_updVersion = breit(best); g_updUrl = breit(url); }
+    { std::lock_guard<std::mutex> l(g_updSperre); neu = g_updVersion != breit(best); g_updVersion = breit(best); g_updUrl = breit(url); g_updSumme = summe; }
     if (neu) {
         logz(L"Neue Version verfügbar: " + breit(best));
         blase(APP, L"Version " + breit(best) + L" ist da – Rechtsklick aufs Symbol → Update installieren.");
@@ -541,12 +554,33 @@ static void updateStand(const std::string &stand, const std::string &fehler = ""
     if (f == INVALID_HANDLE_VALUE) return;
     DWORD n = 0; WriteFile(f, j.data(), (DWORD)j.size(), &n, nullptr); CloseHandle(f);
 }
+/** SHA-256 einer Datei als Hex (klein); leer bei Fehler */
+static std::string sha256Datei(const wstring &pfad)
+{
+    std::string aus;
+    HANDLE f = CreateFileW(pfad.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return aus;
+    HCRYPTPROV prov = 0; HCRYPTHASH hash = 0;
+    if (CryptAcquireContextW(&prov, nullptr, nullptr, PROV_RSA_AES, CRYPT_VERIFYCONTEXT) && CryptCreateHash(prov, CALG_SHA_256, 0, 0, &hash)) {
+        std::vector<BYTE> puf(1 << 16); DWORD n = 0; bool ok = true;
+        while (ReadFile(f, puf.data(), (DWORD)puf.size(), &n, nullptr) && n) if (!CryptHashData(hash, puf.data(), n, 0)) { ok = false; break; }
+        BYTE h[32]; DWORD hl = sizeof h;
+        if (ok && CryptGetHashParam(hash, HP_HASHVAL, h, &hl, 0) && hl == 32) {
+            static const char z[] = "0123456789abcdef";
+            for (BYTE b : h) { aus += z[b >> 4]; aus += z[b & 15]; }
+        }
+    }
+    if (hash) CryptDestroyHash(hash);
+    if (prov) CryptReleaseContext(prov, 0);
+    CloseHandle(f);
+    return aus;
+}
 /** still = aus der Weboberfläche angestoßen (dort schon bestätigt): keine Rückfragen, Fehler gehen an die Seite */
 static void updateInstallieren(HWND h, bool still = false)
 {
-    wstring v, url;
-    { std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; }
-    if (url.empty() && still) { updatePruefen(); std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; }
+    wstring v, url; std::string summe;
+    { std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; summe = g_updSumme; }
+    if (url.empty() && still) { updatePruefen(); std::lock_guard<std::mutex> l(g_updSperre); v = g_updVersion; url = g_updUrl; summe = g_updSumme; }
     if (url.empty()) {
         if (still) updateStand("fehler", "Zu dieser Version gibt es noch keinen Windows-Installer. Bitte etwas sp\xC3\xA4ter noch einmal versuchen.");
         return;
@@ -561,6 +595,18 @@ static void updateInstallieren(HWND h, bool still = false)
         if (still) updateStand("fehler", "Das Update lie\xC3\x9F sich nicht herunterladen. Sp\xC3\xA4ter noch einmal versuchen.");
         else MessageBoxW(h, L"Das Update ließ sich nicht herunterladen. Später noch einmal versuchen – oder den Installer von GitHub laden.", APP, MB_OK | MB_ICONWARNING);
         return;
+    }
+    // Prüfsumme aus dem GitHub-Release muss stimmen – sonst wird nichts gestartet
+    {
+        std::string ist = sha256Datei(ziel);
+        if (summe.empty() || ist.empty() || ist != summe) {
+            DeleteFileW(ziel.c_str());
+            statusSetzen(L"läuft – " + adresse());
+            logz(summe.empty() ? L"Update abgebrochen: zu dieser Version gibt es keine Prüfsumme" : L"Update abgebrochen: Prüfsumme stimmt nicht");
+            if (still) updateStand("fehler", summe.empty() ? "F\xC3\xBCr diese Version gibt es keine Pr\xC3\xBC""fsumme. Bitte den Installer von der Release-Seite laden." : "Die Pr\xC3\xBC""fsumme der geladenen Datei stimmt nicht. Es wurde nichts installiert.");
+            else MessageBoxW(h, summe.empty() ? L"Für diese Version gibt es keine Prüfsumme. Bitte den Installer von der Release-Seite auf GitHub laden." : L"Die Prüfsumme der geladenen Datei stimmt nicht. Es wurde nichts installiert.", APP, MB_OK | MB_ICONWARNING);
+            return;
+        }
     }
     if (!still && MessageBoxW(h, (L"Version " + v + L" ist geladen.\n\nDer Server wird jetzt kurz beendet und startet in der neuen Version wieder. Bibliothek, Konten und Einstellungen bleiben.").c_str(),
                     APP, MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) return;

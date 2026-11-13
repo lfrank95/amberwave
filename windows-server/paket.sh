@@ -10,10 +10,19 @@ TMP="$(mktemp -d)"
 mkdir -p "$ZIEL"
 laden() { echo "lade $1"; curl -fsSL --retry 3 -o "$2" "$1"; }
 auspacken() { mkdir -p "$2"; unzip -q -o "$1" -d "$2"; }
+# SHA-256 gegen die Angabe des Herstellers prüfen (fehlt die Angabe: Warnung statt Abbruch)
+pruefen() {
+  if [ -z "$2" ]; then echo "::warning title=Paket::keine Prüfsumme für $(basename "$1") – ungeprüft übernommen"; return 0; fi
+  local ist; ist="$(sha256sum "$1" | cut -d' ' -f1)"
+  if [ "${ist,,}" != "${2,,}" ]; then echo "::error title=Paket::Prüfsumme von $(basename "$1") stimmt nicht (erwartet $2, ist $ist)"; exit 1; fi
+  echo "Prüfsumme ok: $(basename "$1")"
+}
 
 # PHP 8.3 (Nicht-Threadsafe, für php-cgi) – neueste Version aus der Liste von windows.php.net
-PHPZIP="$(curl -fsSL https://windows.php.net/downloads/releases/releases.json | python -c "import json,sys; d=json.load(sys.stdin)['8.3']; print(d['nts-vs16-x64']['zip']['path'])")"
+PHPINFO="$(curl -fsSL https://windows.php.net/downloads/releases/releases.json | python -c "import json,sys; z=json.load(sys.stdin)['8.3']['nts-vs16-x64']['zip']; print(z['path'], z.get('sha256', ''))")"
+PHPZIP="${PHPINFO%% *}"; PHPSUMME="${PHPINFO#* }"; [ "$PHPSUMME" = "$PHPINFO" ] && PHPSUMME=""
 laden "https://windows.php.net/downloads/releases/$PHPZIP" "$TMP/php.zip"
+pruefen "$TMP/php.zip" "$PHPSUMME"
 auspacken "$TMP/php.zip" "$ZIEL/php"
 cp /c/Windows/System32/vcruntime140.dll /c/Windows/System32/vcruntime140_1.dll /c/Windows/System32/msvcp140.dll "$ZIEL/php/"
 cp "$HIER/php.ini" "$ZIEL/php/php.ini"
@@ -33,9 +42,11 @@ d=json.load(sys.stdin)
 for rel in d['releases'].values():
     for f in rel['files']:
         if f['file_name'].endswith('-winx64.zip') and 'debug' not in f['file_name']:
-            print(f['file_download_url']); raise SystemExit
+            print(f['file_download_url'], (f.get('checksum') or {}).get('sha256sum', '')); raise SystemExit
 ")"
+MDBSUMME="${MDB#* }"; [ "$MDBSUMME" = "$MDB" ] && MDBSUMME=""; MDB="${MDB%% *}"
 laden "$MDB" "$TMP/mariadb.zip"
+pruefen "$TMP/mariadb.zip" "$MDBSUMME"
 auspacken "$TMP/mariadb.zip" "$TMP/mariadb"
 mv "$TMP/mariadb/"mariadb-*/ "$ZIEL/mariadb"
 rm -rf "$ZIEL/mariadb/mysql-test" "$ZIEL/mariadb/sql-bench" "$ZIEL/mariadb/include" "$ZIEL/mariadb/data"

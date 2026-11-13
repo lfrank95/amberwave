@@ -521,6 +521,11 @@ function direkt_ip_beobachten(): void
     }
     $https = ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off';
     register_shutdown_function(static function () use ($ip, $host, $https): void {
+        // nur Anfragen eines angemeldeten Kontos zählen: sonst könnte jedes Gerät im Heimnetz mit einem erfundenen Host-Kopf
+        // die Direktadresse (DNS) und die gemerkte Connect-Adresse auf eine andere IP umbiegen
+        if (empty($GLOBALS['api_angemeldet'])) {
+            return;
+        }
         try {
             require_once __DIR__ . '/connect.php';
             connect_lan_lernen($host, $https);   // eigene Heimnetz-Adresse für Amberwave Connect

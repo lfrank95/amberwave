@@ -211,9 +211,21 @@ class Anfrage(BaseHTTPRequestHandler):
         with open(pfad, 'rb') as f:
             self.senden(200, f.read(), TYPEN.get(os.path.splitext(pfad)[1], 'application/octet-stream'))
 
+    def fremde_seite(self):
+        """Kommt der Auftrag von einer fremden Webseite? Die Einrichtung löscht Platten – eine Seite im Internet darf sie nicht
+        über den Browser eines Geräts im Heimnetz auslösen. Erlaubt: JSON (das kann ein fremdes Formular nicht schicken) und,
+        wenn der Browser eine Herkunft nennt, nur unsere eigene."""
+        if 'application/json' not in (self.headers.get('Content-Type') or '').lower():
+            return True
+        herkunft = (self.headers.get('Origin') or '').lower()
+        host = (self.headers.get('Host') or '').lower()
+        return bool(herkunft) and herkunft not in ('http://' + host, 'https://' + host)
+
     def do_POST(self):
         if self.umleiten():
             return
+        if self.fremde_seite():
+            return self.senden(403, {'ok': False, 'fehler': 'herkunft'})
         n = int(self.headers.get('Content-Length') or 0)
         try:
             w = json.loads(self.rfile.read(min(n, 65536)) or b'{}')

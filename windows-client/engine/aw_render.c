@@ -103,6 +103,7 @@ int main(int argc, char **argv) {
     for (size_t f = 0; f < frames; f++) {
       for (int c = 0; c < aus_kan; c++) {
         double x = c < ak ? planar[c][f] : 0.0;
+        if (!(x == x)) x = 0.0;
         unsigned char *d = aus + (f * (size_t)aus_kan + (size_t)c) * (size_t)B;
         if (B == 3) {
           double v = floor(x * 8388608.0 + tpdf() + 0.5);

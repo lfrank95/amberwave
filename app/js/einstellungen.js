@@ -619,7 +619,7 @@ function appZeichnen(app, inhalt, signal) {
     inhalt.querySelector('[data-falz-kurz]').textContent = st.buch ? t('· halb geklappt (Buch)') : st.tisch ? t('· aufgestellt (Laptop)') : '';
   };
   falzZeigen();
-  window.addEventListener('aw-falz', falzZeigen);
+  window.addEventListener('aw-falz', falzZeigen, signal ? { signal } : undefined);
 }
 
 /** Dieses Gerät › Offline: Qualität beim Speichern, am Handy nur im WLAN */

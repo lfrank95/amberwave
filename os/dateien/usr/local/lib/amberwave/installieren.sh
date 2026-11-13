@@ -140,6 +140,22 @@ if [ -n "${AW_WLAN_SSID:-}" ]; then
   ( umask 077; python3 -c 'import json, os, sys; json.dump({"ssid": os.environ["AW_WLAN_SSID"], "passwort": os.environ.get("AW_WLAN_PASSWORT", "")}, open(sys.argv[1], "w"))' /mnt/aw/daten/system/wlan.json )
   set -x
 fi
+# Das WLAN-Passwort, das der USB-Ersteller auf den Stick geschrieben hat, steht jetzt auf der Platte – auf dem Stick wird es
+# überschrieben (an Ort und Stelle, gleiche Größe): der Stick wandert danach in eine Schublade oder zu Freunden.
+(
+  for g in /dev/disk/by-partlabel/aw-stick /dev/disk/by-label/AMBERWAVE; do
+    [ -e "$g" ] || continue
+    o=/run/amberwave/stick-rw; mkdir -p "$o"
+    mount -o rw "$g" "$o" 2>/dev/null || continue
+    f="$o/amberwave/wlan.txt"
+    if [ -f "$f" ] && grep -q '^psk_hex=' "$f" 2>/dev/null; then
+      n="$(stat -c %s "$f")"
+      head -c "$n" /dev/zero | tr '\0' '\n' | dd of="$f" conv=notrunc status=none && sync
+    fi
+    umount "$o" 2>/dev/null || umount -l "$o" 2>/dev/null
+    break
+  done
+) || true
 sync
 umount -R /mnt/aw 2>/dev/null || { sleep 2; umount -R -l /mnt/aw; }
 trap - ERR

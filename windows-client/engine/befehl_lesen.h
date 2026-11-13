@@ -24,6 +24,17 @@ static void utf8_anhaengen(char **o, unsigned cp) {
 
 static const char *ws(const char *p) { while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++; return p; }
 
+/** vier Hex-Ziffern lesen; 0 = keine vier da */
+static int hex4(const char *p, unsigned *aus) {
+  unsigned v = 0;
+  for (int i = 0; i < 4; i++) {
+    char c = p[i]; unsigned d;
+    if (c >= '0' && c <= '9') d = (unsigned)(c - '0'); else if (c >= 'a' && c <= 'f') d = (unsigned)(c - 'a' + 10); else if (c >= 'A' && c <= 'F') d = (unsigned)(c - 'A' + 10); else return 0;
+    v = v * 16 + d;
+  }
+  *aus = v; return 1;
+}
+
 static const char *str_lesen(const char *p, char **aus) {
   // p zeigt auf '"'
   size_t n = strlen(p);
@@ -40,12 +51,14 @@ static const char *str_lesen(const char *p, char **aus) {
         case 'f': *q++ = '\f'; p++; break;
         case 'u': {
           unsigned cp = 0;
-          if (sscanf(p + 1, "%4x", &cp) != 1) { p++; break; }
+          // genau vier Hex-Ziffern, sonst nichts überspringen (ein abgeschnittenes \u am Zeilenende liefe über das Ende hinaus)
+          if (!hex4(p + 1, &cp)) { p++; break; }
           p += 5;
           if (cp >= 0xD800 && cp < 0xDC00 && p[0] == '\\' && p[1] == 'u') {
             unsigned lo = 0;
-            if (sscanf(p + 2, "%4x", &lo) == 1 && lo >= 0xDC00 && lo < 0xE000) { cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00); p += 6; }
+            if (hex4(p + 2, &lo) && lo >= 0xDC00 && lo < 0xE000) { cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00); p += 6; }
           }
+          if (cp == 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp < 0xE000)) cp = 0xFFFD;
           utf8_anhaengen(&q, cp);
           break;
         }

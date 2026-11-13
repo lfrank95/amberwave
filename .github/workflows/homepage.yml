@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
       - name: Versionsnummer einsetzen
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,6 +39,7 @@ jobs:
           BENUTZER: ${{ secrets.IONOS_SFTP_BENUTZER }}
           PASSWORT: ${{ secrets.IONOS_SFTP_PASSWORT }}
           ORDNER: ${{ secrets.IONOS_SFTP_ORDNER }}
+          HOSTSCHLUESSEL: ${{ secrets.IONOS_SFTP_HOSTKEY }}   # Zeile(n) im known_hosts-Format, z. B. aus „ssh-keyscan <host>“
         run: |
           if [ -z "$HOST" ] || [ -z "$BENUTZER" ] || [ -z "$PASSWORT" ]; then
             echo "::warning title=Homepage::Keine IONOS-Zugangsdaten in den Secrets – nichts hochgeladen."
@@ -47,5 +48,14 @@ jobs:
           sudo apt-get install -y -qq lftp >/dev/null
           ZIEL="${ORDNER:-/}"
           # nur die Seite spiegeln; Dateien, die es in site/ nicht mehr gibt, werden auf dem Webspace gelöscht
-          lftp -u "$BENUTZER,$PASSWORT" "sftp://$HOST" -e "set sftp:auto-confirm yes; set net:max-retries 3; set net:timeout 20; mkdir -p -f $ZIEL; mirror -R --delete --verbose=1 --exclude-glob .DS_Store site $ZIEL; bye"
+          # Ist der Schlüssel des Servers hinterlegt (Secret IONOS_SFTP_HOSTKEY), wird er geprüft – sonst wie bisher ungeprüft
+          # angenommen (dann könnte sich jemand zwischen Runner und Webspace setzen und das Passwort mitlesen).
+          if [ -n "$HOSTSCHLUESSEL" ]; then
+            mkdir -p ~/.ssh && printf '%s\n' "$HOSTSCHLUESSEL" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
+            BESTAETIGEN="set sftp:auto-confirm no; set sftp:connect-program 'ssh -a -x -o StrictHostKeyChecking=yes';"
+          else
+            echo "::warning title=Homepage::Secret IONOS_SFTP_HOSTKEY fehlt – der Server-Schlüssel wird nicht geprüft."
+            BESTAETIGEN="set sftp:auto-confirm yes;"
+          fi
+          lftp -u "$BENUTZER,$PASSWORT" "sftp://$HOST" -e "$BESTAETIGEN set net:max-retries 3; set net:timeout 20; mkdir -p -f $ZIEL; mirror -R --delete --verbose=1 --exclude-glob .DS_Store site $ZIEL; bye"
           echo "::notice title=Homepage::hochgeladen nach $HOST:$ZIEL"

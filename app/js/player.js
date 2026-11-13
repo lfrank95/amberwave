@@ -838,7 +838,12 @@ export class Player extends EventTarget {
     if (!document.hidden) await new Promise((fertig) => setTimeout(fertig, 60));
   }
 
-  async laden(ab = 0, abspielen = true, erzwingen = null) {
+  /** Titel laden. Die meisten Aufrufer warten nicht darauf – ein Fehler landet darum hier in der Konsole statt als unbehandelte Ablehnung */
+  laden(ab = 0, abspielen = true, erzwingen = null) {
+    return this._laden(ab, abspielen, erzwingen).catch((e) => { if (e?.name !== 'AbortError') console.error('Titel laden fehlgeschlagen', e); });
+  }
+
+  async _laden(ab = 0, abspielen = true, erzwingen = null) {
     if (!this.track) return;
     await this.wechselVorbereiten();
     let trk = this.track;
@@ -866,6 +871,7 @@ export class Player extends EventTarget {
       this.modus = { art: qm === 'original' ? 'original' : 'umgewandelt', qualitaet: qm, lueckenlos: true, ersatz: gewuenscht === 'original' && qm !== 'original' };
       this.offset = 0;
       this.letzteZeit = ab;
+      this.startStelle(0);
       const start = this.motor.start(trk, ab, art, qm);
       this.lautstaerkeAnwenden();
       this.metadaten();
@@ -881,16 +887,14 @@ export class Player extends EventTarget {
     if (!trk.format && this.zielQualitaet({}) === 'original') {
       try { const info = await api.get(`/tracks/${trk.id}`); trk.format = info.datei ? { datei: info.datei.format, codec: info.datei.codec, abtastrate: info.datei.abtastrate, bittiefe: info.datei.bittiefe, kanaele: info.datei.kanaele } : null; } catch (e) {}
     }
+    if (this.track !== trk) return;   // inzwischen weitergeschaltet
     const q = erzwingen || this.zielQualitaet(trk);
     this.modus = { art: q === 'original' ? 'original' : 'umgewandelt', qualitaet: q };
     this.offset = q === 'original' ? 0 : ab;
     this.letzteZeit = 0;
     this.audio.src = this.url(trk, q, ab);
+    this.startStelle(!nativ && q === 'original' ? ab : 0);
     if (nativ && ab > 0) this.audio.currentTime = ab;
-    else if (q === 'original' && ab > 0) {
-      const setzen = () => { this.audio.currentTime = ab; this.audio.removeEventListener('loadedmetadata', setzen); };
-      this.audio.addEventListener('loadedmetadata', setzen);
-    }
     this.lautstaerkeAnwenden();
     this.metadaten();
     this.melden('track');
@@ -898,6 +902,18 @@ export class Player extends EventTarget {
     if (abspielen) {
       try { await this.audio.play(); this.fadeEinStarten(); } catch (e) { this.fadeEinStarten(0); if (e.name !== 'AbortError') this.melden('zustand'); }
     }
+  }
+
+  /**
+   * Nach dem Laden an die Stelle `ab` springen (Dateien, die der Browser selbst spult). Ein Sprung, der noch auf einen früheren
+   * Titel wartet, wird verworfen – sonst landete er beim schnellen Weiterschalten auf dem neuen Titel.
+   */
+  startStelle(ab) {
+    if (this._startSetzen) { this.audio.removeEventListener('loadedmetadata', this._startSetzen); this._startSetzen = null; }
+    if (!(ab > 0)) return;
+    const setzen = () => { this._startSetzen = null; this.audio.currentTime = ab; };
+    this._startSetzen = setzen;
+    this.audio.addEventListener('loadedmetadata', setzen, { once: true });
   }
 
   /**
@@ -913,10 +929,7 @@ export class Player extends EventTarget {
     this.offset = 0;
     this.letzteZeit = 0;
     this.audio.src = this.url(trk, q);
-    if (ab > 0) {
-      const setzen = () => { this.audio.currentTime = ab; this.audio.removeEventListener('loadedmetadata', setzen); };
-      this.audio.addEventListener('loadedmetadata', setzen);
-    }
+    this.startStelle(ab);
     this.lautstaerkeAnwenden();
     this.metadaten();
     this.melden('track');
@@ -935,6 +948,7 @@ export class Player extends EventTarget {
       this.modus = { art: 'offline', qualitaet: q, lueckenlos: true };
       this.offset = 0;
       this.letzteZeit = ab;
+      this.startStelle(0);
       const start = this.motor.start(trk, ab, 'opus', q);
       this.lautstaerkeAnwenden();
       this.metadaten();
@@ -953,10 +967,7 @@ export class Player extends EventTarget {
       this.offset = 0;
       this.letzteZeit = 0;
       this.audio.src = direkt || this._blobUrl;
-      if (ab > 0) {
-        const setzen = () => { this.audio.currentTime = ab; this.audio.removeEventListener('loadedmetadata', setzen); };
-        this.audio.addEventListener('loadedmetadata', setzen);
-      }
+      this.startStelle(ab);
       this.lautstaerkeAnwenden();
       this.metadaten();
       this.melden('track');
@@ -1296,9 +1307,11 @@ export class Player extends EventTarget {
   async radioNachfuellen() {
     if (this.quelleKontext?.art !== 'radio' || this._radioLaedt || this.liste.length - this.index > 5) return;
     this._radioLaedt = true;
+    const kontext = this.quelleKontext;
     try {
-      const r = await api.post('/radio', { saat: this.quelleKontext.saat || null, ausschluss: this.liste.slice(-300).map((t) => t.id), anzahl: 15 });
-      if (this.quelleKontext?.art === 'radio' && r.tracks?.length) {
+      const r = await api.post('/radio', { saat: kontext.saat || null, ausschluss: this.liste.slice(-300).map((t) => t.id), anzahl: 15 });
+      // nur, wenn noch dasselbe Radio läuft (inzwischen ein anderes gestartet: dessen Liste nicht mit fremden Titeln auffüllen)
+      if (this.quelleKontext === kontext && r.tracks?.length) {
         this.radioGruende = { ...(this.radioGruende || {}), ...(r.gruende || {}) };
         const neu = r.tracks.filter((t) => t.verfuegbar !== false);
         this.liste.push(...neu);

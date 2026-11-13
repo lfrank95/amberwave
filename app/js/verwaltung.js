@@ -1862,7 +1862,8 @@ export function direktEinrichten(box, signal) {
     });
   };
 
-  netzweg.addEventListener('wechsel', () => { if (stand && box.isConnected) zeichnen(); });
+  netzweg.addEventListener('wechsel', () => { if (stand && box.isConnected) zeichnen(); }, signal ? { signal } : undefined);
+  signal?.addEventListener('abort', () => clearInterval(poll));
   laden().then((s) => {
     if (s?.lauf?.laeuft) {
       poll = setInterval(async () => { const r = await laden(); if (!r?.lauf?.laeuft) clearInterval(poll); }, 1500);
@@ -1930,7 +1931,8 @@ async function kontoAnlegen(app, nachher) {
       <label>${t('Benutzername')}</label><input type="text" name="benutzername" required pattern="[A-Za-z0-9._\\-]{3,50}" autocapitalize="none">
       <label>${t('E-Mail-Adresse')}</label><input type="email" name="email" required>
       <label>${t('Start-Passwort')} <small>${t('(muss beim ersten Login geändert werden)')}</small></label><input type="text" name="passwort" required minlength="8" autocomplete="off">
-      <div class="form-zeilen"><div><label>${t('Gültigkeit')}</label>${monateAuswahl()}</div><div><label>${t('Rolle')}</label><select name="rolle"><option value="user">${t('Familie')}</option><option value="admin">Admin</option></select></div></div>`,
+      <div class="form-zeilen"><div><label>${t('Gültigkeit')}</label>${monateAuswahl()}</div><div><label>${t('Rolle')}</label><select name="rolle"><option value="user">${t('Familie')}</option><option value="admin">Admin</option></select></div></div>
+      <label>${t('Dein Anmelde-Passwort')} <small>${t('(nur nötig, wenn die Rolle Admin vergeben wird)')}</small></label><input type="password" name="admin_passwort" autocomplete="current-password">`,
     knoepfe: [{ text: t('Abbrechen'), wert: 'abbrechen', art: 'zweit' }, { text: t('Anlegen'), wert: 'ok' }],
   });
   if (!d) return;
@@ -1963,14 +1965,16 @@ async function kontoAktion(app, k, aktion, anker, nachher) {
     { text: t('Bearbeiten'), icon: 'bearbeiten', aktion: async () => {
       const d = await dialog({ titel: t('Konto bearbeiten'), inhalt: `<div class="form-zeilen"><div><label>${t('Vorname')}</label><input type="text" name="vorname" value="${h(k.vorname)}" required></div><div><label>${t('Nachname')}</label><input type="text" name="nachname" value="${h(k.nachname)}" required></div></div>
         <label>${t('Benutzername')}</label><input type="text" name="benutzername" value="${h(k.benutzername)}" required><label>${t('E-Mail')}</label><input type="email" name="email" value="${h(k.email)}" required>
-        <label>${t('Rolle')}</label><select name="rolle"><option value="user" ${k.rolle === 'user' ? 'selected' : ''}>${t('Familie')}</option><option value="admin" ${k.rolle === 'admin' ? 'selected' : ''}>Admin</option></select>`,
+        <label>${t('Rolle')}</label><select name="rolle"><option value="user" ${k.rolle === 'user' ? 'selected' : ''}>${t('Familie')}</option><option value="admin" ${k.rolle === 'admin' ? 'selected' : ''}>Admin</option></select>
+        ${k.rolle === 'admin' ? '' : `<label>${t('Dein Anmelde-Passwort')} <small>${t('(nur nötig, wenn die Rolle Admin vergeben wird)')}</small></label><input type="password" name="admin_passwort" autocomplete="current-password">`}`,
         knoepfe: [{ text: t('Abbrechen'), wert: 'abbrechen', art: 'zweit' }, { text: t('Speichern'), wert: 'ok' }] });
       if (d && await versuche(() => api.put(`/admin/konten/${k.id}`, Object.fromEntries(d.form.entries())), t('Gespeichert'))) nachher();
     } },
     { text: t('Neues Passwort setzen'), icon: 'einstellungen', aktion: async () => {
-      const d = await dialog({ titel: t('Neues Passwort'), inhalt: `<label>${t('Passwort')} <small>${t('(muss beim nächsten Login geändert werden)')}</small></label><input type="text" name="passwort" required minlength="8" autocomplete="off">`,
+      const d = await dialog({ titel: t('Neues Passwort'), inhalt: `<label>${t('Passwort')} <small>${t('(muss beim nächsten Login geändert werden)')}</small></label><input type="text" name="passwort" required minlength="8" autocomplete="off">
+        <label>${t('Zur Sicherheit: dein Anmelde-Passwort')}</label><input type="password" name="admin_passwort" required autocomplete="current-password">`,
         knoepfe: [{ text: t('Abbrechen'), wert: 'abbrechen', art: 'zweit' }, { text: t('Setzen'), wert: 'ok' }] });
-      if (d) ausfuehren('passwort', { passwort: d.form.get('passwort') }, t('Passwort gesetzt'));
+      if (d) ausfuehren('passwort', { passwort: d.form.get('passwort'), admin_passwort: d.form.get('admin_passwort') }, t('Passwort gesetzt'));
     } },
     { text: t('Auf allen Geräten abmelden'), icon: 'abmelden', aktion: () => ausfuehren('geraete_abmelden', {}, t('Abgemeldet')) },
   ];

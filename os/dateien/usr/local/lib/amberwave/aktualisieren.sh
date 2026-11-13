@@ -8,10 +8,15 @@ set -u
 C=/daten/appdata/cache
 exec 9>/run/amberwave/update.lock; flock -n 9 || exit 0
 rm -f "$C/update-installieren"
+# Der Cache-Ordner gehört der App im Container. Als root darum nie durch eine Datei schreiben, die dort schon liegt (ein Link
+# dort zeigte sonst auf eine beliebige Datei des Geräts): in einem eigenen Ordner schreiben, dann an die Stelle umbenennen.
+schreiben() {  # schreiben <inhalt>
+  local t; t="$(mktemp /daten/system/.update-stand.XXXXXX)" || return 1
+  printf '%s\n' "$1" > "$t" && chmod 644 "$t" && mv -fT "$t" "$C/update-stand.json" || rm -f "$t"
+}
 melden() {  # melden <stand> [fehler]
   local f=${2:-}; f=${f//\\/\\\\}; f=${f//\"/\\\"}
-  printf '{"stand":"%s"%s}\n' "$1" "${2:+,\"fehler\":\"$f\"}" > "$C/update-stand.json.neu" && mv -f "$C/update-stand.json.neu" "$C/update-stand.json"
-  chmod 666 "$C/update-stand.json" 2>/dev/null
+  schreiben "$(printf '{"stand":"%s"%s}' "$1" "${2:+,\"fehler\":\"$f\"}")"
   echo "[update] $1 ${2:-}"
 }
 
@@ -19,7 +24,7 @@ melden laedt
 gesamt=0; fertig=0
 docker pull "$BILD" 2>&1 | while IFS= read -r z; do
   case "$z" in *"Pulling fs layer"*) gesamt=$((gesamt+1)) ;; *"Pull complete"*) fertig=$((fertig+1)) ;; esac
-  [ "$gesamt" -gt 0 ] && printf '{"stand":"laedt","prozent":%d}\n' $(( fertig * 100 / gesamt )) > "$C/update-stand.json"
+  [ "$gesamt" -gt 0 ] && schreiben "$(printf '{"stand":"laedt","prozent":%d}' $(( fertig * 100 / gesamt )))"
 done
 neu="$(docker image inspect -f '{{.Id}}' "$BILD" 2>/dev/null)"
 [ -n "$neu" ] || { melden fehler "Das neue Paket ließ sich nicht laden – besteht eine Internetverbindung?"; exit 1; }

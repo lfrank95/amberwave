@@ -19,14 +19,14 @@ static void eq_setzen(AwFx *fx, const AwWert *w, int n) {
   double g;
   if (!fx->initial) {
     // Konstruktor: processorOptions {k, gain}
-    if (l) { leer(e->k); for (int i = 0; i < l->liste_n && i < 40; i++) e->k[i] = l->liste[i]; }
-    if (wert_zahl(w, n, "gain", &g)) e->gain = g;
+    if (l) { leer(e->k); for (int i = 0; i < l->liste_n && i < 40; i++) e->k[i] = isfinite(l->liste[i]) ? l->liste[i] : 0; }
+    if (wert_zahl(w, n, "gain", &g) && isfinite(g)) e->gain = g;
     e->gain_ziel = e->gain;
     fx->initial = 1;
     return;
   }
-  if (l) { leer(e->ziel); for (int i = 0; i < l->liste_n && i < 40; i++) e->ziel[i] = l->liste[i]; e->ziel_neu = 1; }
-  if (wert_zahl(w, n, "gain", &g)) e->gain_ziel = g;
+  if (l) { leer(e->ziel); for (int i = 0; i < l->liste_n && i < 40; i++) e->ziel[i] = isfinite(l->liste[i]) ? l->liste[i] : 0; e->ziel_neu = 1; }
+  if (wert_zahl(w, n, "gain", &g) && isfinite(g)) e->gain_ziel = g;
 }
 
 static void eq_block(AwFx *fx, const float *const *ein, float *const *aus, int kan, int n) {

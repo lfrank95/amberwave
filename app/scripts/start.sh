@@ -76,9 +76,14 @@ mkdir -p "$CACHE_DIR/cover" "$CACHE_DIR/bilder" "$CACHE_DIR/tmp" "$CACHE_DIR/mus
 rm -f "${CACHE_DIR}/tmp/"schema-*.ok 2>/dev/null
 # Eigene Ordner (Cache, Backups, Code für Updates) gehören dem Webserver-Benutzer – nur ändern, was nicht passt
 [ "${AMBERWAVE_AIO:-0}" = "1" ] && mkdir -p "$BACKUP_DIR"
+# Ausnahme: der Ordner scripts/ und die Shell-Skripte darin (dieses hier, aio.sh). Die laufen beim Start als root – gehörten sie
+# dem Webserver-Benutzer, könnte ein Fehler in der Web-App sie umschreiben und beim nächsten Start root im Container werden.
 for d in "$CACHE_DIR" "$BACKUP_DIR" /var/www/html; do
-    [ -d "$d" ] && find "$d" \( ! -user www-data -o ! -group "$(id -gn www-data)" \) -exec chown www-data:"$(id -gn www-data)" {} + 2>/dev/null
+    [ -d "$d" ] && find "$d" -not -path /var/www/html/scripts -not -path '/var/www/html/scripts/*.sh' \
+        \( ! -user www-data -o ! -group "$(id -gn www-data)" \) -exec chown www-data:"$(id -gn www-data)" {} + 2>/dev/null
 done
+chown root:root /var/www/html/scripts /var/www/html/scripts/*.sh 2>/dev/null
+chmod go-w /var/www/html/scripts /var/www/html/scripts/*.sh 2>/dev/null
 
 # ---- Direktzugang im Heimnetz: HTTPS auf Port 8443 im Container ----
 # Das Zertifikat holt Amberwave selbst (Verwaltung → System → Direktzugang). Bis dahin liegt ein selbst

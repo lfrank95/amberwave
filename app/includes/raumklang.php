@@ -61,7 +61,8 @@ function raumklang_messen(string $pfad): ?array
         }
         $pos += 8 + $len + ($len & 1);
     }
-    if (!$fmt || $daten === null || $fmt['kanaele'] < 1 || $fmt['rate'] < 8000) {
+    // Grenzen wie in der Wiedergabe: 1–8 Kanäle, 8–768 kHz. (Erfundene Kopfwerte ließen die Messung sonst endlos rechnen.)
+    if (!$fmt || $daten === null || $fmt['kanaele'] < 1 || $fmt['kanaele'] > 8 || $fmt['rate'] < 8000 || $fmt['rate'] > 768000) {
         return null;
     }
     $bytes = intdiv($fmt['bits'], 8);
@@ -259,7 +260,8 @@ function raumklang_hochladen(?array $user = null): array
         throw new ApiFehler(t('Die Datei ist zu groß (höchstens 30 MB).'));
     }
     $daten = (string) file_get_contents((string) $f['tmp_name']);
-    if (!raumklang_wav_pruefen($daten)) {
+    // erst messen, dann speichern: was sich nicht als WAV lesen lässt (falsche Kanalzahl, Rate, Auflösung), landet gar nicht erst im Ordner
+    if (!raumklang_wav_pruefen($daten) || raumklang_messen((string) $f['tmp_name']) === null) {
         throw new ApiFehler(t('Bitte eine WAV-Datei hochladen.'));
     }
     $meta_datei = raumklang_ordner() . '/eigenschaften.json';
@@ -268,8 +270,24 @@ function raumklang_hochladen(?array $user = null): array
     $admin = $user && ($user['rolle'] ?? '') === 'admin';
     $name = raumklang_dateiname((string) ($f['name'] ?? 'impuls.wav'));
     $stamm = preg_replace('/\.wav$/i', '', $name);
-    for ($i = 2; is_file(raumklang_ordner('eigene') . '/' . $name) && !$admin && (int) ($meta['eigene/' . $name]['besitzer'] ?? -1) !== $uid && $i < 100; $i++) {
+    $fremd = static fn(string $n): bool => is_file(raumklang_ordner('eigene') . '/' . $n) && !$admin && (int) ($meta['eigene/' . $n]['besitzer'] ?? -1) !== $uid;
+    for ($i = 2; $fremd($name) && $i < 100; $i++) {
         $name = mb_substr($stamm, 0, 74) . " ({$i}).wav";
+    }
+    if ($fremd($name)) {
+        throw new ApiFehler(t('Diesen Namen gibt es schon zu oft – bitte die Datei umbenennen.'));
+    }
+    // Kontingent je Konto (Admins ausgenommen): sonst füllt ein einzelnes Konto die Platte
+    if (!$admin && !is_file(raumklang_ordner('eigene') . '/' . $name)) {
+        $eigene = 0;
+        foreach ($meta as $k => $e) {
+            if (is_array($e) && str_starts_with((string) $k, 'eigene/') && (int) ($e['besitzer'] ?? -1) === $uid) {
+                $eigene++;
+            }
+        }
+        if ($eigene >= 40) {
+            throw new ApiFehler(t('Du hast schon 40 eigene Impulsantworten – bitte erst welche löschen.'));
+        }
     }
     file_put_contents(raumklang_ordner('eigene') . '/' . $name, $daten);
     $id = 'eigene/' . $name;

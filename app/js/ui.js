@@ -78,10 +78,18 @@ export function zahl(n) {
   return Number(n || 0).toLocaleString(locale);
 }
 
+/**
+ * Link-Ziel aus Daten (Titel aus der Warteschlange, vom anderen Gerät, vom gekoppelten Server): nur Pfade innerhalb der App,
+ * fertig für ein href-Attribut. Alles andere (fremde Adressen, „javascript:“, Anführungszeichen) fällt auf den Standard zurück.
+ */
+export function linkPfad(pfad, standard) {
+  return h(typeof pfad === 'string' && /^\/(?![\/\\])[^\s"'<>`]*$/.test(pfad) ? pfad : standard);
+}
+
 /** Künstler-Credit als Links: [{id, name, verbindung}] */
 export function kuenstlerLinks(liste, klasse = '') {
   if (!liste || !liste.length) return `<span class="verb">${h(t('Unbekannter Künstler'))}</span>`;
-  return liste.map((k) => `<a href="${k.pfad || `/kuenstler/${k.id}`}" data-link class="${klasse}">${h(k.name === '[unbekannt]' ? t('Unbekannter Künstler') : k.name)}</a>${k.verbindung ? `<span class="verb">${h(k.verbindung)}</span>` : ''}`).join('');
+  return liste.map((k) => `<a href="${linkPfad(k.pfad, `/kuenstler/${encodeURIComponent(k.id)}`)}" data-link class="${h(klasse)}">${h(k.name === '[unbekannt]' ? t('Unbekannter Künstler') : k.name)}</a>${k.verbindung ? `<span class="verb">${h(k.verbindung)}</span>` : ''}`).join('');
 }
 
 /** Künstler-Credit als reiner Text */

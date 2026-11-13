@@ -26,7 +26,7 @@ const TAG_FORMATE = ['flac', 'mp3', 'm4a', 'mp4', 'm4b', 'aac'];
 /** MD5 über die dekodierten Audiodaten (erste Tonspur) */
 function audio_pruefsumme(string $pfad): string
 {
-    $cmd = [konfig()['stream']['ffmpeg'], '-nostdin', '-v', 'error', '-threads', '1', '-i', $pfad, '-map', '0:a:0', '-f', 'md5', '-'];
+    $cmd = [konfig()['stream']['ffmpeg'], '-nostdin', '-v', 'error', '-threads', '1', '-protocol_whitelist', 'file,pipe', '-i', $pfad, '-map', '0:a:0', '-f', 'md5', '-'];
     $p = proc_open($cmd, [0 => ['file', aw_null(), 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     if (!is_resource($p)) {
         throw new TagFehler(t('ffmpeg konnte nicht gestartet werden'));

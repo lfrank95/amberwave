@@ -330,14 +330,43 @@ async function cookieKopf(url) {
   } catch (e) { return ''; }
 }
 
+// Was die Seite der Engine schicken darf: nur Wiedergabe und Klangkette. Ausgabegerät, Korrektur, Kanal-EQ, Bass, Testton
+// und die VST-Anbindung (vst_an/vst_ab) setzt allein der Hauptprozess – über eigene, geprüfte Wege.
+const SEITEN_BEFEHLE = new Set(['laden', 'vormerken', 'spielen', 'pause', 'springen', 'lautstaerke', 'gain', 'stopp', 'fx', 'kette', 'delta', 'messen',
+  'abgriffe', 'asio_einstellungen', 'raum', 'raum_ir', 'raum_p', 'raum_m']);
+const SEITEN_FELDER = { id: 'text', url: 'text', art: 'text', reihe: 'text', stufen: 'text', liste: 'text', pos: 'zahl', gain: 'zahl', wert: 'zahl', spielen: 'ja', an: 'ja' };
+const TEXT_MAX = 64 * 1024 * 1024;   // Impulsantworten (raum_ir) kommen als Text
+/** Befehl der Seite auf die erlaubten Befehle und Felder zurechtstutzen; null = verwerfen */
+function seitenBefehl(b) {
+  if (!b || typeof b !== 'object' || typeof b.c !== 'string' || !SEITEN_BEFEHLE.has(b.c)) return null;
+  const aus = { c: b.c };
+  for (const k of Object.keys(b)) {
+    const v = b[k];
+    const art = SEITEN_FELDER[k] || (/^w\.[a-z0-9_@.]{1,40}$/i.test(k) ? 'wert' : '');
+    if (!art || v == null) continue;
+    if (art === 'text') { if (typeof v === 'string' && v.length <= 4096) aus[k] = v; }
+    else if (art === 'zahl') { if (typeof v === 'number' && Number.isFinite(v)) aus[k] = v; }
+    else if (art === 'ja') { if (typeof v === 'boolean' || v === 0 || v === 1) aus[k] = !!v; }
+    else if (typeof v === 'number') { if (Number.isFinite(v)) aus[k] = v; }
+    else if (typeof v === 'boolean') aus[k] = v ? 1 : 0;
+    else if (typeof v === 'string') { if (v.length <= TEXT_MAX) aus[k] = v; }
+    else if (Array.isArray(v) && v.length <= 512 && v.every((x) => typeof x === 'number' && Number.isFinite(x))) aus[k] = v;
+  }
+  // VST-Plätze schaltet nur der Hauptprozess (fx mit art „vstN“ wäre ohnehin wirkungslos)
+  if (aus.c === 'fx' && !/^[a-z]{1,12}$/.test(aus.art || '')) return null;
+  return aus;
+}
+
 // Befehle in Reihenfolge weitergeben (das Nachschlagen der Cookies ist asynchron)
 let kette = Promise.resolve();
 ipcMain.on('engine-senden', (e, b) => {
-  if (!erlaubt(e.senderFrame?.url || '') || !b || typeof b.c !== 'string') return;
+  if (!erlaubt(e.senderFrame?.url || '')) return;
+  const befehl = seitenBefehl(b);
+  if (!befehl) return;
   kette = kette.then(async () => {
-    const befehl = { ...b };
     if ((befehl.c === 'laden' || befehl.c === 'vormerken') && befehl.url) {
-      if (!/^https?:\/\//i.test(befehl.url)) return;
+      // Titel kommen nur vom eingerichteten Server (dessen Anmeldung bekommt die Engine mit)
+      if (!/^https?:\/\//i.test(befehl.url) || !erlaubt(befehl.url)) return;
       befehl.kopf = await cookieKopf(befehl.url);
     }
     if (befehl.c === 'pause' || befehl.c === 'stopp') spielt = false;
@@ -369,7 +398,7 @@ ipcMain.handle('geraete', (e) => {
 });
 // Gerät benennen oder ausblenden (nur auf diesem PC; leerer Name = wieder der erkannte)
 ipcMain.on('geraet-merken', (e, w) => {
-  if (!erlaubt(e.senderFrame?.url || '') || !w || typeof w.id !== 'string' || w.id.length > 300) return;
+  if (!erlaubt(e.senderFrame?.url || '') || !w || typeof w.id !== 'string' || !w.id || w.id.length > 300 || /^(__proto__|constructor|prototype)$/.test(treiberVon(w.id))) return;
   w = { ...w, id: treiberVon(w.id) };   // Name und Ausblenden gelten für den ganzen Treiber
   const alle = { ...(einst.geraete || {}) };
   const g = { ...(alle[w.id] || {}) };
@@ -449,7 +478,7 @@ ipcMain.handle('eq-presets', (e) => (erlaubt(e.senderFrame?.url || '') ? Object.
 ipcMain.handle('eq-preset-setzen', (e, name, baender) => {
   if (!erlaubt(e.senderFrame?.url || '') || typeof name !== 'string') return null;
   const n = name.trim().slice(0, 60);
-  if (!n) return null;
+  if (!n || /^(__proto__|constructor|prototype)$/.test(n)) return null;
   const p = { ...(einst.eq_presets || {}) };
   if (baender == null) delete p[n];
   else if (Array.isArray(baender)) { if (Object.keys(p).length >= 100 && !(n in p)) return null; p[n] = Array.from({ length: EQ_BAENDER }, (_, i) => eqBand(baender[i], i)); }
@@ -500,9 +529,25 @@ ipcMain.handle('vst-scannen', async (e, komplett) => {
 });
 ipcMain.handle('vst-probe', (e, pfad, cid) => (vstOk(e) ? vst.probe(String(pfad), String(cid)) : null));
 ipcMain.handle('vst-editor', (e, pfad, cid) => (vstOk(e) ? vst.editor(String(pfad), String(cid)) : null));
-ipcMain.handle('vst-ordner-setzen', (e, liste) => {
+// Zusätzliche Plug-in-Ordner: aus ihnen wird Programmcode geladen. Darum nur feste Laufwerkspfade (keine Netzwerkpfade),
+// und jeden neuen Ordner bestätigt der Mensch am PC in einem Fenster des Clients – die Seite allein kann keinen eintragen.
+const vstOrdnerGueltig = (o) => typeof o === 'string' && o.length < 400 && /^[a-z]:[\\/]/i.test(o) && !/[\0\r\n]/.test(o) && !o.split(/[\\/]/).includes('..');
+ipcMain.handle('vst-ordner-setzen', async (e, liste) => {
   if (!vstOk(e) || !Array.isArray(liste)) return null;
-  einst.vst = { ...(einst.vst || {}), ordner: liste.map(String).filter((x) => x && x.length < 400).slice(0, 20) };
+  const gleich = (a, b) => path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase();
+  const bisher = (einst.vst?.ordner || []).filter(vstOrdnerGueltig);
+  const gewollt = [...new Set(liste.filter(vstOrdnerGueltig).map((o) => path.normalize(o)))].slice(0, 20);
+  const neu = gewollt.filter((o) => !bisher.some((b) => gleich(b, o)));
+  if (neu.length) {
+    const r = await dialog.showMessageBox(fenster || undefined, {
+      type: 'warning', title: 'Amberwave', noLink: true, defaultId: 1, cancelId: 1,
+      message: t('Plug-ins aus diesen Ordnern laden?'),
+      detail: `${neu.join('\n')}\n\n${t('Plug-ins sind Programme: Amberwave führt aus, was in diesen Ordnern liegt. Nur bestätigen, wenn du die Ordner selbst eingetragen hast.')}`,
+      buttons: [t('Ordner übernehmen'), t('Abbrechen')],
+    }).catch(() => ({ response: 1 }));
+    if (r.response !== 0) return null;
+  }
+  einst.vst = { ...(einst.vst || {}), ordner: gewollt };
   einstSpeichern();
   return vst.liste();
 });
@@ -821,7 +866,7 @@ function fensterSicherstellen() {
   });
   fenster.webContents.on('will-navigate', (e, url) => {
     if (url.startsWith('file:')) return;
-    if (!erlaubt(url)) { e.preventDefault(); shell.openExternal(url); }
+    if (!erlaubt(url)) { e.preventDefault(); if (/^https?:\/\//i.test(url)) shell.openExternal(url); }
   });
   // Seite neu geladen (F5) oder verlassen: wie im Browser hört die Wiedergabe auf
   fenster.webContents.on('did-start-navigation', (d) => {
@@ -911,6 +956,11 @@ app.on('second-instance', () => {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  // Die Web-App braucht im Client nur die Zwischenablage (Adressen kopieren) und Vollbild – Kamera, Mikrofon, Standort,
+  // Benachrichtigungen usw. bekommt keine Seite, auch nicht die des eigenen Servers
+  const RECHTE = new Set(['clipboard-sanitized-write', 'fullscreen']);
+  session.defaultSession.setPermissionRequestHandler((wc, recht, antwort, details) => antwort(RECHTE.has(recht) && erlaubt(details?.requestingUrl || wc?.getURL() || '')));
+  session.defaultSession.setPermissionCheckHandler((wc, recht, herkunft) => RECHTE.has(recht) && erlaubt(herkunft || wc?.getURL() || ''));
   engineStarten();
   medientasten();
   try {

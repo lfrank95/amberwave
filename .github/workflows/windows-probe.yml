@@ -12,15 +12,15 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6   # v2
       - run: bash app/scripts/buendeln.sh
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962   # v2
         with:
           php-version: '8.3'
           extensions: pdo_mysql, gd, zip, mbstring, openssl, curl, fileinfo, intl, sodium
           ini-values: memory_limit=512M
-      - uses: ankane/setup-mariadb@v1
+      - uses: ankane/setup-mariadb@6d0f4c60a92ccfffa65f777e7262efe2e15ff81d   # v1
         with:
           mariadb-version: '11.8'
       - name: Datenbank anlegen

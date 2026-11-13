@@ -264,15 +264,30 @@ function playlist_tracks_hinzu(int $playlistId, array $ids): int
     }
     [$in, $p] = db_in($ids, 'tr');
     $gueltig = array_flip(array_map('intval', array_column(db_alle("SELECT id FROM tracks WHERE id IN {$in}", $p), 'id')));
-    $pos = (int) db_wert('SELECT COALESCE(MAX(pos), 0) FROM playlist_eintraege WHERE playlist_id = :p', ['p' => $playlistId]);
-    $n = 0;
-    foreach ($ids as $id) {
-        if (isset($gueltig[$id])) {
-            db_tun('INSERT INTO playlist_eintraege (playlist_id, track_id, pos) VALUES (:p, :t, :o)', ['p' => $playlistId, 't' => $id, 'o' => ++$pos]);
-            $n++;
-        }
+    // in einer Transaktion: zwei gleichzeitige Aufrufe vergeben sonst dieselben Positionen, und ein Abbruch ließe halbe Listen zurück
+    $eigene = !db()->inTransaction();
+    if ($eigene) {
+        db()->beginTransaction();
     }
-    db_tun('UPDATE playlists SET aktualisiert_am = NOW() WHERE id = :p', ['p' => $playlistId]);
+    try {
+        $pos = (int) db_wert('SELECT COALESCE(MAX(pos), 0) FROM playlist_eintraege WHERE playlist_id = :p FOR UPDATE', ['p' => $playlistId]);
+        $n = 0;
+        foreach ($ids as $id) {
+            if (isset($gueltig[$id])) {
+                db_tun('INSERT INTO playlist_eintraege (playlist_id, track_id, pos) VALUES (:p, :t, :o)', ['p' => $playlistId, 't' => $id, 'o' => ++$pos]);
+                $n++;
+            }
+        }
+        db_tun('UPDATE playlists SET aktualisiert_am = NOW() WHERE id = :p', ['p' => $playlistId]);
+        if ($eigene) {
+            db()->commit();
+        }
+    } catch (Throwable $e) {
+        if ($eigene && db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
     return $n;
 }
 
@@ -288,8 +303,17 @@ function api_playlist_aendern(array $user, int $id): array
         'f' => api_wert('familie', (bool) $p['familie']) ? 1 : 0, 'id' => $id,
     ]);
     if (is_array(api_wert('reihenfolge'))) {
-        foreach (array_values(api_wert('reihenfolge')) as $i => $eintrag) {
-            db_tun('UPDATE playlist_eintraege SET pos = :p WHERE id = :e AND playlist_id = :pl', ['p' => $i + 1, 'e' => (int) $eintrag, 'pl' => $id]);
+        db()->beginTransaction();
+        try {
+            foreach (array_slice(array_values(api_wert('reihenfolge')), 0, 20000) as $i => $eintrag) {
+                db_tun('UPDATE playlist_eintraege SET pos = :p WHERE id = :e AND playlist_id = :pl', ['p' => $i + 1, 'e' => (int) $eintrag, 'pl' => $id]);
+            }
+            db()->commit();
+        } catch (Throwable $e) {
+            if (db()->inTransaction()) {
+                db()->rollBack();
+            }
+            throw $e;
         }
     }
     return playlist_objekt(playlist_laden($user, $id), $user, true);

@@ -769,6 +769,17 @@ IASIO *asio_treiber_laden(const char *id, char *fehler, size_t fn) {
   wchar_t w[80]; CLSID clsid;
   MultiByteToWideChar(CP_UTF8, 0, id, -1, w, 80);
   if (CLSIDFromString(w, &clsid) != S_OK) { snprintf(fehler, fn, "ASIO: ungültige Treiber-ID"); return NULL; }
+  // nur Treiber, die Windows als ASIO-Treiber führt – nicht irgendeine COM-Klasse, deren Kennung jemand schickt
+  {
+    char ids[32][80], namen[32][128];
+    int n = asio_treiber_liste(ids, namen, 32), da = 0;
+    for (int i = 0; i < n && !da; i++) {
+      wchar_t w2[80]; CLSID c2;
+      MultiByteToWideChar(CP_UTF8, 0, ids[i], -1, w2, 80);
+      if (CLSIDFromString(w2, &c2) == S_OK && IsEqualCLSID(&c2, &clsid)) da = 1;
+    }
+    if (!da) { snprintf(fehler, fn, "ASIO: unbekannter Treiber"); return NULL; }
+  }
   void *p = NULL;
   // ASIO-Eigenheit: die Schnittstellen-ID ist die Klassen-ID des Treibers
   HRESULT hr = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &clsid, &p);

@@ -227,12 +227,14 @@ function loginversuch_protokollieren(string $name, string $ip, bool $ok): void
 
 // ---------- Remember-Me ----------
 
-function remember_me_setzen(int $userId): void
+/** $geraetId: das Gerät, zu dem das Token gehört (Standard: das der laufenden Sitzung) */
+function remember_me_setzen(int $userId, ?int $geraetId = null): void
 {
     $tage = konfig()['sicherheit']['remember_me_tage'];
     $roh = bin2hex(random_bytes(32));
-    db_tun('INSERT INTO remember_tokens (user_id, token_hash, gueltig_bis) VALUES (:u, :h, (NOW() + INTERVAL ' . (int) $tage . ' DAY))',
-        ['u' => $userId, 'h' => hash('sha256', $roh)]);
+    $geraetId ??= isset($_SESSION['geraet_id']) ? (int) $_SESSION['geraet_id'] : null;
+    db_tun('INSERT INTO remember_tokens (user_id, token_hash, gueltig_bis, geraet_id) VALUES (:u, :h, (NOW() + INTERVAL ' . (int) $tage . ' DAY), :g)',
+        ['u' => $userId, 'h' => hash('sha256', $roh), 'g' => $geraetId ?: null]);
     setcookie('remember_me', $userId . ':' . $roh, ['expires' => time() + $tage * 86400, 'path' => '/', 'secure' => ist_https(), 'httponly' => true, 'samesite' => 'Lax']);
 }
 
@@ -245,21 +247,26 @@ function remember_me_pruefen(): ?array
     if (!ctype_digit($uid) || !preg_match('/^[a-f0-9]{64}$/', $roh)) {
         return null;
     }
-    $t = db_zeile('SELECT id FROM remember_tokens WHERE user_id = :u AND token_hash = :h AND gueltig_bis > NOW()', ['u' => (int) $uid, 'h' => hash('sha256', $roh)]);
+    $t = db_zeile('SELECT id, geraet_id FROM remember_tokens WHERE user_id = :u AND token_hash = :h AND gueltig_bis > NOW()', ['u' => (int) $uid, 'h' => hash('sha256', $roh)]);
     if (!$t) {
         return null;
     }
-    if (!geraet_remember_erlaubt((int) $uid)) {
+    // Das Token gilt nur zusammen mit dem Geräte-Cookie dieses Browsers – und nur, solange das Gerät nicht abgemeldet wurde.
+    // (Ohne Geräte-Cookie ließ sich ein abgemeldetes Gerät früher mit dem Merk-Token allein wieder anmelden.)
+    $geraet = geraet_fuer_remember((int) $uid, $t['geraet_id'] !== null ? (int) $t['geraet_id'] : null);
+    if ($geraet === false) {
         remember_me_loeschen();
         $GLOBALS['geraet_abgemeldet'] = true;
         return null;
     }
     $user = db_zeile('SELECT * FROM users WHERE id = :id', ['id' => (int) $uid]);
-    db_tun('DELETE FROM remember_tokens WHERE id = :id', ['id' => $t['id']]); // Rotation
+    // Rotation. Das alte Token gilt noch ein paar Sekunden: lädt die Seite mehrere Dinge gleichzeitig, kommen alle mit dem
+    // alten Cookie an – ohne die Frist wäre nur die erste Anfrage angemeldet, die anderen bekämen „nicht angemeldet“.
+    db_tun('UPDATE remember_tokens SET gueltig_bis = LEAST(gueltig_bis, NOW() + INTERVAL 20 SECOND) WHERE id = :id', ['id' => $t['id']]);
     if (!$user) {
         return null;
     }
-    remember_me_setzen((int) $user['id']);
+    remember_me_setzen((int) $user['id'], $geraet);
     return $user;
 }
 

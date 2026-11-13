@@ -73,7 +73,10 @@ class MainActivity : ComponentActivity() {
         }
 
         // Rauchtest (CI, über adb): Entwicklerwerkzeuge der Oberfläche einschalten – erreichbar nur über adb, nicht aus dem Netz
-        if (intent?.getBooleanExtra("aw_test", false) == true) WebView.setWebContentsDebuggingEnabled(true)
+        // … und nur, wenn auf dem Gerät USB-Debugging eingeschaltet ist: auf einem normalen Handy bewirkt der Schalter nichts,
+        // auch wenn eine andere App Amberwave damit startet
+        val adbAn = android.provider.Settings.Global.getInt(contentResolver, android.provider.Settings.Global.ADB_ENABLED, 0) == 1
+        if (adbAn && intent?.getBooleanExtra("aw_test", false) == true) WebView.setWebContentsDebuggingEnabled(true)
         val (w, neu) = WebHalter.holen(this) { k -> webBauen(k) }
         web = w
         rahmen.addView(web, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))

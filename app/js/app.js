@@ -92,8 +92,14 @@ class App {
       // Konto für den Offline-Start merken – ohne Schlüssel (CSRF, Direktzugang) und E-Mail; anderes Konto als zuletzt:
       // was der Vorgänger auf diesem Gerät gespeichert hat, gehört ihm, nicht dem neuen Konto
       try {
+        // (das zuletzt angemeldete Konto steht in aw_konto – das bleibt beim Abmelden stehen, anders als aw_ich)
         const alt = JSON.parse(localStorage.getItem('aw_ich') || 'null');
-        if (alt?.user?.id && alt.user.id !== this.ich.user.id) { localStorage.removeItem('aw_verlauf_offen'); offline.bereit.then(() => offline.allesEntfernen()).catch(() => {}); }
+        const zuletzt = Number(localStorage.getItem('aw_konto')) || alt?.user?.id || 0;
+        if (zuletzt && zuletzt !== this.ich.user.id) {
+          localStorage.removeItem('aw_verlauf_offen'); localStorage.removeItem('aw-warteschlange');
+          offline.bereit.then(() => offline.allesEntfernen()).catch(() => {});
+        }
+        localStorage.setItem('aw_konto', String(this.ich.user.id));
         const { csrf, direkt, ...rest } = this.ich;
         localStorage.setItem('aw_ich', JSON.stringify({ ...rest, user: { ...rest.user, email: undefined } }));
       } catch (x) { /* egal */ }
@@ -434,6 +440,8 @@ class App {
     this.player.audio.pause();
     this.player.speichern(true);
     try { localStorage.removeItem('aw_ich'); } catch (e) { /* egal */ }   // kein Offline-Start als dieses Konto mehr
+    // die gemerkte Startseite (für den Start ohne Netz) gehört zur Anmeldung – mit dem Abmelden weg damit
+    try { await caches.delete('amberwave-huelle-v1'); } catch (e) { /* kein Cache-Speicher */ }
     try { await api.post('/abmelden'); } catch (e) {}
     window.location.href = '/login.php?grund=abgemeldet';
   }

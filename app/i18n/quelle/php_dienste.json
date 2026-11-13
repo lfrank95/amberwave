@@ -367,5 +367,8 @@
  "Dort liegen keine Dateien dazu.": "There are no files for it there.",
  "Zu wenig Platz im Musikordner – unter {mb} MB frei.": "Not enough space in the music folder – less than {mb} MB free.",
  "„{name}“ hat über den Rückkanal nicht rechtzeitig geantwortet.": "“{name}” didn't answer in time over the back channel.",
- "Unbekannter Pfad.": "Unknown path."
+ "Unbekannter Pfad.": "Unknown path.",
+ "Bitte mit deinem Anmelde-Passwort bestätigen.": "Please confirm with your login password.",
+ "Diesen Namen gibt es schon zu oft – bitte die Datei umbenennen.": "This name is already taken too many times – please rename the file.",
+ "Du hast schon 40 eigene Impulsantworten – bitte erst welche löschen.": "You already have 40 impulse responses of your own – please delete some first."
 }

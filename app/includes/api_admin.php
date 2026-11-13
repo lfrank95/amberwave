@@ -169,6 +169,8 @@ function api_admin_konto_aktion(array $admin, int $id, string $aktion): array
             log_sicherheitsereignis((int) $admin['id'], 'registrierung_abgelehnt', $u['benutzername']);
             return ['ok' => true, 'geloescht' => true];
         case 'passwort':
+            // fremdes Passwort setzen = dieses Konto übernehmen können: nur mit dem eigenen Passwort (eine offene Sitzung reicht nicht)
+            admin_passwort_bestaetigen($admin);
             $pw = (string) api_wert('passwort', '');
             if (($s = passwort_ist_zu_schwach($pw)) !== null) {
                 throw new ApiFehler($s);
@@ -216,6 +218,9 @@ function api_admin_konto_aendern(array $admin, int $id): array
     }
     $felder['benutzername'] = $bn;
     $rolle = (string) api_wert('rolle', $u['rolle']);
+    if ($rolle === 'admin' && $u['rolle'] !== 'admin') {
+        admin_passwort_bestaetigen($admin);
+    }
     if (!in_array($rolle, ['admin', 'user'], true)) {
         throw new ApiFehler(t('Ungültige Rolle.'));
     }
@@ -233,10 +238,18 @@ function api_admin_konto_aendern(array $admin, int $id): array
     return ['ok' => true, 'konto' => konto_objekt(konto_laden($id))];
 }
 
+/** Neue Admins und fremde Passwörter: der Admin bestätigt mit seinem eigenen Passwort (Feld admin_passwort) */
+function admin_passwort_bestaetigen(array $admin): void
+{
+    require_once __DIR__ . '/einrichtung.php';
+    datenbank_admin_bestaetigen($admin, 'admin_passwort');
+}
+
 function api_admin_konto_anlegen(array $admin): array
 {
-    $vn = trim((string) api_wert('vorname', ''));
-    $nn = trim((string) api_wert('nachname', ''));
+    $ohne_steuer = static fn($x): string => trim((string) preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) $x));
+    $vn = $ohne_steuer(api_wert('vorname', ''));
+    $nn = $ohne_steuer(api_wert('nachname', ''));
     $bn = trim((string) api_wert('benutzername', ''));
     $em = trim((string) api_wert('email', ''));
     $pw = (string) api_wert('passwort', '');
@@ -246,6 +259,9 @@ function api_admin_konto_anlegen(array $admin): array
     }
     if (($s = passwort_ist_zu_schwach($pw)) !== null) {
         throw new ApiFehler($s);
+    }
+    if (api_wert('rolle') === 'admin') {
+        admin_passwort_bestaetigen($admin);
     }
     try {
         $id = db_einfuegen("INSERT INTO users (vorname, nachname, benutzername, email, passwort_hash, rolle, status, aktiviert_am, gueltigkeit_monate, gueltig_bis, muss_passwort_aendern)

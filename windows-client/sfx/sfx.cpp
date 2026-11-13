@@ -1420,6 +1420,15 @@ static LRESULT CALLBACK fensterproc(HWND h, UINT m, WPARAM w, LPARAM l) {
 
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR cmd, int) {
   inst = hi;
+  {
+    // Installer liegen im Download-Ordner – dort kann jeder eine DLL danebenlegen. Nachgeladene DLLs darum nur aus System32,
+    // und der Arbeitsordner zählt bei der Suche nicht mit.
+    typedef BOOL (WINAPI *DllOrdnerFn)(DWORD);
+    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+    DllOrdnerFn f = k32 ? (DllOrdnerFn)(void *)GetProcAddress(k32, "SetDefaultDllDirectories") : NULL;
+    if (f) f(0x00000800 /* LOAD_LIBRARY_SEARCH_SYSTEM32 */);
+    SetDllDirectoryW(L"");
+  }
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);   // keine „Kein Datenträger“-Meldungen beim Prüfen von Pfaden
   {
     // Arbeitsordner auf den Temp-Ordner: vom Programm gestartet erbt der Installer sonst dessen Ordner als Arbeitsordner –

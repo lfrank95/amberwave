@@ -22,6 +22,10 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('message', (e) => {
   const d = e.data || {};
   if (d.art !== 'vorladen' || !Array.isArray(d.urls)) return;
+  // nur eigene Oberflächen-Dateien (Skripte, Stile, Bilder, Schriften) – nichts von anderen Adressen, keine API-Antworten
+  d.urls = d.urls.slice(0, 2000).filter((u) => {
+    try { const x = new URL(u, self.location.origin); return x.origin === self.location.origin && /^\/(css|js|img|fonts|klang)\//.test(x.pathname); } catch (x) { return false; }
+  });
   e.waitUntil(caches.open(CACHE).then(async (cache) => {
     // alte Fassungen derselben Dateien (anderer ?v=) raus, sonst wächst der Speicher mit jeder Version
     const neu = new Map(d.urls.map((u) => { const x = new URL(u, self.location.origin); return [x.pathname, x.search]; }));
@@ -56,8 +60,9 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(fetch(e.request).then((antwort) => {
       const html = (antwort.headers.get('Content-Type') || '').includes('text/html');
       if (appRoute && antwort.ok && !antwort.redirected && antwort.type === 'basic' && html) {
-        const kopie = antwort.clone();
-        caches.open(HUELLE).then((c) => c.put('/__huelle', kopie)).catch(() => {});
+        // ohne die eingebetteten Nutzerdaten (Konto, CSRF-Token) merken: die Hülle ist nur das Gerüst für den Start ohne Netz
+        antwort.clone().text().then((text) => caches.open(HUELLE).then((c) => c.put('/__huelle', new Response(
+          text.replace(/<script type="application\/json" id="aw-ich">[\s\S]*?<\/script>/, ''), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })))).catch(() => {});
       }
       return antwort;
     }).catch(async () => {

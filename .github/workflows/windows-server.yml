@@ -16,7 +16,7 @@ jobs:
   tray:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
       - name: llvm-mingw
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,7 +30,7 @@ jobs:
           bash windows-server/bauen.sh "$RUNNER_TEMP/aus/Amberwave Server.exe"
           bash windows-server/installer.sh "$RUNNER_TEMP/aus"
           ls -la "$RUNNER_TEMP/aus"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: tray
           path: ${{ runner.temp }}/aus
@@ -42,10 +42,10 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6   # v2
       - run: bash app/scripts/buendeln.sh
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           name: tray
           path: ${{ runner.temp }}/tray
@@ -61,7 +61,7 @@ jobs:
           rm -rf /c/AmberwaveServer/app/js/_b/*.map 2>/dev/null || true
           AW_XZ_STUFE=7 python windows-client/sfx/packen.py "$RUNNER_TEMP/tray/sfx.exe" /c/AmberwaveServer "/c/Amberwave-Windows-Server-$V.exe"
       # Nur als Anhang am Lauf (Actions → Lauf → Artifacts), 14 Tage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: Amberwave-Windows-Server-${{ env.V }}
           path: C:/Amberwave-Windows-Server-${{ env.V }}.exe
@@ -76,10 +76,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
         with:
           sparse-checkout: app/includes/config.php
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4
         with:
           pattern: 'Amberwave-Windows-Server-*'
           path: ${{ runner.temp }}/a

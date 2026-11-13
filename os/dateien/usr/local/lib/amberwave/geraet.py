@@ -93,9 +93,16 @@ def schluessel():
     if len(s) < 32:
         s = secrets.token_hex(24)
         os.makedirs(os.path.dirname(SCHLUESSEL), exist_ok=True)
-        with open(SCHLUESSEL, 'w') as f:
+        # Der Ordner gehört der App (Container): nie durch einen Link schreiben, den sie dort ablegen könnte – wir sind root.
+        # Darum neu anlegen (O_EXCL, O_NOFOLLOW) statt eine vorhandene Datei zu öffnen.
+        try:
+            os.unlink(SCHLUESSEL)
+        except OSError:
+            pass
+        fd = os.open(SCHLUESSEL, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+        with os.fdopen(fd, 'w') as f:
             f.write(s)
-    os.chmod(SCHLUESSEL, 0o644)   # die App läuft im Container nicht als root
+            os.fchmod(f.fileno(), 0o644)   # die App läuft im Container nicht als root
     return s
 
 

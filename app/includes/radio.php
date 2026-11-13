@@ -30,7 +30,7 @@ function radio_katalog(bool $altOk = false): array
 {
     $datei = konfig()['pfade']['cache'] . '/tmp/radio-katalog3.ser';
     if (is_file($datei) && filemtime($datei) > time() - ($altOk ? 21600 : 600)) {
-        $k = @unserialize((string) file_get_contents($datei));
+        $k = @unserialize((string) file_get_contents($datei), ['allowed_classes' => false]);
         if (is_array($k)) {
             return $k;
         }
@@ -291,7 +291,7 @@ function radio_nacheinander(array $trackKey): array
 {
     $datei = konfig()['pfade']['cache'] . '/tmp/radio-paare.ser';
     if (is_file($datei) && filemtime($datei) > time() - 1800) {
-        $p = @unserialize((string) file_get_contents($datei));
+        $p = @unserialize((string) file_get_contents($datei), ['allowed_classes' => false]);
         if (is_array($p)) {
             return $p;
         }

@@ -212,7 +212,7 @@ function lh_befehl(string $pfad): string
 {
     $ffmpeg = aw_arg(konfig()['stream']['ffmpeg']);
     $nice = is_executable('/usr/bin/nice') ? '/usr/bin/nice -n 15 ' : '';
-    return $nice . $ffmpeg . ' -nostdin -hide_banner -nostats -threads 1 -i ' . aw_arg($pfad)
+    return $nice . $ffmpeg . ' -nostdin -hide_banner -nostats -threads 1 -protocol_whitelist file,pipe -i ' . aw_arg($pfad)
         . ' -map 0:a:0 -vn -sn -dn -af ebur128=framelog=info:peak=true+sample -f null - 2>&1';
 }
 

@@ -464,14 +464,18 @@ function einrichtung_umleiten(array $z): never
 // ---------- Einstellungen › Dienste & Schlüssel › Datenbank (nur Admin) ----------
 
 /** Admin bestätigt mit seinem Anmelde-Passwort (Zeigen/Ändern von Zugangsdaten) */
-function datenbank_admin_bestaetigen(array $admin): void
+function datenbank_admin_bestaetigen(array $admin, string $feld = 'passwort'): void
 {
     require_once __DIR__ . '/api.php';
     require_once __DIR__ . '/sicherheit.php';
     if (!rate_erlaubt('datenbank_zugang', (string) $admin['id'], 10, 3600)) {
         throw new ApiFehler(t('Zu viele Versuche. Bitte später erneut versuchen.'), 429);
     }
-    if (!password_verify((string) api_wert('passwort', ''), (string) $admin['passwort_hash'])) {
+    $pw = (string) api_wert($feld, '');
+    if ($pw === '') {
+        throw new ApiFehler(t('Bitte mit deinem Anmelde-Passwort bestätigen.'), 403);
+    }
+    if (!password_verify($pw, (string) $admin['passwort_hash'])) {
         throw new ApiFehler(t('Das Passwort stimmt nicht.'), 403);
     }
 }
