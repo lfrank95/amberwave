@@ -55,7 +55,10 @@ for i in $(seq 1 150); do [ -f /run/amberwave/hotspot ] && break; sleep 1; done
 [ -f /run/amberwave/hotspot ] || { melde "fehler kein hotspot"; exit 1; }
 melde "hotspot an"
 sleep 3
-printf 'ctrl_interface=/run/wpa_handy\nnetwork={\n ssid="Amberwave-Setup"\n key_mgmt=NONE\n}\n' > /run/handy.conf
+# das Einrichtungs-WLAN ist nicht offen: Passwort ist der Einrichtungscode (am echten Gerät: Bildschirm / USB-Ersteller)
+aw_code="$(cat /run/amberwave/einrichtungscode 2>/dev/null)"
+[ ${#aw_code} = 8 ] || { melde "fehler kein einrichtungscode"; exit 1; }
+printf 'ctrl_interface=/run/wpa_handy\nnetwork={\n ssid="Amberwave-Setup"\n key_mgmt=WPA-PSK\n psk="%s"\n}\n' "$aw_code" > /run/handy.conf
 wpa_supplicant -B -i wlan2 -c /run/handy.conf -C /run/wpa_handy
 networkctl reconfigure wlan2
 ip_handy=""
