@@ -198,7 +198,10 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
     t_wechsel: 'Amberwave is joining your Wi-Fi', p_wechsel: 'If it doesn’t connect, the “Amberwave-Setup” Wi-Fi is back after about a minute – then connect to it again.',
     t_fehler: 'That didn’t work', p_fehler: 'Nothing is broken. Try again – or choose another drive.',
   };
-  const T = { keine_platte: ['Keine passende Platte gefunden. Amberwave braucht eine interne Platte mit mindestens 16 GB.', 'No suitable drive found. Amberwave needs an internal drive with at least 16 GB.'],
+  const T = { code_frage: ['Einrichtungscode eingeben – er steht auf dem Bildschirm des Geräts und wurde im USB-Ersteller angezeigt:', 'Enter the setup code – it is shown on the device\'s screen and was shown by the USB creator:'],
+    code_falsch: ['Der Code stimmt nicht. Bitte noch einmal eingeben (8 Zeichen, steht auf dem Bildschirm des Geräts):', 'That code is not right. Please enter it again (8 characters, shown on the device\'s screen):'],
+    code_sperre: ['Zu viele falsche Codes. Bitte in fünf Minuten noch einmal versuchen.', 'Too many wrong codes. Please try again in five minutes.'],
+    keine_platte: ['Keine passende Platte gefunden. Amberwave braucht eine interne Platte mit mindestens 16 GB.', 'No suitable drive found. Amberwave needs an internal drive with at least 16 GB.'],
     usb: ['USB', 'USB'], loeschen: ['<b>Alles auf {p} wird gelöscht.</b> Ist dort noch etwas Wichtiges drauf, jetzt abbrechen.', '<b>Everything on {p} will be erased.</b> If anything important is still on it, stop now.'],
     behalten: ['Amberwave war hier schon installiert. Bibliothek, Konten und Einstellungen behalten (nur das System wird neu aufgespielt)', 'Amberwave was installed here before. Keep library, accounts and settings (only the system is reinstalled)'],
     behalten_warn: ['<b>Das System auf {p} wird neu aufgespielt.</b> Deine Amberwave-Daten bleiben erhalten.', '<b>The system on {p} will be reinstalled.</b> Your Amberwave data stays.'],
@@ -234,7 +237,19 @@ button.zurueck { background: rgba(255,244,230,.08); color: var(--text); border: 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const gb = (b) => (b >= 1e12 ? `${(b / 1e12).toFixed(1)} TB` : `${Math.round(b / 1e9)} GB`);
-  const api = async (pfad, daten) => (await fetch('/api/' + pfad, daten ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(daten) } : {})).json();
+  // Aufträge brauchen den Einrichtungscode (Bildschirm des Geräts / USB-Ersteller) – außer über das Einrichtungs-WLAN
+  let code = ''; try { code = sessionStorage.getItem('aw-code') || ''; } catch (e) { /* ohne Speicher: einmal je Laden fragen */ }
+  const api = async (pfad, daten) => {
+    for (;;) {
+      const r = await fetch('/api/' + pfad, daten ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Amberwave-Code': code }, body: JSON.stringify(daten) } : {});
+      const j = await r.json();
+      if (r.status !== 403 || (j.fehler !== 'code' && j.fehler !== 'code_sperre')) return j;
+      if (j.fehler === 'code_sperre') { alert(tx('code_sperre')); return j; }
+      const c = prompt(tx(code ? 'code_falsch' : 'code_frage'));
+      if (c === null) return j;
+      code = c.trim(); try { sessionStorage.setItem('aw-code', code); } catch (e) { /* egal */ }
+    }
+  };
   const wahl = { platte: null, behalten: true, musik: { art: '' }, name: 'amberwave' };
   let info = null;
   const SCHRITTE = ['sprache', 'platte', 'musik', 'name', 'laeuft'];

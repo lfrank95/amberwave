@@ -8,10 +8,22 @@ BILD="ghcr.io/lfrank95/amberwave-aio:$AW_KANAL"
 
 # Netz des Geräts direkt (kein Docker-NAT): Amberwave ist auf Port 80 (http://amberwave.local) und 8443 (Direktzugang)
 # erreichbar, Heimnetz-Funktionen (DLNA, Cast, Suche der Apps) sehen das echte Netz
+# Einrichtungscode: das erste Admin-Konto legt nur an, wer ihn kennt (Bildschirm des Geräts, USB-Ersteller). Die Einrichtung
+# hat ihn mitgebracht; fehlt er (ältere Installation), wird er einmal ausgewürfelt.
+CODE_DATEI=/daten/system/einrichtungscode
+einrichtungscode() {
+  [ -s "$CODE_DATEI" ] || ( umask 077; python3 -c "import secrets; print(''.join(secrets.choice('ABCDEFGHJKMNPQRSTUVWXYZ23456789') for _ in range(8)), end='')" > "$CODE_DATEI" )
+  cat "$CODE_DATEI" 2>/dev/null
+}
+
+# Der Container bekommt nur die Rechte, die er braucht: keine neuen Rechte über setuid-Programme, keine rohen Netzwerkpakete
+# (er hängt direkt am Netz des Geräts), keine Gerätedateien, kein chroot, keine Datei-Capabilities.
 amberwave_anlegen() {
   docker run -d --name amberwave --restart unless-stopped --stop-timeout 60 --network host \
+    --security-opt no-new-privileges --cap-drop NET_RAW --cap-drop MKNOD --cap-drop SYS_CHROOT --cap-drop SETFCAP --cap-drop SETPCAP \
     -v /daten/appdata:/appdata -v /musik:/musik \
     -e TZ="${AW_ZEITZONE:-Europe/Berlin}" -e AMBERWAVE_OS=1 -e EINRICHTUNG_FENSTER_MINUTEN=0 \
+    -e EINRICHTUNG_CODE_IMMER=1 -e EINRICHTUNGSCODE="$(einrichtungscode)" \
     $( [ "$AW_MUSIK_ART" = intern ] && echo "-e MUSIK_SCHREIBEN=1" ) \
     "$BILD" >/dev/null
 }

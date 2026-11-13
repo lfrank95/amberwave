@@ -10,7 +10,7 @@ Geräten springt sie am Handy von selbst auf). Er läuft nur im Live-System und 
 
   wlan.py --verbinden     installiertes System, beim Start: mit dem gespeicherten WLAN verbinden
 """
-import binascii, hashlib, json, os, re, socket, subprocess, threading, time
+import binascii, hashlib, json, os, re, secrets, socket, subprocess, threading, time
 
 HOTSPOT_SSID = 'Amberwave-Setup'
 HOTSPOT_IP = '10.42.0.1'
@@ -217,6 +217,45 @@ def stick_zugang():
     return {'ssid': ssid, 'passwort': pw} if ssid else None
 
 
+# ---------- Einrichtungscode ----------
+# Acht Zeichen, die nur kennt, wer den Stick erstellt hat (der USB-Ersteller zeigt den Code und schreibt ihn auf den Stick)
+# oder vor dem Gerät steht (Bildschirm). Er ist das Passwort des Einrichtungs-WLANs, die Einrichtungsseite verlangt ihn aus
+# dem Heimnetz, und später das erste Admin-Konto. Ohne Ersteller (Image anders geschrieben) wird er hier ausgewürfelt.
+CODE_DATEI = '/run/amberwave/einrichtungscode'
+CODE_ZEICHEN = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+
+def code_gueltig(c):
+    return len(c) == 8 and all(z in CODE_ZEICHEN for z in c)
+
+
+def einrichtungscode():
+    try:
+        with open(CODE_DATEI) as f:
+            c = f.read().strip()
+    except OSError:
+        c = ''
+    if code_gueltig(c):
+        return c
+    c = ''
+    m = re.search(r'^code_hex=([0-9a-fA-F]{16})\s*$', _stick_datei_lesen(), re.M)
+    if m:
+        try:
+            c = bytes.fromhex(m.group(1)).decode('ascii').upper()
+        except ValueError:
+            c = ''
+    if not code_gueltig(c):
+        c = ''.join(secrets.choice(CODE_ZEICHEN) for _ in range(8))
+    os.makedirs(os.path.dirname(CODE_DATEI), exist_ok=True)
+    alt = os.umask(0o077)
+    try:
+        with open(CODE_DATEI, 'w') as f:
+            f.write(c)
+    finally:
+        os.umask(alt)
+    return c
+
+
 def zugang_lesen(pfad):
     try:
         z = json.load(open(pfad))
@@ -238,7 +277,7 @@ def zugang_speichern(pfad, ssid, passwort):
 
 # ---------- Hotspot (nur Einrichtung) ----------
 class Hotspot:
-    """Offenes WLAN „Amberwave-Setup“ mit DHCP (systemd-networkd) und einem DNS, das jede Frage mit der eigenen
+    """WLAN „Amberwave-Setup“ (WPA2, Passwort = Einrichtungscode) mit DHCP (systemd-networkd) und einem DNS, das jede Frage mit der eigenen
     Adresse beantwortet – so landet das Handy auf der Einrichtungsseite (Captive Portal)."""
 
     def __init__(self, dev):
@@ -257,7 +296,10 @@ class Hotspot:
         os.makedirs('/run/amberwave', exist_ok=True)
         with open(conf, 'w') as f:
             f.write(f'interface={self.dev}\ndriver=nl80211\nssid={HOTSPOT_SSID}\ncountry_code={LAND}\nieee80211d=1\n'
-                    'hw_mode=g\nchannel=6\nieee80211n=1\nwmm_enabled=1\nauth_algs=1\nignore_broadcast_ssid=0\n')
+                    'hw_mode=g\nchannel=6\nieee80211n=1\nwmm_enabled=1\nauth_algs=1\nignore_broadcast_ssid=0\n'
+                    # nicht mehr offen: WPA2 mit dem Einrichtungscode als Passwort
+                    f'wpa=2\nwpa_key_mgmt=WPA-PSK\nrsn_pairwise=CCMP\nwpa_passphrase={einrichtungscode()}\n')
+        os.chmod(conf, 0o600)
         _tun(['ip', 'link', 'set', self.dev, 'down'])
         self.hostapd = subprocess.Popen(['hostapd', conf], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(2)

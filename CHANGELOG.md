@@ -8,7 +8,8 @@ A review of the whole code base (server, web app, Windows client and engine, Amb
 - **"Stay signed in" belongs to a device.** Signing a device out (device list, device limit, password reset) now also ends its remember-me token; before, the token could sign the device back in if the device cookie was missing. A browser that lost its device cookie has to sign in once more.
 - **Windows client: extra VST folders need a confirmation in a client window**, and only folders on local drives are accepted (no network paths). Plug-ins are programs – the web page alone can no longer add a folder to load them from.
 - **Windows client: output devices with more than 8 channels** (e.g. 7.1.4 in shared mode) are refused with a clear message instead of corrupting memory. Pick a layout up to 7.1 in Windows or use exclusive mode.
-- **Amberwave OS: the Wi-Fi password is wiped from the USB stick** once the installation has stored it on the disk. A stick used for a second device starts with the setup hotspot there.
+- **Amberwave OS: setup code.** The USB creator now shows an 8-character setup code when the stick is done and writes it to the stick; the device also shows it on its screen. It is the password of the "Amberwave-Setup" Wi-Fi (no longer open), the setup page asks for it when opened from the home network, and the first admin account can only be created with it. Before, anyone in the same network could set the device up. A stick written without the creator gets a code from the device itself (screen only).
+- **Amberwave OS: the Wi-Fi password and the setup code are wiped from the USB stick** once the installation has stored them on the disk. A stick used for a second device starts with the setup hotspot and a new code there.
 - Impulse responses: 40 of your own per account (admins unlimited); files that cannot be read as WAV are rejected before they are stored.
 
 **Windows client and audio engine**
@@ -45,6 +46,7 @@ A review of the whole code base (server, web app, Windows client and engine, Amb
 **Amberwave OS**
 - The setup page only accepts requests from itself (a web page on the internet could otherwise have triggered the installation – which erases disks – through a browser in the home network).
 - Root no longer writes through files in the folder that belongs to the app container (update status, device key).
+- The Amberwave container runs with fewer rights: no new privileges through setuid programs, no raw network packets (it sits directly on the device's network), no device nodes, no chroot, no file capabilities. Applies when the container is next recreated (update).
 
 **Build pipeline**
 - All GitHub Actions are pinned to commit hashes; workflow inputs reach scripts as environment variables only; the checks workflow runs with read-only permissions.

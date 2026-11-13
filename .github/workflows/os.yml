@@ -192,6 +192,7 @@ jobs:
           Write-Host "wlan.txt: $(($w -split "`n")[0..2] -join ' | ')"
           $soll = -join ([Text.Encoding]::UTF8.GetBytes('Heim WLAN Ä') | ForEach-Object { $_.ToString('x2') })
           if ($w -notmatch "ssid_hex=$soll") { Write-Host "::error title=USB-Ersteller::WLAN nicht auf dem Stick (erwartet ssid_hex=$soll)"; exit 1 }
+          if ($w -notmatch "(?m)^code_hex=[0-9a-f]{16}\s*$") { Write-Host "::error title=USB-Ersteller::Einrichtungscode nicht auf dem Stick"; exit 1 }
           if ((Get-Item "$($teil.DriveLetter):\amberwave\wlan.txt").Length -ne 4096) { Write-Host "::error title=USB-Ersteller::wlan.txt hat die falsche Größe"; exit 1 }
           Write-Host "::notice title=USB-Ersteller::Schon beschriebenen Stick erneut geschrieben und geprüft ($([int]((Get-Date) - $s).TotalSeconds) s), WLAN-Zugang steht auf dem Stick"
       - name: Fenster fotografieren

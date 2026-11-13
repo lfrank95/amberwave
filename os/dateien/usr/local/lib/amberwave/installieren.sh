@@ -135,12 +135,15 @@ if [ "${AW_MUSIK_ART:-}" = nas ]; then
   { set +x; } 2>/dev/null   # das Passwort nie ins Protokoll
   ( umask 077; printf 'username=%s\npassword=%s\n' "${AW_NAS_BENUTZER:-}" "${AW_NAS_PASSWORT:-}" > /mnt/aw/daten/system/nas.zugang )
 fi
+{ set +x; } 2>/dev/null   # der Einrichtungscode nie ins Protokoll
+[ -n "${AW_CODE:-}" ] && ( umask 077; printf '%s' "$AW_CODE" > /mnt/aw/daten/system/einrichtungscode )
+set -x
 if [ -n "${AW_WLAN_SSID:-}" ]; then
   { set +x; } 2>/dev/null   # das WLAN-Passwort nie ins Protokoll
   ( umask 077; python3 -c 'import json, os, sys; json.dump({"ssid": os.environ["AW_WLAN_SSID"], "passwort": os.environ.get("AW_WLAN_PASSWORT", "")}, open(sys.argv[1], "w"))' /mnt/aw/daten/system/wlan.json )
   set -x
 fi
-# Das WLAN-Passwort, das der USB-Ersteller auf den Stick geschrieben hat, steht jetzt auf der Platte – auf dem Stick wird es
+# Das WLAN-Passwort und der Einrichtungscode, die der USB-Ersteller auf den Stick geschrieben hat, stehen jetzt auf der Platte – auf dem Stick wird es
 # überschrieben (an Ort und Stelle, gleiche Größe): der Stick wandert danach in eine Schublade oder zu Freunden.
 (
   for g in /dev/disk/by-partlabel/aw-stick /dev/disk/by-label/AMBERWAVE; do
@@ -148,7 +151,7 @@ fi
     o=/run/amberwave/stick-rw; mkdir -p "$o"
     mount -o rw "$g" "$o" 2>/dev/null || continue
     f="$o/amberwave/wlan.txt"
-    if [ -f "$f" ] && grep -q '^psk_hex=' "$f" 2>/dev/null; then
+    if [ -f "$f" ] && grep -Eq '^(psk_hex|code_hex)=' "$f" 2>/dev/null; then
       n="$(stat -c %s "$f")"
       head -c "$n" /dev/zero | tr '\0' '\n' | dd of="$f" conv=notrunc status=none && sync
     fi

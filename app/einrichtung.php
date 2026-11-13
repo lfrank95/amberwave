@@ -411,10 +411,10 @@ einr_kopf(t('Einrichtung'));
  <p class="sub"><?= h(t('Damit niemand außer dir einrichten kann, braucht es hier einen Code.')) ?> <?= h(match ($herkunft['grund']) {
      'proxy' => t('Deine Anfrage kommt über einen Proxy oder Tunnel.'),
      'bruecke' => t('Deine Anfrage kommt über die Docker-Brücke ({ip}) – so kommen auch Zugriffe aus dem Internet über Dockers Portweiterleitung an.', ['ip' => $herkunft['ip']]),
-     'lokal' => t('So ist es in der .env eingestellt (EINRICHTUNG_CODE_IMMER=1).'),
+     'lokal' => getenv('AMBERWAVE_OS') === '1' ? t('Auf Amberwave OS braucht die Einrichtung immer den Code des Geräts.') : t('So ist es in der .env eingestellt (EINRICHTUNG_CODE_IMMER=1).'),
      default => t('Deine Adresse {ip} gehört nicht zum Heimnetz.', ['ip' => $herkunft['ip']]),
  }) ?></p>
- <div class="hinweis"><span>🔑</span><span><?= t('<b>Wo steht der Code?</b>Im Log von <code>amberwave_app</code> (Unraid: Docker-Tab → Logs) oder in der Datei <code>cache/geheimnisse/einrichtungscode</code>.') ?></span></div>
+ <div class="hinweis"><span>🔑</span><span><?= getenv('AMBERWAVE_OS') === '1' ? t('<b>Wo steht der Code?</b>Auf dem Bildschirm des Geräts – und der USB-Ersteller hat ihn beim Erstellen des Sticks angezeigt.') : t('<b>Wo steht der Code?</b>Im Log von <code>amberwave_app</code> (Unraid: Docker-Tab → Logs) oder in der Datei <code>cache/geheimnisse/einrichtungscode</code>.') ?></span></div>
  <label for="f-code"><?= h(t('Einrichtungscode')) ?></label><input id="f-code" name="code" type="text" placeholder="<?= h(t('z. B. K7QM-4TXP')) ?>" autocapitalize="characters" spellcheck="false" autocomplete="off">
  <div class="hinweis rot" id="code-fehler" style="margin-top:10px" hidden><span>⚠️</span><span id="code-fehler-text"></span></div>
  <button class="btn" id="code-weiter" type="button"><?= h(t('Weiter')) ?></button>

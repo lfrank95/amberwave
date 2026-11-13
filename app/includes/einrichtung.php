@@ -227,7 +227,9 @@ function einrichtung_code_pruefen(string $eingabe): ?string
         return tn((int) ceil(((int) $d['bis'] - time()) / 60), 'Zu viele falsche Codes. Bitte in einer Minute erneut versuchen.', 'Zu viele falsche Codes. Bitte in {n} Minuten erneut versuchen.');
     }
     if ($eingabe === '') {
-        return t('Bitte den Einrichtungscode eintragen. Er steht im Log von amberwave_app und in der Datei cache/geheimnisse/einrichtungscode.');
+        return getenv('AMBERWAVE_OS') === '1'
+            ? t('Bitte den Einrichtungscode eintragen. Er steht auf dem Bildschirm des Geräts und wurde im USB-Ersteller angezeigt.')
+            : t('Bitte den Einrichtungscode eintragen. Er steht im Log von amberwave_app und in der Datei cache/geheimnisse/einrichtungscode.');
     }
     if (hash_equals(einrichtung_code_norm(einrichtung_code()), einrichtung_code_norm($eingabe))) {
         geheimnis_loeschen($datei);
@@ -238,7 +240,9 @@ function einrichtung_code_pruefen(string $eingabe): ?string
         $d = ['n' => 0, 'bis' => time() + 300];
     }
     geheimnis_schreiben($datei, (string) json_encode($d));
-    return t('Der Einrichtungscode stimmt nicht. Er steht im Log von amberwave_app und in der Datei cache/geheimnisse/einrichtungscode.');
+    return getenv('AMBERWAVE_OS') === '1'
+        ? t('Der Einrichtungscode stimmt nicht. Er steht auf dem Bildschirm des Geräts und wurde im USB-Ersteller angezeigt.')
+        : t('Der Einrichtungscode stimmt nicht. Er steht im Log von amberwave_app und in der Datei cache/geheimnisse/einrichtungscode.');
 }
 
 /**

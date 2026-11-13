@@ -259,8 +259,24 @@ static std::string hex(const std::string &s) {
   for (unsigned char c : s) { r += z[c >> 4]; r += z[c & 15]; }
   return r;
 }
+/* Einrichtungscode: acht Zeichen, die der Ersteller anzeigt und auf den Stick schreibt. Das Gerät verlangt ihn für die
+   Einrichtung (Seite im Browser, Passwort des WLANs „Amberwave-Setup“, erstes Admin-Konto) – so richtet nur ein, wer den
+   Stick erstellt hat oder vor dem Bildschirm des Geräts steht. */
+extern "C" BOOLEAN WINAPI SystemFunction036(PVOID, ULONG);   // RtlGenRandom (advapi32)
+static char einr_code[9] = "";
+static void code_wuerfeln(void) {
+  static const char Z[] = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // 31 Zeichen, ohne 0/O/1/I/L
+  BYTE b[64];
+  einr_code[0] = 0;
+  if (!SystemFunction036(b, sizeof b)) return;   // ohne Zufall kein Code: dann würfelt das Gerät selbst und zeigt ihn am Bildschirm
+  int n = 0;
+  for (int i = 0; i < (int)sizeof b && n < 8; i++) if (b[i] < 248) einr_code[n++] = Z[b[i] % 31];   // 248 = 8 × 31: gleichverteilt
+  einr_code[n == 8 ? 8 : 0] = 0;
+}
 static void wlan_sektor_bauen(void) {
-  std::string t = "# Amberwave: WLAN vom USB-Ersteller\nssid_hex=" + hex(wlan_ssid8) + "\npsk_hex=" + hex(wlan_pw8) + "\n";
+  std::string t = "# Amberwave: vom USB-Ersteller\n";
+  if (wlan_mitgeben) t += "ssid_hex=" + hex(wlan_ssid8) + "\npsk_hex=" + hex(wlan_pw8) + "\n";
+  if (einr_code[0]) t += "code_hex=" + hex(einr_code) + "\n";
   memset(wlan_sektor, '\n', sizeof wlan_sektor);
   memcpy(wlan_sektor, t.data(), t.size() < 512 ? t.size() : 512);
 }
@@ -317,7 +333,7 @@ static int wlan_lesen(void) {
 }
 /** Im gelesenen Block (ab Sektorgrenze) den Platzhalter durch die Zugangsdaten ersetzen */
 static void wlan_einsetzen(BYTE *b, DWORD n) {
-  if (!wlan_mitgeben) return;
+  if (!wlan_mitgeben && !einr_code[0]) return;
   for (DWORD o = 0; o + 512 <= n; o += 512)
     if (!memcmp(b + o, WLAN_MARKE, sizeof WLAN_MARKE - 1)) memcpy(b + o, wlan_sektor, 512);
 }
@@ -404,7 +420,7 @@ static int schreiben(const wchar_t *img, int nr) {
   wchar_t p[32]; _snwprintf(p, 32, L"\\\\.\\PhysicalDrive%d", nr);
   HANDLE d = CreateFileW(p, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH, NULL);
   int ok = 0;
-  if (wlan_mitgeben) wlan_sektor_bauen();
+  wlan_sektor_bauen();
   const DWORD BLOCK = 4 << 20;
   BYTE *b1 = (BYTE *)VirtualAlloc(NULL, BLOCK, MEM_COMMIT, PAGE_READWRITE), *b2 = (BYTE *)VirtualAlloc(NULL, BLOCK, MEM_COMMIT, PAGE_READWRITE);
   GET_LENGTH_INFORMATION li = {}; DWORD n = 0;
@@ -719,9 +735,9 @@ static void seite_fertig(void) {
   text(TX(L"Der Stick ist fertig", L"The stick is ready"), h, TEXTFARBE, 96, 72);
   const wchar_t *schritte[4] = {
     wlan_mitgeben ? TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll. Das WLAN ist eingetragen – ein Kabel braucht es nicht.", L"Plug the stick into the PC that should run Amberwave. The Wi-Fi is included – no cable needed.")
-                  : TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll – mit Netzwerkkabel am Router. Ohne Kabel öffnet es ein eigenes WLAN „Amberwave-Setup“.", L"Plug the stick into the PC that should run Amberwave – with a network cable to your router. Without a cable it opens its own Wi-Fi “Amberwave-Setup”."),
+                  : TX(L"Stick in den PC stecken, auf dem Amberwave laufen soll – mit Netzwerkkabel am Router. Ohne Kabel öffnet es ein eigenes WLAN „Amberwave-Setup“ (Passwort: der Einrichtungscode unten).", L"Plug the stick into the PC that should run Amberwave – with a network cable to your router. Without a cable it opens its own Wi-Fi “Amberwave-Setup” (password: the setup code below)."),
     TX(L"Beim Einschalten das Startmenü öffnen (meist F11, F12, F8 oder Esc) und den Stick wählen.", L"When switching on, open the boot menu (usually F11, F12, F8 or Esc) and pick the stick."),
-    TX(L"Am Bildschirm erscheint eine Adresse – auf Handy oder PC öffnen, Platte wählen, installieren.", L"An address appears on screen – open it on your phone or PC, pick the drive, install."),
+    TX(L"Am Bildschirm erscheint eine Adresse – auf Handy oder PC öffnen, Einrichtungscode eingeben, Platte wählen, installieren.", L"An address appears on screen – open it on your phone or PC, enter the setup code, pick the drive, install."),
     TX(L"Danach den Stick abziehen. Amberwave ist dann unter http://amberwave.local erreichbar.", L"Then unplug the stick. Amberwave is then at http://amberwave.local."),
   };
   float y = 136;
@@ -729,6 +745,12 @@ static void seite_fertig(void) {
     wchar_t n[4]; _snwprintf(n, 4, L"%d", i + 1);
     flaeche(RectF(40, y, 26, 26), 13, farbe(30, 255, 181, 71)); text(n, tf, AMBER1, 53, y + 4, 0, 1);
     y += absatz(schritte[i], t, WARM, 80, y + 3, BREITE - 120) + 20;
+  }
+  if (einr_code[0]) {   // unten links, neben „Schließen“: der Code zum Abschreiben (steht später auch am Bildschirm des Geräts)
+    wchar_t c[16]; _snwprintf(c, 16, L"%hs", einr_code);
+    Font fc(fam_fett, 22, FontStyleRegular, UnitPixel), tk(fam_text, 12, FontStyleRegular, UnitPixel);
+    text(TX(L"Einrichtungscode – bitte notieren (steht auch am Bildschirm des Geräts)", L"Setup code – please note it down (also shown on the device's screen)"), tk, WARM, 40, HOEHE - 82);
+    text(c, fc, AMBER1, 40, HOEHE - 62);
   }
   knopf(Z_SCHLIESSEN, TX(L"Schließen", L"Close"), BREITE - 40, HOEHE - 70, 1);
 }
@@ -892,6 +914,7 @@ static void protokoll(const wchar_t *datei, const std::wstring &s) {
 int WINAPI wWinMain(HINSTANCE hi, HINSTANCE, PWSTR, int) {
   inst = hi;
   InitializeCriticalSection(&sperre);
+  code_wuerfeln();
   int argc = 0; wchar_t **argv = CommandLineToArgvW(GetCommandLineW(), &argc);
   for (int i = 1; i < argc; i++) if (!wcscmp(argv[i], L"--alle-laufwerke")) alle_laufwerke = 1;
   if (argc >= 3 && !wcscmp(argv[1], L"--liste")) {

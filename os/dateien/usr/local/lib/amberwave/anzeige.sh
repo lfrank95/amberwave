@@ -15,7 +15,22 @@ while true; do
   IPS="$(ip -4 -o addr show scope global 2>/dev/null | awk '$2 !~ /^(docker|br-|veth|lo)/ {split($4,a,"/"); if (a[1] != "10.42.0.1") print a[1]}' | paste -sd' ')"
   HOTSPOT="$(cat /run/amberwave/hotspot 2>/dev/null)"
   STAND="$(cat /run/amberwave/stand 2>/dev/null)"
-  bild="$LIVE|$NAME|$IPS|$STAND|$HOTSPOT"
+  # Einrichtungscode: im Live-System immer; installiert nur, solange Amberwave noch kein Admin-Konto hat
+  CODE=""
+  if [ "$LIVE" = 1 ]; then
+    CODE="$(cat /run/amberwave/einrichtungscode 2>/dev/null)"
+  elif [ ! -e /run/amberwave/eingerichtet ] && [ -s /daten/system/einrichtungscode ]; then
+    runde=$(( ${runde:-0} + 1 ))
+    if [ $(( runde % 15 )) = 1 ]; then   # alle 30 s nachsehen, wohin die Startseite leitet
+      case "$(curl -s -m 3 -o /dev/null -w '%{redirect_url}' http://127.0.0.1/ 2>/dev/null)" in
+        *einrichtung*) offen=1 ;;
+        "") : ;;
+        *) offen=0; touch /run/amberwave/eingerichtet ;;
+      esac
+    fi
+    [ "${offen:-0}" = 1 ] && CODE="$(cat /daten/system/einrichtungscode 2>/dev/null)"
+  fi
+  bild="$LIVE|$NAME|$IPS|$STAND|$HOTSPOT|$CODE"
   if [ "$bild" != "$vorher" ]; then
     vorher="$bild"
     printf '\e[2J\e[H\n\n'
@@ -26,7 +41,7 @@ while true; do
       printf '   %sAmberwave%s - im Browser öffnen:\n\n' "$H" "$N"
     fi
     if [ -n "$HOTSPOT" ] && [ -z "$IPS" ]; then
-      printf '      Mit dem Handy ins WLAN  %s%s%s%s  gehen -\n' "$A" "$H" "$HOTSPOT" "$N"
+      printf '      Mit dem Handy ins WLAN  %s%s%s%s  gehen (Passwort: %s%s%s%s) -\n' "$A" "$H" "$HOTSPOT" "$N" "$A" "$H" "$CODE" "$N"
       printf '      die Einrichtung öffnet sich von selbst (sonst: %shttp://10.42.0.1%s)\n' "$A" "$N"
       printf '\n      %sOder ein Netzwerkkabel einstecken.%s\n' "$L" "$N"
     elif [ -n "$IPS" ]; then
@@ -36,6 +51,7 @@ while true; do
       printf '      %sWarte auf das Netzwerk ... Netzwerkkabel eingesteckt?%s\n' "$R" "$N"
     fi
     printf '\n'
+    [ -n "$CODE" ] && printf '   Einrichtungscode / setup code:  %s%s%s%s\n\n' "$A" "$H" "$CODE" "$N"
     if [ -n "$STAND" ]; then
       case "$STAND" in fehler:*) printf '   %s%s%s\n' "$R" "$(printf '%s' "${STAND#fehler:}" | sed 's/…/.../g; s/–/-/g')" "$N" ;; laeuft*) printf '   %s* %s%s\n' "$G" "Amberwave läuft" "$N" ;; *) printf '   %s%s%s\n' "$L" "$(printf '%s' "$STAND" | sed 's/…/.../g; s/–/-/g')" "$N" ;; esac
     fi

@@ -3,7 +3,7 @@
 Stick starten → Einrichtung im Browser per API → auf die leere virtuelle SSD installieren → Stick „abziehen“ →
 Neustart von der SSD → Amberwave antwortet. Bildschirmfotos der Konsole landen in <ausgabe>.
   test_vm.py <image> <ausgabe> [kanal]"""
-import json, os, socket, subprocess, sys, time, urllib.request
+import json, os, socket, subprocess, sys, time, urllib.error, urllib.request
 
 IMG, AUS = sys.argv[1], sys.argv[2]
 KANAL = sys.argv[3] if len(sys.argv) > 3 else 'main'
@@ -18,11 +18,19 @@ def melden(art, titel, text):
     ergebnis.append(f'{titel}: {text}')
 
 
-def holen(pfad, daten=None, zeit=10):
+CODE = 'TEST2345'   # Einrichtungscode: wie vom USB-Ersteller auf den Stick geschrieben
+
+
+def holen(pfad, daten=None, zeit=10, code=CODE):
     req = urllib.request.Request(BASIS + pfad, data=json.dumps(daten).encode() if daten is not None else None,
-                                 headers={'Content-Type': 'application/json'} if daten is not None else {})
-    with urllib.request.urlopen(req, timeout=zeit) as r:
-        return json.loads(r.read() or b'{}')
+                                 headers={'Content-Type': 'application/json', 'X-Amberwave-Code': code} if daten is not None else {})
+    try:
+        with urllib.request.urlopen(req, timeout=zeit) as r:
+            return json.loads(r.read() or b'{}')
+    except urllib.error.HTTPError as e:
+        if e.code == 403:   # abgelehnt (Code fehlt/falsch): die Antwort sagt, warum
+            return json.loads(e.read() or b'{}')
+        raise
 
 
 class Qmp:
@@ -62,6 +70,7 @@ def warten(bedingung, sekunden, was):
     raise TimeoutError(was)
 
 
+subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wlan_einsetzen.py'), IMG, '--code', CODE], check=True)
 subprocess.run(['qemu-img', 'create', '-f', 'qcow2', os.path.join(AUS, 'ssd.qcow2'), '32G'], check=True, capture_output=True)
 # Secure Boot an, mit den Microsoft-Schlüsseln wie auf einem gewöhnlichen PC
 subprocess.run(['cp', '/usr/share/OVMF/OVMF_VARS_4M.ms.fd', os.path.join(AUS, 'vars.fd')], check=True)
@@ -80,6 +89,12 @@ try:
     melden('notice', 'Live-System', f'Einrichtung nach {int(time.time() - t0)} s erreichbar, Secure Boot an · Platten: ' + ', '.join(f"{p['name']} {p['groesse'] // 2**30} GB {p['art']}" for p in info['platten']))
     time.sleep(3); foto(q, '1-live-konsole')
     ziel = next(p for p in info['platten'] if p['name'].startswith('vd'))
+    # ohne und mit falschem Einrichtungscode darf nichts passieren
+    for falsch in ('', 'AAAA2222'):
+        r = holen('/api/installieren', {'platte': ziel['name'], 'name': 'wohnzimmer', 'kanal': KANAL, 'musik': {'art': 'intern'}, 'zeitzone': 'Europe/Berlin'}, code=falsch)
+        if r.get('ok') or r.get('fehler') != 'code':
+            raise RuntimeError(f'Installation ohne gültigen Einrichtungscode nicht abgelehnt: {json.dumps(r)}')
+    melden('notice', 'Einrichtungscode', 'ohne und mit falschem Code abgelehnt')
     r = holen('/api/installieren', {'platte': ziel['name'], 'name': 'wohnzimmer', 'kanal': KANAL, 'musik': {'art': 'intern'}, 'zeitzone': 'Europe/Berlin'})
     if not r.get('ok'):
         raise RuntimeError('Installation abgelehnt: ' + json.dumps(r))

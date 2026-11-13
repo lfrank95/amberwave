@@ -5,7 +5,7 @@ Zeigt die Platten des Geräts, nimmt Zielplatte, Musikquelle und Namen entgegen 
 Installation wartet es, bis der Stick abgezogen ist, und startet das Gerät neu (ins installierte System).
 Nur Standardbibliothek – im Live-System gibt es nichts anderes.
 """
-import json, os, re, subprocess, threading, time
+import hmac, json, os, re, subprocess, threading, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from aw_gemeinsam import platten, kanal_standard, ips, nas_pruefen
 import wlan
@@ -114,6 +114,10 @@ def stick_beobachten():
     neu_starten()
 
 
+CODE = wlan.einrichtungscode()
+CODE_VERSUCHE = {'n': 0, 'bis': 0.0}   # Bremse gegen Raten: 8 falsche Codes → 5 Minuten Pause
+
+
 def installieren(w):
     global gestartet
     ziele, musik = platten()
@@ -127,7 +131,7 @@ def installieren(w):
     env = dict(os.environ, AW_PLATTE=ziel['name'], AW_BEHALTEN='1' if w.get('behalten') and ziel['amberwave'] else '0', AW_NAME=name,
                AW_KANAL=w.get('kanal') if w.get('kanal') in ('beta', 'latest', 'main') else kanal_standard(),
                AW_ZEITZONE=w.get('zeitzone') if re.match(r'^[A-Za-z_]+(/[A-Za-z_+-]+)*$', w.get('zeitzone') or '') else 'Europe/Berlin',
-               AW_MUSIK_ART='intern')
+               AW_MUSIK_ART='intern', AW_CODE=CODE)
     z = wlan.zugang_lesen(wlan.LIVE_DATEI)
     if z:
         env.update(AW_WLAN_SSID=z['ssid'], AW_WLAN_PASSWORT=z.get('passwort', ''))
@@ -221,11 +225,31 @@ class Anfrage(BaseHTTPRequestHandler):
         host = (self.headers.get('Host') or '').lower()
         return bool(herkunft) and herkunft not in ('http://' + host, 'https://' + host)
 
+    def code_fehlt(self):
+        """Aufträge (Platte löschen, WLAN wechseln, neu starten) nur mit dem Einrichtungscode – außer über das Einrichtungs-WLAN,
+        dessen Passwort der Code schon ist. Liefert None oder 'code' / 'code_sperre'."""
+        if self.ueber_hotspot():
+            return None
+        if time.time() < CODE_VERSUCHE['bis']:
+            return 'code_sperre'
+        c = re.sub(r'[^A-Za-z0-9]', '', self.headers.get('X-Amberwave-Code') or '').upper()
+        if c and hmac.compare_digest(c.encode(), CODE.encode()):
+            CODE_VERSUCHE['n'] = 0
+            return None
+        if c:
+            CODE_VERSUCHE['n'] += 1
+            if CODE_VERSUCHE['n'] >= 8:
+                CODE_VERSUCHE.update(n=0, bis=time.time() + 300)
+        return 'code'
+
     def do_POST(self):
         if self.umleiten():
             return
         if self.fremde_seite():
             return self.senden(403, {'ok': False, 'fehler': 'herkunft'})
+        f = self.code_fehlt()
+        if f:
+            return self.senden(403, {'ok': False, 'fehler': f})
         n = int(self.headers.get('Content-Length') or 0)
         try:
             w = json.loads(self.rfile.read(min(n, 65536)) or b'{}')

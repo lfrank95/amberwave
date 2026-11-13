@@ -370,5 +370,7 @@
  "Unbekannter Pfad.": "Unknown path.",
  "Bitte mit deinem Anmelde-Passwort bestätigen.": "Please confirm with your login password.",
  "Diesen Namen gibt es schon zu oft – bitte die Datei umbenennen.": "This name is already taken too many times – please rename the file.",
- "Du hast schon 40 eigene Impulsantworten – bitte erst welche löschen.": "You already have 40 impulse responses of your own – please delete some first."
+ "Du hast schon 40 eigene Impulsantworten – bitte erst welche löschen.": "You already have 40 impulse responses of your own – please delete some first.",
+ "Bitte den Einrichtungscode eintragen. Er steht auf dem Bildschirm des Geräts und wurde im USB-Ersteller angezeigt.": "Please enter the setup code. It is shown on the device's screen and was shown by the USB creator.",
+ "Der Einrichtungscode stimmt nicht. Er steht auf dem Bildschirm des Geräts und wurde im USB-Ersteller angezeigt.": "The setup code is not right. It is shown on the device's screen and was shown by the USB creator."
 }

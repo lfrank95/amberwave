@@ -3,6 +3,7 @@
 
   wlan_einsetzen.py <image> --pruefen          nur nachsehen: genau ein Platzhalter, auf einer Sektorgrenze?
   wlan_einsetzen.py <image> <ssid> <passwort>  eintragen (für Tests)
+  wlan_einsetzen.py <image> --code <code>      nur den Einrichtungscode eintragen (für Tests)
 Der Platzhalter ist der Anfang von /amberwave/wlan.txt auf dem Stick; ersetzt wird genau dieser eine Sektor (512 Byte).
 """
 import sys
@@ -10,8 +11,13 @@ import sys
 MARKE = b'#AMBERWAVE-WLAN-PLATZHALTER-7f3a9c#\n'
 
 
-def sektor(ssid, passwort):
-    text = f'# Amberwave: WLAN vom USB-Ersteller\nssid_hex={ssid.encode().hex()}\npsk_hex={passwort.encode().hex()}\n'.encode()
+def sektor(ssid, passwort, code=''):
+    text = '# Amberwave: vom USB-Ersteller\n'
+    if ssid:
+        text += f'ssid_hex={ssid.encode().hex()}\npsk_hex={passwort.encode().hex()}\n'
+    if code:
+        text += f'code_hex={code.encode().hex()}\n'
+    text = text.encode()
     return text + b'\n' * (512 - len(text))
 
 
@@ -34,5 +40,9 @@ if __name__ == '__main__':
             print(f'WLAN-Platzhalter bei Byte {funde[0]} (Sektor {funde[0] // 512})')
             sys.exit(0)
         f.seek(funde[0])
-        f.write(sektor(sys.argv[2], sys.argv[3]))
-        print(f'WLAN „{sys.argv[2]}“ eingetragen (Sektor {funde[0] // 512})')
+        if sys.argv[2:3] == ['--code']:
+            f.write(sektor('', '', sys.argv[3]))
+            print(f'Einrichtungscode eingetragen (Sektor {funde[0] // 512})')
+        else:
+            f.write(sektor(sys.argv[2], sys.argv[3]))
+            print(f'WLAN „{sys.argv[2]}“ eingetragen (Sektor {funde[0] // 512})')
